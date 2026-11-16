@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05070c">
+<title>Roadster Escape</title>
+<style>
+  /* ============================================================
+     Grund-Styles: kein Scrollen, kein Zoomen, kein Markieren,
+     kein Long-Press-Menü (iOS Safari).
+     ============================================================ */
+  :root {
+    --hud: rgba(255,255,255,0.92);
+    --hud-dim: rgba(255,255,255,0.55);
+    --accent: #36e0ff;
+    --danger: #ff3b4e;
+    --panel: rgba(10,14,22,0.82);
+  }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #05070c; color: var(--hud);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    touch-action: none; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+  #fps { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left));
+         font: 600 12px ui-monospace, Menlo, monospace; color: var(--hud-dim); }
+  #speedo { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+            text-align: center; min-width: 210px; }
+  #speedVal { font: 800 64px/0.9 -apple-system, "SF Pro Display", Roboto, sans-serif; letter-spacing: -2px;
+              text-shadow: 0 2px 12px rgba(0,0,0,0.6); font-variant-numeric: tabular-nums; }
+  #speedUnit { font: 600 13px sans-serif; color: var(--hud-dim); letter-spacing: 2px; }
+  #gearBox { display: inline-flex; align-items: baseline; gap: 2px; margin-left: 10px; font: 800 30px sans-serif; color: var(--accent); }
+  #gearSub { font-size: 15px; color: var(--hud-dim); }
+  #rpmBar { width: 210px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); margin: 8px auto 0; overflow: hidden; }
+  #rpmFill { height: 100%; width: 0%; background: linear-gradient(90deg, #36e0ff, #7c5cff 70%, #ff3b4e); border-radius: 3px; }
+  #telemetry { position: absolute; top: calc(28px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left));
+               font: 11px/1.45 ui-monospace, Menlo, monospace; background: rgba(0,0,0,0.45); padding: 8px 10px;
+               border-radius: 8px; white-space: pre; display: none; }
+
+  /* ---------- Obere Knöpfe ---------- */
+  .topbtn { position: fixed; top: calc(10px + env(safe-area-inset-top)); width: 46px; height: 46px; border-radius: 50%;
+            background: rgba(0,0,0,0.38); border: 1px solid rgba(255,255,255,0.25); color: #fff;
+            font-size: 22px; display: flex; align-items: center; justify-content: center; z-index: 5; }
+  #btnSettings { right: calc(12px + env(safe-area-inset-right)); }
+  #btnReset { right: calc(66px + env(safe-area-inset-right)); }
+
+  /* ---------- Vorläufige Touch-Steuerung (Phase 2 ersetzt sie durch Joystick) ---------- */
+  #touch { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+  .tbtn { position: absolute; pointer-events: auto; border-radius: 50%;
+          background: rgba(255,255,255,0.13); border: 2px solid rgba(255,255,255,0.35);
+          color: rgba(255,255,255,0.9); font: 700 15px sans-serif;
+          display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+  .tbtn.on { background: rgba(54,224,255,0.35); border-color: rgba(54,224,255,0.9); }
+  #tLeft  { left: calc(24px + env(safe-area-inset-left));  bottom: calc(28px + env(safe-area-inset-bottom)); width: 92px; height: 92px; font-size: 34px; }
+  #tRight { left: calc(130px + env(safe-area-inset-left)); bottom: calc(28px + env(safe-area-inset-bottom)); width: 92px; height: 92px; font-size: 34px; }
+  #tGas   { right: calc(24px + env(safe-area-inset-right)); bottom: calc(28px + env(safe-area-inset-bottom)); width: 110px; height: 110px; }
+  #tBrake { right: calc(146px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); width: 86px; height: 86px; }
+  #tHand  { right: calc(150px + env(safe-area-inset-right)); bottom: calc(124px + env(safe-area-inset-bottom)); width: 64px; height: 64px; font-size: 12px; }
+  #tUp    { right: calc(40px + env(safe-area-inset-right)); bottom: calc(160px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 22px; }
+  #tDown  { right: calc(40px + env(safe-area-inset-right)); bottom: calc(232px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 22px; }
+  .manualOnly { display: none !important; }
+  body.manual .manualOnly { display: flex !important; }
+
+  /* ---------- Einstellungen ---------- */
+  #settings { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center;
+              background: rgba(0,0,0,0.5); }
+  #settings.open { display: flex; }
+  .panel { background: var(--panel); border: 1px solid rgba(255,255,255,0.12); border-radius: 18px; padding: 18px 22px;
+           width: min(460px, 88vw); max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+  .panel h2 { margin: 0 0 12px; font-size: 20px; letter-spacing: 1px; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07); gap: 12px; }
+  .row:last-of-type { border-bottom: none; }
+  .row small { display: block; color: var(--hud-dim); font-size: 12px; }
+  .seg { display: flex; background: rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+  .seg button { background: none; border: none; color: #fff; padding: 9px 12px; font: 600 13px sans-serif; }
+  .seg button.sel { background: var(--accent); color: #031018; }
+  .closeBtn { margin-top: 14px; width: 100%; padding: 12px; border-radius: 12px; border: none; background: var(--accent); color: #031018; font: 700 15px sans-serif; }
+  .help { font-size: 12px; color: var(--hud-dim); margin-top: 10px; line-height: 1.5; }
+
+  /* ---------- Hochformat-Hinweis ---------- */
+  #rotate { position: fixed; inset: 0; z-index: 20; background: #05070c; display: none; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center; padding: 24px; }
+  #rotate .icon { font-size: 54px; animation: rot 2s ease-in-out infinite; }
+  @keyframes rot { 0%,20% { transform: rotate(0deg); } 60%,100% { transform: rotate(90deg); } }
+  @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="fps">-- FPS</div>
+  <div id="telemetry"></div>
+  <div id="speedo">
+    <div><span id="speedVal">0</span><span id="gearBox"><span id="gearMain">D</span><span id="gearSub">1</span></span></div>
+    <div id="speedUnit">KM/H</div>
+    <div id="rpmBar"><div id="rpmFill"></div></div>
+  </div>
+</div>
+
+<button class="topbtn" id="btnSettings" aria-label="Einstellungen">⚙︎</button>
+<button class="topbtn" id="btnReset" aria-label="Auto zurücksetzen">↺</button>
+
+<div id="touch">
+  <div class="tbtn" id="tLeft">◀</div>
+  <div class="tbtn" id="tRight">▶</div>
+  <div class="tbtn" id="tGas">GAS</div>
+  <div class="tbtn" id="tBrake">BREMSE</div>
+  <div class="tbtn" id="tHand">HAND-<br>BREMSE</div>
+  <div class="tbtn manualOnly" id="tUp">▲</div>
+  <div class="tbtn manualOnly" id="tDown">▼</div>
+</div>
+
+<div id="settings">
+  <div class="panel">
+    <h2>EINSTELLUNGEN</h2>
+    <div class="row"><div>Getriebe<small>Handschaltung: Gänge selbst wechseln</small></div>
+      <div class="seg" data-key="transmission"><button data-v="auto">Automatik</button><button data-v="manual">Manuell</button></div></div>
+    <div class="row"><div>Fahrhilfen<small>Traktions- &amp; Stabilitätskontrolle. Aus = mehr Driften</small></div>
+      <div class="seg" data-key="tractionControl"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
+    <div class="row"><div>Grafik<small>Kantenglättung wird nach Neuladen aktiv</small></div>
+      <div class="seg" data-key="quality"><button data-v="low">Niedrig</button><button data-v="medium">Mittel</button><button data-v="high">Hoch</button></div></div>
+    <div class="row"><div>Telemetrie<small>Physik-Daten pro Rad anzeigen</small></div>
+      <div class="seg" data-key="telemetry"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
+    <button class="closeBtn" id="btnClose">Weiterfahren</button>
+    <div class="help">Tastatur (zum Testen am Rechner): W/↑ Gas · S/↓ Bremse/Rückwärts · A/D ←/→ Lenken ·
+      Leertaste Handbremse · E/Q Gang hoch/runter · R Zurücksetzen · T Telemetrie · M Getriebe umschalten</div>
+  </div>
+</div>
+
+<div id="rotate"><div class="icon">📱</div><p>Bitte das Gerät ins <b>Querformat</b> drehen.</p></div>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =====================================================================
+   ROADSTER ESCAPE – Phase 1: Grundgerüst & Fahrphysik
+   ---------------------------------------------------------------------
+   Module (in dieser Datei als Abschnitte, ab Phase 10 eigene Dateien):
+     CONFIG      – alle Abstimmungswerte an einem Ort
+     Settings    – Einstellungen + localStorage
+     Input       – Tastatur + (vorläufige) Touch-Knöpfe
+     World       – Gelände als Höhenfunktion (Kollision) + Darstellung
+     Drivetrain  – E-Motor-Kennlinie, Getriebe (Automatik/Manuell)
+     Vehicle     – Raycast-Fahrzeugphysik (Federung, Reifen, Aero)
+     CarModel    – 3D-Modell des Roadsters „Voltara Aero R“
+     SkidMarks   – Reifenspuren
+     CameraRig   – Verfolger-Kamera (Phase 3 erweitert sie)
+     HUD         – Tacho, Gang, Drehzahl, Telemetrie
+     Game        – Spielschleife mit fester Physik-Schrittweite
+   Koordinaten: Y nach oben, Fahrzeug-Vorderseite = lokale −Z, rechts = +X.
+   ===================================================================== */
+
+// ============================== CONFIG ==============================
+const CONFIG = {
+  physicsHz: 120,                 // feste Physik-Schrittweite (1/120 s)
+  maxSubSteps: 8,
+  car: {
+    name: 'Voltara Aero R',
+    mass: 1650,                   // kg
+    inertiaBox: { w: 1.9, h: 1.0, l: 4.3 },
+    cgHeight: 0.45,               // Schwerpunkt über Boden (Ruhelage, für Modell-Offset)
+    wheelRadius: 0.34,
+    wheelWidth: 0.28,
+    wheels: [                     // Aufhängungspunkte relativ zum Schwerpunkt
+      { x: -0.84, z: -1.26, front: true  },  // vorne links
+      { x:  0.84, z: -1.26, front: true  },  // vorne rechts
+      { x: -0.87, z:  1.36, front: false },  // hinten links
+      { x:  0.87, z:  1.36, front: false },  // hinten rechts
+    ],
+    mountY: 0.16,
+    suspension: {
+      restLength: 0.34,
+      springFront: 50000, springRear: 47000,   // N/m (~1,7 Hz Eigenfrequenz)
+      damperBump: 3700, damperRebound: 5000,   // Ns/m
+      antiRollFront: 26000, antiRollRear: 15000,
+      bumpStop: 600000,
+      forceApplyLift: 0.18,       // Querkraft etwas über Aufstandspunkt (weniger Wanken)
+    },
+    tire: {
+      mu: 1.32,                   // Haftbeiwert (Hypercar-Semislicks)
+      B: 10.5, C: 1.38, E: 0.15,  // vereinfachte Pacejka-Formel
+      rollResist: 0.011,
+      loadCapFactor: 2.6,         // Max. Radlast (×statisch) für Grip
+      handbrakeGrip: 0.62,        // Hinterachs-Seitengrip bei Handbremse
+      loadSensitivity: 0.14,      // Grip wächst unterproportional mit Radlast
+      rearGrip: 1.10,             // breitere Hinterreifen → stabiler
+    },
+    steer: { max: 0.56, speedFalloff: 0.11, rate: 2.6, returnRate: 4.2, wheelToSteeringWheel: 8 },
+    aero: { rho: 1.225, CdA: 0.62, ClA: 0.55, frontDownforceShare: 0.42 },
+    brake: { maxForce: 28000, frontBias: 0.62, handbrakeForce: 9000 },
+    motor: {
+      maxTorque: 1000,            // Nm – voller Antritt ab 0 U/min
+      maxPower: 620000,           // W (~840 PS)
+      redline: 12000,             // U/min
+      efficiency: 0.94,
+      regenForce: 2400,           // N Rekuperation beim Gas-Wegnehmen
+    },
+    gearbox: {
+      ratios: [2.20, 1.78, 1.47, 1.28, 1.14, 1.02],
+      reverse: 2.2,
+      finalDrive: 3.6,
+      shiftTimeAuto: 0.08, shiftTimeManual: 0.14,
+      reverseMaxSpeed: 12,        // m/s
+    },
+    driveSplitFront: 0.38,        // Allrad, hecklastig verteilt
+    tractionControlSlack: 0.97,
+    stabilityAssist: 5200,        // Nm pro rad/s Gierraten-Abweichung (Fahrhilfe)
+  },
+};
+
+// ============================== Hilfen ==============================
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const damp = (a, b, k, dt) => lerp(a, b, 1 - Math.exp(-k * dt));   // bildratenunabhängiges Glätten
+const approach = (v, t, step) => (v < t ? Math.min(v + step, t) : Math.max(v - step, t));
+
+// ============================== Settings ==============================
+const Settings = {
+  KEY: 'roadsterEscape.settings.v1',
+  data: { transmission: 'auto', tractionControl: true, quality: 'auto', telemetry: false },
+  load() {
+    try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.KEY) || '{}')); } catch (e) { /* privat-Modus */ }
+    if (this.data.quality === 'auto') {
+      // Grobe Erstschätzung: Telefone starten auf Mittel, Tablets/Rechner auf Hoch
+      const small = Math.min(screen.width, screen.height) < 500;
+      this.data.quality = small ? 'medium' : 'high';
+    }
+  },
+  save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch (e) { /* ignorieren */ } },
+};
+Settings.load();
+
+const QUALITY = {
+  low:    { pixelRatio: 1.0,  shadows: false, shadowSize: 0,    terrainSegs: 110, antialias: false, physicalPaint: false, headlights: false, bevelSegs: 1 },
+  medium: { pixelRatio: 1.5,  shadows: true,  shadowSize: 1024, terrainSegs: 170, antialias: true,  physicalPaint: false, headlights: true,  bevelSegs: 2 },
+  high:   { pixelRatio: 2.0,  shadows: true,  shadowSize: 2048, terrainSegs: 240, antialias: true,  physicalPaint: true,  headlights: true,  bevelSegs: 3 },
+};
+
+// ============================== Input ==============================
+/** Sammelt Eingaben aus Tastatur und Touch-Knöpfen in einem Zustand. */
+const Input = {
+  keys: new Set(),
+  touch: { left: false, right: false, gas: false, brake: false, hand: false },
+  pressed: new Set(),           // einmalige Ereignisse (Gangwechsel …)
+  state: { throttle: 0, brake: 0, steer: 0, handbrake: false },
+
+  init() {
+    window.addEventListener('keydown', (e) => {
+      if (!this.keys.has(e.code)) this.pressed.add(e.code);
+      this.keys.add(e.code);
+      if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+    });
+    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('blur', () => { this.keys.clear(); for (const k in this.touch) this.touch[k] = false; });
+
+    // Multitouch-fähige Knöpfe über Pointer-Events (jeder Finger eigener Pointer)
+    const bind = (id, key, onPress) => {
+      const el = document.getElementById(id);
+      const active = new Set();
+      const set = () => { this.touch[key] = active.size > 0; el.classList.toggle('on', active.size > 0); };
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); active.add(e.pointerId);
+        try { el.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
+        set();
+        if (onPress) onPress(); haptic(8);
+      });
+      const up = (e) => { active.delete(e.pointerId); set(); };
+      el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+    };
+    bind('tLeft', 'left'); bind('tRight', 'right'); bind('tGas', 'gas'); bind('tBrake', 'brake'); bind('tHand', 'hand');
+    bind('tUp', 'up', () => this.pressed.add('GearUp'));
+    bind('tDown', 'down', () => this.pressed.add('GearDown'));
+    // Kontextmenü / Doppeltipp-Zoom / Pinch auf iOS unterbinden
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    document.addEventListener('dblclick', (e) => e.preventDefault());
+  },
+
+  update() {
+    const k = this.keys, t = this.touch;
+    this.state.throttle = (k.has('KeyW') || k.has('ArrowUp') || t.gas) ? 1 : 0;
+    this.state.brake = (k.has('KeyS') || k.has('ArrowDown') || t.brake) ? 1 : 0;
+    const left = k.has('KeyA') || k.has('ArrowLeft') || t.left;
+    const right = k.has('KeyD') || k.has('ArrowRight') || t.right;
+    this.state.steer = (left ? 1 : 0) - (right ? 1 : 0);      // +1 = links
+    this.state.handbrake = k.has('Space') || t.hand;
+  },
+  consume(code) { const had = this.pressed.has(code); this.pressed.delete(code); return had; },
+  endFrame() { this.pressed.clear(); },
+};
+
+function haptic(ms) { try { navigator.vibrate?.(ms); } catch (e) { /* iOS: nicht verfügbar */ } }
+
+// ============================== World ==============================
+/**
+ * Die Welt ist für die Physik eine Höhenfunktion h(x,z) mit Normale.
+ * Phase 1: Testgelände mit Asphaltfläche, Startbahn (Höchstgeschwindigkeit),
+ * Rampen, Wellenpiste (Federung) und Hügeln rundherum.
+ */
+class World {
+  constructor() {
+    this.size = 2000;
+    this.bound = 960;                        // unsichtbare Weltgrenze
+    this.pad = 220;                          // halbe Kantenlänge Asphaltfläche
+    this.runwayZ = -330; this.runwayHalfW = 16;
+    // Rampen: Mittelpunkt, Richtung (yaw, 0 = Richtung −Z), Länge, Breite, Höhe
+    this.ramps = [
+      { x: 0,    z: -40,  yaw: 0,            len: 14, width: 8,  height: 2.0 },
+      { x: -70,  z: 20,   yaw: 0,            len: 22, width: 10, height: 4.2 },
+      { x: 80,   z: -120, yaw: Math.PI / 2,  len: 16, width: 9,  height: 2.6 },
+      { x: 500,  z: this.runwayZ, yaw: Math.PI / 2, len: 30, width: 12, height: 5.0 },
+    ].map((r) => this._prepRamp(r));
+    this.bumps = { x0: 130, x1: 200, z0: -180, z1: 60, amp: 0.06 };
+    this._n = new THREE.Vector3();
+  }
+
+  _prepRamp(r) {
+    r.dx = -Math.sin(r.yaw); r.dz = -Math.cos(r.yaw);          // Auffahrrichtung
+    r.rx = Math.cos(r.yaw);  r.rz = -Math.sin(r.yaw);          // seitlich
+    r.sx = r.x - r.dx * r.len / 2; r.sz = r.z - r.dz * r.len / 2; // Startkante (Höhe 0)
+    r.slope = r.height / r.len;
+    r.radius = Math.hypot(r.len, r.width) / 2 + 1;
+    return r;
+  }
+
+  /** Flachheitsmaske: 1 auf Asphalt/Startbahn, 0 im Hügelland. */
+  flatMask(x, z) {
+    const cheb = Math.max(Math.abs(x), Math.abs(z));
+    const padM = 1 - smoothstep(this.pad + 10, this.pad + 110, cheb);
+    const runM = 1 - smoothstep(this.runwayHalfW + 12, this.runwayHalfW + 70, Math.abs(z - this.runwayZ));
+    return Math.max(padM, runM);
+  }
+
+  /** Glattes Hügelgelände (ohne Rampen). */
+  baseHeight(x, z) {
+    const f = 1 - this.flatMask(x, z);
+    if (f <= 0) return 0;
+    const h = 9 * Math.sin(x * 0.0105 + 0.4) * Math.cos(z * 0.0093)
+            + 4.5 * Math.sin(x * 0.027 + 1.3) * Math.sin(z * 0.023 + 0.7)
+            + 1.6 * Math.sin(x * 0.061 + z * 0.047)
+            + 6;                                       // eher Hügel als Mulden
+    // Randwall nahe der Weltgrenze
+    const edge = Math.max(Math.abs(x), Math.abs(z));
+    return f * h + smoothstep(880, 990, edge) * 40;
+  }
+
+  /** Wellenpiste zum Testen der Federung. Gibt Höhe zurück, Gradient in g. */
+  bumpHeight(x, z, g) {
+    const b = this.bumps;
+    if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) return 0;
+    const wx = smoothstep(b.x0, b.x0 + 6, x) * (1 - smoothstep(b.x1 - 6, b.x1, x));
+    const wz = smoothstep(b.z0, b.z0 + 6, z) * (1 - smoothstep(b.z1 - 6, b.z1, z));
+    const w = wx * wz;
+    const arg = z * 0.55 + 0.8 * Math.sin(x * 0.25);
+    const s = 0.5 + 0.5 * Math.sin(arg);
+    if (g) {
+      const c = 0.5 * Math.cos(arg) * b.amp * w;
+      g.x += c * 0.8 * 0.25 * Math.cos(x * 0.25);
+      g.z += c * 0.55;
+    }
+    return b.amp * s * w;
+  }
+
+  /**
+   * Höhe + Oberflächennormale an (x,z). outN optional.
+   * Rampen werden analytisch ausgewertet (saubere Normalen an Kanten).
+   */
+  sample(x, z, outN) {
+    let h = this.baseHeight(x, z);
+    let gx = 0, gz = 0, fromRamp = null;
+    for (let i = 0; i < this.ramps.length; i++) {
+      const r = this.ramps[i];
+      const ox = x - r.x, oz = z - r.z;
+      if (ox * ox + oz * oz > r.radius * r.radius) continue;
+      const u = (x - r.sx) * r.dx + (z - r.sz) * r.dz;
+      const w = ox * r.rx + oz * r.rz;
+      if (u < 0 || u > r.len || Math.abs(w) > r.width / 2) continue;
+      const rh = u * r.slope;
+      if (rh > h) { h = rh; fromRamp = r; }
+    }
+    const g = { x: 0, z: 0 };
+    h += this.bumpHeight(x, z, g);
+    if (outN) {
+      if (fromRamp) { gx = fromRamp.slope * fromRamp.dx; gz = fromRamp.slope * fromRamp.dz; }
+      else {
+        const e = 0.6;
+        gx = (this.baseHeight(x + e, z) - this.baseHeight(x - e, z)) / (2 * e);
+        gz = (this.baseHeight(x, z + e) - this.baseHeight(x, z - e)) / (2 * e);
+      }
+      outN.set(-(gx + g.x), 1, -(gz + g.z)).normalize();
+    }
+    return h;
+  }
+
+  // ---------------------- Darstellung ----------------------
+  build(scene, q) {
+    this.group = new THREE.Group(); scene.add(this.group);
+
+    // Gelände (Gras), Vertexfarben nach Höhe/Rauschen
+    const segs = q.terrainSegs;
+    const geo = new THREE.PlaneGeometry(this.size, this.size, segs, segs);
+    geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      const h = this.baseHeight(x, z);
+      pos.setY(i, h - 0.02);
+      const n = 0.5 + 0.5 * Math.sin(x * 0.07) * Math.cos(z * 0.06);
+      c.setHSL(0.26 + n * 0.04 - h * 0.0015, 0.42, 0.24 + n * 0.06 + h * 0.003);
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const grassTex = makeNoiseTexture(256, [70, 110, 50], 38);
+    grassTex.repeat.set(260, 260);
+    const terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: grassTex, roughness: 0.95 }));
+    terrain.receiveShadow = true;
+    this.group.add(terrain);
+
+    // Asphalt-Material (gekacheltes Rauschen)
+    const asphaltTex = makeNoiseTexture(256, [58, 60, 64], 22);
+    asphaltTex.repeat.set(110, 110);
+    const asphalt = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.88, metalness: 0.0 });
+
+    const padMesh = new THREE.Mesh(new THREE.PlaneGeometry(this.pad * 2, this.pad * 2), asphalt);
+    padMesh.rotation.x = -Math.PI / 2; padMesh.position.y = 0.01; padMesh.receiveShadow = true;
+    this.group.add(padMesh);
+
+    const runTex = asphaltTex.clone(); runTex.needsUpdate = true; runTex.repeat.set(480, 8);
+    const runway = new THREE.Mesh(new THREE.PlaneGeometry(this.size - 60, this.runwayHalfW * 2),
+      new THREE.MeshStandardMaterial({ map: runTex, roughness: 0.85 }));
+    runway.rotation.x = -Math.PI / 2; runway.position.set(0, 0.012, this.runwayZ); runway.receiveShadow = true;
+    this.group.add(runway);
+
+    // Markierungen (eigene dünne Flächen statt Riesen-Textur)
+    const paint = new THREE.MeshBasicMaterial({ color: 0xe8e8e8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const yellow = new THREE.MeshBasicMaterial({ color: 0xf2c230, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const addFlat = (geom, mat, x, z, rotY = 0) => {
+      const m = new THREE.Mesh(geom, mat); m.rotation.x = -Math.PI / 2; m.rotation.z = rotY;
+      m.position.set(x, 0.02, z); this.group.add(m); return m;
+    };
+    // Skidpad-Kreise zum Driften
+    addFlat(new THREE.RingGeometry(29.85, 30.15, 96), paint, -120, -110);
+    addFlat(new THREE.RingGeometry(44.85, 45.15, 128), yellow, -120, -110);
+    // Startlinie + Fahrspur-Begrenzung
+    addFlat(new THREE.PlaneGeometry(10, 0.5), paint, 0, 140);
+    for (let i = 0; i < 18; i++) addFlat(new THREE.PlaneGeometry(0.25, 4), paint, 0, 120 - i * 14);
+    // Slalom-Punkte
+    for (let i = 0; i < 10; i++) addFlat(new THREE.CircleGeometry(0.6, 16), yellow, -40 + (i % 2) * 3, 150 - i * 18);
+    // Startbahn-Mittellinie
+    const dash = new THREE.PlaneGeometry(6, 0.3);
+    for (let x = -900; x <= 900; x += 18) addFlat(dash, paint, x, this.runwayZ);
+    addFlat(new THREE.PlaneGeometry(this.size - 60, 0.3), paint, 0, this.runwayZ - this.runwayHalfW + 0.6);
+    addFlat(new THREE.PlaneGeometry(this.size - 60, 0.3), paint, 0, this.runwayZ + this.runwayHalfW - 0.6);
+
+    // Rampen (Keil-Geometrie passend zur Höhenfunktion)
+    const rampMat = new THREE.MeshStandardMaterial({ color: 0xa8a39a, roughness: 0.8, map: asphaltTex });
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xf2c230, roughness: 0.6 });
+    for (const r of this.ramps) {
+      const m = new THREE.Mesh(makeWedge(r.width, r.height, r.len), rampMat);
+      m.position.set(r.x, 0, r.z); m.rotation.y = r.yaw; m.castShadow = true; m.receiveShadow = true;
+      const lip = new THREE.Mesh(new THREE.BoxGeometry(r.width, 0.05, 0.6), stripeMat);
+      lip.position.set(0, r.height - 0.17, -r.len / 2 + 0.3); lip.rotation.x = Math.atan(r.slope);
+      m.add(lip);
+      this.group.add(m);
+    }
+
+    // Wellenpiste
+    const b = this.bumps;
+    const bw = b.x1 - b.x0, bl = b.z1 - b.z0;
+    const bgeo = new THREE.PlaneGeometry(bw, bl, Math.round(bw), Math.round(bl * 1.5));
+    bgeo.rotateX(-Math.PI / 2);
+    const bp = bgeo.attributes.position;
+    for (let i = 0; i < bp.count; i++) {
+      const x = bp.getX(i) + (b.x0 + b.x1) / 2, z = bp.getZ(i) + (b.z0 + b.z1) / 2;
+      bp.setY(i, this.bumpHeight(x, z) + 0.016);
+    }
+    bgeo.computeVertexNormals();
+    const bumpMesh = new THREE.Mesh(bgeo, new THREE.MeshStandardMaterial({ color: 0x8d8478, roughness: 0.9, map: asphaltTex }));
+    bumpMesh.position.set((b.x0 + b.x1) / 2, 0, (b.z0 + b.z1) / 2);
+    bumpMesh.receiveShadow = true;
+    this.group.add(bumpMesh);
+
+    // Pylonen-Reihen am Rand der Startbahn als Geschwindigkeitsgefühl (rein optisch, außerhalb der Fahrbahn)
+    const poleGeo = new THREE.CylinderGeometry(0.12, 0.12, 3, 6); poleGeo.translate(0, 1.5, 0);
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
+    const count = Math.floor((this.size - 80) / 40) * 2;
+    const poles = new THREE.InstancedMesh(poleGeo, poleMat, count);
+    const mtx = new THREE.Matrix4(); let k = 0;
+    for (let x = -940; x <= 940 && k < count; x += 40) {
+      for (const s of [-1, 1]) { if (k >= count) break; mtx.makeTranslation(x, 0, this.runwayZ + s * (this.runwayHalfW + 4)); poles.setMatrixAt(k++, mtx); }
+    }
+    poles.count = k; poles.castShadow = true;
+    this.group.add(poles);
+  }
+}
+
+/**
+ * Glättet Normalen einer nicht-indizierten Geometrie, behält aber harte Kanten
+ * über dem Knickwinkel (wie BufferGeometryUtils.toCreasedNormals, ohne Addon).
+ */
+function smoothNormals(g, creaseDeg = 40) {
+  const pos = g.attributes.position, n = pos.count;
+  const cos = Math.cos(creaseDeg * Math.PI / 180);
+  const faceN = new Float32Array(n * 3);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i < n; i += 3) {
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+    c.sub(b); b.sub(a); c.cross(b).normalize().negate();
+    for (let k = 0; k < 3; k++) faceN.set([c.x, c.y, c.z], (i + k) * 3);
+  }
+  const key = (i) => `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
+  const groups = new Map();
+  for (let i = 0; i < n; i++) { const k = key(i); let arr = groups.get(k); if (!arr) groups.set(k, arr = []); arr.push(i); }
+  const out = new Float32Array(n * 3);
+  for (const arr of groups.values()) {
+    for (const i of arr) {
+      let x = 0, y = 0, z = 0;
+      const fx = faceN[i * 3], fy = faceN[i * 3 + 1], fz = faceN[i * 3 + 2];
+      for (const j of arr) {
+        const gx = faceN[j * 3], gy = faceN[j * 3 + 1], gz = faceN[j * 3 + 2];
+        if (fx * gx + fy * gy + fz * gz >= cos) { x += gx; y += gy; z += gz; }
+      }
+      const l = Math.hypot(x, y, z) || 1;
+      out[i * 3] = x / l; out[i * 3 + 1] = y / l; out[i * 3 + 2] = z / l;
+    }
+  }
+  g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
+}
+
+/** Keil: Grundfläche width×len, steigt in −Z-Richtung auf height. */
+function makeWedge(w, h, l) {
+  const hw = w / 2, hl = l / 2;
+  // Ecken: Start (z=+hl, Höhe 0), Ende (z=−hl, Höhe h)
+  const v = [
+    [-hw, 0, hl], [hw, 0, hl], [hw, 0, -hl], [-hw, 0, -hl],   // Boden 0..3
+    [-hw, h, -hl], [hw, h, -hl],                              // Oberkante 4,5
+  ];
+  const faces = [
+    [0, 1, 5], [0, 5, 4],     // Rampenfläche
+    [3, 4, 5], [3, 5, 2],     // Rückwand
+    [0, 4, 3], [1, 2, 5],     // Seiten
+    [0, 3, 2], [0, 2, 1],     // Boden
+  ];
+  const pos = [];
+  for (const f of faces) for (const i of f) pos.push(...v[i]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  // einfache planare UVs
+  const uv = []; for (let i = 0; i < pos.length; i += 3) uv.push(pos[i] * 0.25, pos[i + 2] * 0.25);
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Erzeugt eine kachelbare Rauschtextur (keine externen Dateien). */
+function makeNoiseTexture(size, rgb, spread) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  for (let i = 0; i < size * size; i++) {
+    const n = (Math.random() - 0.5) * spread;
+    img.data[i * 4] = clamp(rgb[0] + n, 0, 255);
+    img.data[i * 4 + 1] = clamp(rgb[1] + n, 0, 255);
+    img.data[i * 4 + 2] = clamp(rgb[2] + n, 0, 255);
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+// ============================== Drivetrain ==============================
+/**
+ * E-Motor mit Kennlinie: konstantes Maximalmoment bis zur Eckdrehzahl,
+ * darüber konstante Leistung (M = P/ω). Simuliertes 6-Gang-Getriebe,
+ * damit Handschaltung sinnvoll ist. Automatik schaltet blitzschnell.
+ */
+class Drivetrain {
+  constructor(cfg) {
+    this.cfg = cfg;
+    this.gear = 1;              // -1 = R, 0 = N, 1..6
+    this.rpm = 0;
+    this.shiftTimer = 0;
+    this.lastShift = -1;
+    this.manual = false;
+    this.redlineOmega = cfg.motor.redline * Math.PI / 30;
+    this.baseOmega = cfg.motor.maxPower / cfg.motor.maxTorque;   // Eckdrehzahl (rad/s)
+    this.time = 0;               // simulierte Zeit (unabhängig von der Bildrate)
+  }
+
+  get numGears() { return this.cfg.gearbox.ratios.length; }
+
+  ratio(g = this.gear) {
+    const gb = this.cfg.gearbox;
+    if (g === 0) return 0;
+    if (g < 0) return -gb.reverse * gb.finalDrive;
+    return gb.ratios[g - 1] * gb.finalDrive;
+  }
+
+  /** Motormoment bei Winkelgeschwindigkeit ω (rad/s) und Vollgas. */
+  torqueAt(omega) {
+    const m = this.cfg.motor;
+    const w = Math.abs(omega);
+    if (w >= this.redlineOmega) return 0;
+    const t = w < this.baseOmega ? m.maxTorque : m.maxPower / w;
+    // weiches Abregeln in den letzten 3 %
+    return t * (1 - smoothstep(this.redlineOmega * 0.97, this.redlineOmega, w));
+  }
+
+  shift(dir) {
+    const now = this.time;
+    const target = clamp(this.gear + dir, -1, this.numGears);
+    if (target === this.gear) return false;
+    // Schutz vor Überdrehen beim Runterschalten (manuell)
+    if (target > 0 && dir < 0) {
+      const newRpm = this.wheelOmega * this.ratio(target) * 30 / Math.PI;
+      if (newRpm > this.cfg.motor.redline * 1.02) return false;
+    }
+    this.gear = target;
+    this.shiftTimer = this.manual ? this.cfg.gearbox.shiftTimeManual : this.cfg.gearbox.shiftTimeAuto;
+    this.lastShift = now;
+    return true;
+  }
+
+  /** Automatik-Logik: schaltet nach Drehzahl, mit Hysterese. */
+  autoShift(throttle) {
+    if (this.gear < 1 || this.shiftTimer > 0) return;
+    if (this.time - this.lastShift < 0.35) return;
+    const rl = this.cfg.motor.redline;
+    const up = throttle > 0.5 ? rl * 0.93 : rl * 0.62;
+    if (this.rpm > up && this.gear < this.numGears) { this.shift(1); return; }
+    if (this.gear > 1) {
+      const lowerRpm = this.wheelOmega * this.ratio(this.gear - 1) * 30 / Math.PI;
+      const down = throttle > 0.5 ? rl * 0.80 : rl * 0.45;
+      if (lowerRpm < down) this.shift(-1);
+    }
+  }
+
+  /**
+   * @param wheelOmega mittlere Drehzahl der angetriebenen Räder (rad/s, vorwärts positiv)
+   * @returns gesamtes Antriebsmoment an den Rädern (Nm, Vorzeichen = Fahrtrichtung)
+   */
+  update(dt, wheelOmega, throttle, grounded = true) {
+    this.wheelOmega = wheelOmega;
+    this.time += dt;
+    if (this.shiftTimer > 0) this.shiftTimer -= dt;
+    const r = this.ratio();
+    const motorOmega = Math.abs(wheelOmega * r);
+    this.rpm = damp(this.rpm, motorOmega * 30 / Math.PI, 25, dt);
+    if (!this.manual && grounded) this.autoShift(throttle);
+    if (r === 0 || this.shiftTimer > 0 || throttle <= 0) return 0;
+    const tq = this.torqueAt(motorOmega) * throttle;
+    return tq * r * this.cfg.motor.efficiency;
+  }
+
+  label() {
+    if (this.gear < 0) return ['R', ''];
+    if (this.gear === 0) return ['N', ''];
+    return this.manual ? [String(this.gear), ''] : ['D', String(this.gear)];
+  }
+}
+
+// ============================== Vehicle (Physik) ==============================
+/** Vereinfachte Pacejka-„Magic Formula“: normierte Kraft (−1..1) aus Schlupf. */
+function magic(slip, B, C, E) {
+  const Bx = B * slip;
+  return Math.sin(C * Math.atan(Bx - E * (Bx - Math.atan(Bx))));
+}
+
+/**
+ * Raycast-Fahrzeug: Starrkörper (6 Freiheitsgrade) + 4 Strahlen nach unten.
+ * Pro Rad: Feder/Dämpfer → Radlast → Reifenkräfte (längs/quer) mit
+ * Reibungskreis. Gewichtsverlagerung entsteht physikalisch dadurch, dass die
+ * Kräfte am Aufstandspunkt unter dem Schwerpunkt angreifen.
+ */
+class Vehicle {
+  constructor(world, cfg) {
+    this.world = world; this.cfg = cfg;
+    this.mass = cfg.mass; this.invMass = 1 / cfg.mass;
+    const { w, h, l } = cfg.inertiaBox, m = cfg.mass;
+    // Trägheitsmomente (Quader), Hauptachsen im Fahrzeug-System
+    this.invInertia = new THREE.Vector3(
+      1 / (m / 12 * (h * h + l * l)),   // Nicken (x)
+      1 / (m / 12 * (w * w + l * l)),   // Gieren (y)
+      1 / (m / 12 * (w * w + h * h) * 1.15)); // Rollen (z)
+
+    this.pos = new THREE.Vector3(); this.quat = new THREE.Quaternion();
+    this.vel = new THREE.Vector3(); this.angVel = new THREE.Vector3();
+    this.prevPos = new THREE.Vector3(); this.prevQuat = new THREE.Quaternion();
+
+    const s = cfg.suspension;
+    this.wheels = cfg.wheels.map((wd) => ({
+      local: new THREE.Vector3(wd.x, cfg.mountY, wd.z),
+      front: wd.front, left: wd.x < 0,
+      k: wd.front ? s.springFront : s.springRear,
+      suspLen: s.restLength, compression: 0, prevCompression: 0,
+      grounded: false, load: 0, contact: new THREE.Vector3(), normal: new THREE.Vector3(0, 1, 0),
+      omega: 0, spin: 0, steer: 0, slipAngle: 0, slipRatio: 0, sliding: false, slideAmount: 0,
+      fLong: 0, fLat: 0, vLong: 0, vLat: 0,
+    }));
+    this.staticLoad = cfg.mass * 9.81 / 4;
+
+    this.drivetrain = new Drivetrain(cfg);
+    this.steerAngle = 0;
+    this.throttle = 0; this.brake = 0; this.handbrake = false;
+    this.direction = 1;          // Automatik: 1 = vorwärts (D), −1 = rückwärts (R)
+    this.dirTimer = 0;
+    this.tractionControl = true;
+    this.speed = 0; this.forwardSpeed = 0;
+    this.braking = false; this.reversing = false;
+    this.latAccel = 0; this.longAccel = 0;
+    this.airTime = 0; this.groundedCount = 0;
+    this.lastImpact = 0;
+    this.upsideDownTime = 0;   // für automatisches Aufrichten
+
+    // Wiederverwendbare Vektoren (keine Allokationen pro Schritt)
+    this._v = Array.from({ length: 12 }, () => new THREE.Vector3());
+    this._qInv = new THREE.Quaternion(); this._q = new THREE.Quaternion();
+    this.force = new THREE.Vector3(); this.torque = new THREE.Vector3();
+    this.reset(new THREE.Vector3(0, 0, 150), 0);
+  }
+
+  reset(p, yaw) {
+    const h = this.world.sample(p.x, p.z);
+    this.pos.set(p.x, h + this.cfg.cgHeight + 0.15, p.z);
+    this.quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    this.vel.set(0, 0, 0); this.angVel.set(0, 0, 0);
+    this.prevPos.copy(this.pos); this.prevQuat.copy(this.quat);
+    this.drivetrain.gear = 1; this.direction = 1; this.steerAngle = 0;
+    for (const w of this.wheels) { w.omega = 0; w.compression = w.prevCompression = 0; }
+  }
+
+  /** Kraft F (Welt) am Weltpunkt p anwenden. */
+  addForceAt(F, p) {
+    this.force.add(F);
+    const r = this._v[11].subVectors(p, this.pos);
+    this.torque.add(r.cross(F));
+  }
+
+  /** Winkelbeschleunigung aus Drehmoment (Welt): Iw⁻¹·τ = R·I⁻¹·Rᵀ·τ */
+  applyInvInertia(vecWorld) {
+    this._qInv.copy(this.quat).invert();
+    vecWorld.applyQuaternion(this._qInv);
+    vecWorld.x *= this.invInertia.x; vecWorld.y *= this.invInertia.y; vecWorld.z *= this.invInertia.z;
+    return vecWorld.applyQuaternion(this.quat);
+  }
+
+  /** Eingaben in Gas/Bremse/Richtung übersetzen (Automatik inkl. Rückwärtsgang). */
+  processInput(inp, dt) {
+    const dtn = this.drivetrain;
+    const fs = this.forwardSpeed;
+    let throttle = 0, brake = 0;
+    if (dtn.manual) {
+      throttle = inp.throttle; brake = inp.brake;
+    } else {
+      if (this.direction === 1) {
+        throttle = inp.throttle; brake = inp.brake;
+        // Stillstand + Bremse halten → Rückwärtsgang
+        if (inp.brake > 0.1 && inp.throttle < 0.1 && fs < 0.6) { this.dirTimer += dt; if (this.dirTimer > 0.22) { this.direction = -1; dtn.gear = -1; this.dirTimer = 0; } }
+        else this.dirTimer = 0;
+      } else {
+        throttle = inp.brake; brake = inp.throttle;   // rückwärts: „Bremse“ = Gas
+        if (inp.throttle > 0.1 && fs > -0.6) { this.dirTimer += dt; if (this.dirTimer > 0.12) { this.direction = 1; dtn.gear = 1; this.dirTimer = 0; } }
+        else this.dirTimer = 0;
+        if (fs < -this.cfg.gearbox.reverseMaxSpeed) throttle = 0;
+      }
+    }
+    // E-Motor reagiert schnell, aber nicht digital hart
+    this.throttle = approach(this.throttle, throttle, dt * 7);
+    this.brake = approach(this.brake, brake, dt * 9);
+    this.handbrake = inp.handbrake;
+    this.braking = this.brake > 0.05;
+    this.reversing = dtn.gear < 0;
+
+    // Geschwindigkeitsabhängige Lenkung
+    const sc = this.cfg.steer;
+    let maxSteer = sc.max / (1 + Math.abs(fs) * sc.speedFalloff);
+    // Im Drift mehr Lenkeinschlag zulassen (Gegenlenken bis zum Schwimmwinkel)
+    const lat = this.vel.dot(this._v[2].set(1, 0, 0).applyQuaternion(this.quat));
+    const beta = Math.abs(Math.atan2(lat, Math.max(Math.abs(fs), 1)));
+    // nur in Gegenlenk-Richtung (zur Bewegungsrichtung hin): lat > 0 = rutscht nach rechts → rechts lenken (steer < 0)
+    const counter = inp.steer !== 0 && Math.sign(inp.steer) === -Math.sign(lat);
+    if (this.speed > 4 && counter) maxSteer = Math.max(maxSteer, Math.min(beta + 0.08, sc.max));
+    const target = inp.steer * maxSteer;
+    const returning = Math.abs(target) < Math.abs(this.steerAngle) || Math.sign(target) !== Math.sign(this.steerAngle);
+    this.steerAngle = approach(this.steerAngle, target, (returning ? sc.returnRate : sc.rate) * dt * (0.35 + maxSteer / sc.max * 0.65));
+  }
+
+  step(dt) {
+    const cfg = this.cfg, S = cfg.suspension, T = cfg.tire, world = this.world;
+    const v = this._v;
+    this.prevPos.copy(this.pos); this.prevQuat.copy(this.quat);
+    this.force.set(0, 0, 0); this.torque.set(0, 0, 0);
+
+    const up = v[0].set(0, 1, 0).applyQuaternion(this.quat);
+    const fwdBody = v[1].set(0, 0, -1).applyQuaternion(this.quat);
+    const rightBody = v[2].set(1, 0, 0).applyQuaternion(this.quat);
+    this.forwardSpeed = this.vel.dot(fwdBody);
+    this.speed = this.vel.length();
+
+    // ---------- Antrieb ----------
+    let driveOmega = 0, nDriven = 0;
+    for (const w of this.wheels) { driveOmega += w.omega; nDriven++; }
+    driveOmega /= nDriven;
+    const dt_ = this.drivetrain;
+    const wheelTorqueTotal = dt_.update(dt, driveOmega, this.throttle, this.groundedCount > 0);
+    const driveForceTotal = wheelTorqueTotal / cfg.wheelRadius;
+    // Rekuperation (nur Automatik/D, Gas los, rollend)
+    let regen = 0;
+    if (this.throttle < 0.05 && Math.abs(this.forwardSpeed) > 1 && !this.braking) regen = cfg.motor.regenForce * clamp(Math.abs(this.forwardSpeed) / 8, 0, 1);
+
+    // ---------- Räder ----------
+    const down = v[3].copy(up).negate();
+    const maxLen = S.restLength + cfg.wheelRadius;
+    let grounded = 0;
+    const massShare = this.mass / 4;
+
+    for (let i = 0; i < 4; i++) {
+      const w = this.wheels[i];
+      const mount = v[4].copy(w.local).applyQuaternion(this.quat).add(this.pos);
+
+      // --- Raycast gegen Höhenfeld (Fixpunkt-Iteration) ---
+      let hit = false, t = maxLen;
+      if (down.y < -0.25) {
+        let h = world.sample(mount.x, mount.z);
+        t = (mount.y - h) / -down.y;
+        for (let it = 0; it < 2; it++) {
+          h = world.sample(mount.x + down.x * t, mount.z + down.z * t);
+          t = (mount.y - h) / -down.y;
+        }
+        if (t <= maxLen) {
+          hit = true;
+          w.contact.copy(down).multiplyScalar(t).add(mount);
+          world.sample(w.contact.x, w.contact.z, w.normal);
+        }
+      }
+
+      // Lenkwinkel (leichtes Ackermann: kurveninneres Rad stärker)
+      if (w.front) {
+        const inner = (this.steerAngle > 0) === w.left;
+        w.steer = this.steerAngle * (inner ? 1.08 : 0.94);
+      } else w.steer = 0;
+
+      w.prevCompression = w.compression;
+      if (!hit) {
+        w.grounded = false; w.compression = 0; w.suspLen = S.restLength; w.load = 0;
+        w.sliding = false; w.slideAmount = 0; w.fLong = w.fLat = 0;
+        continue;
+      }
+      grounded++;
+      w.grounded = true;
+      w.suspLen = Math.max(t - cfg.wheelRadius, 0);
+      w.compression = S.restLength - w.suspLen;
+    }
+
+    // --- Federkräfte inkl. Stabilisatoren ---
+    const arF = (this.wheels[0].compression - this.wheels[1].compression) * S.antiRollFront;
+    const arR = (this.wheels[2].compression - this.wheels[3].compression) * S.antiRollRear;
+    for (let i = 0; i < 4; i++) {
+      const w = this.wheels[i];
+      if (!w.grounded) continue;
+      const compVel = (w.compression - w.prevCompression) / dt;
+      const c = compVel > 0 ? S.damperBump : S.damperRebound;
+      let Fs = w.k * w.compression + c * compVel;
+      if (w.suspLen < 0.03) Fs += S.bumpStop * (0.03 - w.suspLen);   // Anschlagpuffer
+      const ar = i < 2 ? (i === 0 ? arF : -arF) : (i === 2 ? arR : -arR);
+      if (this.wheels[i ^ 1].grounded) Fs += ar;
+      Fs = Math.max(0, Fs);
+      w.load = Fs;
+      const Fsusp = v[5].copy(up).multiplyScalar(Fs);
+      this.addForceAt(Fsusp, w.contact);
+    }
+
+    // --- Reifenkräfte ---
+    let latSum = 0;
+    for (let i = 0; i < 4; i++) {
+      const w = this.wheels[i];
+      if (!w.grounded) {
+        // Rad in der Luft: dreht durch Antrieb hoch, sonst langsam aus
+        const driveShare = w.front ? cfg.driveSplitFront / 2 : (1 - cfg.driveSplitFront) / 2;
+        w.omega += (driveForceTotal * driveShare * cfg.wheelRadius / 2.2) * dt;
+        w.omega *= (this.brake > 0.1 || (this.handbrake && !w.front)) ? 0.8 : 0.995;
+        w.omega = clamp(w.omega, -dt_.redlineOmega / 3, dt_.redlineOmega / 3);
+        continue;
+      }
+      const n = w.normal;
+      const Fz = Math.min(w.load, this.staticLoad * T.loadCapFactor);
+
+      // Radrichtung (gelenkt) auf Fahrbahnebene projiziert
+      const fwd = v[6].set(-Math.sin(w.steer), 0, -Math.cos(w.steer)).applyQuaternion(this.quat);
+      fwd.addScaledVector(n, -fwd.dot(n)).normalize();
+      const side = v[7].crossVectors(fwd, n);           // zeigt nach rechts
+
+      // Geschwindigkeit des Aufstandspunkts
+      const r = v[8].subVectors(w.contact, this.pos);
+      const pv = v[9].crossVectors(this.angVel, r).add(this.vel);
+      const vLong = pv.dot(fwd), vLat = pv.dot(side);
+      w.vLong = vLong; w.vLat = vLat;
+
+      // Querkraft aus Schräglaufwinkel
+      const slipAngle = Math.atan2(vLat, Math.max(Math.abs(vLong), 0.5));
+      w.slipAngle = slipAngle;
+      // Lastempfindlichkeit: doppelte Last ≠ doppelter Grip (macht Stabi-Abstimmung wirksam)
+      let mu = T.mu * (w.front ? 1 : T.rearGrip) * clamp(1 - T.loadSensitivity * (Fz / this.staticLoad - 1), 0.6, 1.15);
+      const handbrakeRear = this.handbrake && !w.front;
+      let latMu = handbrakeRear ? mu * T.handbrakeGrip : mu;
+      let Flat = -magic(slipAngle, T.B, T.C, T.E) * latMu * Fz;
+      // Bei kleinem Tempo: nicht über das Ziel hinausschießen (kein Zittern im Stand)
+      const maxLatStop = Math.abs(vLat) * massShare / dt;
+      Flat = clamp(Flat, -maxLatStop, maxLatStop);
+
+      // Längskraft: Antrieb, Bremse, Rekuperation, Rollwiderstand
+      const driveShare = w.front ? cfg.driveSplitFront / 2 : (1 - cfg.driveSplitFront) / 2;
+      let Fdrive = driveForceTotal * driveShare;
+      const brakeShare = w.front ? cfg.brake.frontBias / 2 : (1 - cfg.brake.frontBias) / 2;
+      let Fbrake = this.brake * cfg.brake.maxForce * brakeShare + regen * driveShare;
+      if (handbrakeRear) Fbrake += cfg.brake.handbrakeForce / 2;
+      Fbrake += T.rollResist * Fz;
+      const maxBrakeStop = Math.abs(vLong) * massShare / dt;  // nicht rückwärts „bremsen“
+      // ABS: Betriebsbremse nie über den verfügbaren Grip (Handbremse darf blockieren)
+      if (!handbrakeRear) Fbrake = Math.min(Fbrake, mu * Fz * 0.97);
+      const FbrakeApplied = Math.min(Fbrake, maxBrakeStop) * -Math.sign(vLong);
+      const brakeLocked = Fbrake > mu * Fz * 1.05 && Math.abs(vLong) > 1;
+
+      // Traktionskontrolle: Antrieb auf verfügbaren Längsgrip begrenzen
+      const maxF = mu * Fz;
+      if (this.tractionControl && Fdrive !== 0) {
+        let availLong = Math.sqrt(Math.max(maxF * maxF - Flat * Flat, 0)) * cfg.tractionControlSlack;
+        // Hinterachse über dem Grip-Maximum → Moment zurücknehmen (verhindert Dreher)
+        if (!w.front && Math.abs(slipAngle) > 0.16 && Math.abs(vLong) > 3) availLong *= 0.35;
+        Fdrive = clamp(Fdrive, -availLong, availLong);
+      }
+      let Flong = Fdrive + FbrakeApplied;
+
+      // Reibungskreis: Längs + Quer zusammen begrenzt
+      const total = Math.hypot(Flong, Flat);
+      const demandLong = Math.abs(Fdrive + FbrakeApplied);
+      w.sliding = false; w.slideAmount = 0;
+      if (total > maxF && total > 1) {
+        const s = maxF / total;
+        // Rutscht der Reifen, sinkt der Grip leicht (Gleitreibung < Haftreibung)
+        const slideGrip = 0.92;
+        Flong *= s * slideGrip; Flat *= s * slideGrip;
+        w.sliding = true;
+        w.slideAmount = clamp((total - maxF) / maxF, 0, 1);
+      }
+      if (Math.abs(slipAngle) > 0.22 && Math.abs(vLat) > 2) { w.sliding = true; w.slideAmount = Math.max(w.slideAmount, clamp((Math.abs(slipAngle) - 0.2) * 2, 0, 1)); }
+      w.fLong = Flong; w.fLat = Flat;
+      latSum += Flat;
+
+      // Kraft anwenden (Querkraft leicht angehoben → weniger Wankmoment)
+      const F = v[10].copy(fwd).multiplyScalar(Flong).addScaledVector(side, Flat);
+      const applyAt = v[8].copy(w.contact).addScaledVector(up, S.forceApplyLift);
+      this.addForceAt(F, applyAt);
+
+      // Raddrehung (für Optik und Motordrehzahl)
+      const rollOmega = vLong / cfg.wheelRadius;
+      let targetOmega = rollOmega;
+      if (brakeLocked || (handbrakeRear && Math.abs(vLong) > 0.5)) targetOmega = 0;
+      else if (Fdrive !== 0 && Math.abs(Fdrive) > maxF * 0.98) {
+        const excess = (Math.abs(Fdrive) - maxF) / maxF;     // durchdrehende Räder
+        targetOmega = rollOmega + Math.sign(Fdrive) * (3 + excess * 40);
+      }
+      w.omega = damp(w.omega, targetOmega, 30, dt);
+      w.slipRatio = (w.omega * cfg.wheelRadius - vLong) / Math.max(Math.abs(vLong), 1);
+      if (Math.abs(w.slipRatio) > 0.25) { w.sliding = true; w.slideAmount = Math.max(w.slideAmount, clamp(Math.abs(w.slipRatio) - 0.2, 0, 1)); }
+    }
+
+    // ---------- Aerodynamik & Schwerkraft ----------
+    const A = cfg.aero;
+    const sp = this.speed;
+    if (sp > 0.1) {
+      const drag = v[5].copy(this.vel).multiplyScalar(-0.5 * A.rho * A.CdA * sp);
+      this.force.add(drag);
+      // Abtrieb, nur wenn Räder am Boden (sonst „saugt“ er das Auto im Sprung nach unten)
+      if (grounded > 0) {
+        const df = 0.5 * A.rho * A.ClA * this.forwardSpeed * this.forwardSpeed;
+        const pF = v[6].set(0, 0, -1.3).applyQuaternion(this.quat).add(this.pos);
+        const pR = v[7].set(0, 0, 1.3).applyQuaternion(this.quat).add(this.pos);
+        this.addForceAt(v[9].copy(up).multiplyScalar(-df * A.frontDownforceShare), pF);
+        this.addForceAt(v[9].copy(up).multiplyScalar(-df * (1 - A.frontDownforceShare)), pR);
+      }
+    }
+    this.force.y -= 9.81 * this.mass;
+
+    // Fahrhilfe (ESP-ähnlich): dämpft ungewolltes Eindrehen, Driften bleibt möglich
+    if (this.tractionControl && grounded >= 3 && this.speed > 3 && !this.handbrake) {
+      const L = 2.62;
+      // Wunsch-Gierrate aus Lenkwinkel, aber begrenzt auf das, was der Grip hergibt (a_quer = v·ω ≤ μ·g)
+      const gripLimit = (cfg.tire.mu * 9.81 * 0.95) / Math.max(Math.abs(this.forwardSpeed), 1);
+      const desired = clamp(this.forwardSpeed * Math.tan(this.steerAngle) / L, -gripLimit, gripLimit);
+      const yawRate = this.angVel.dot(up);
+      const err = yawRate - desired;
+      const dead = 0.08;
+      if (Math.abs(err) > dead) this.torque.addScaledVector(up, -(err - Math.sign(err) * dead) * cfg.stabilityAssist);
+    }
+
+    // Hilfe in der Luft: Auto richtet sich sanft waagerecht aus (bessere Landungen)
+    if (grounded === 0) {
+      this.airTime += dt;
+      const level = v[5].crossVectors(up, v[6].set(0, 1, 0));
+      this.torque.addScaledVector(level, 2600);
+      this.torque.addScaledVector(this.angVel, -300);
+    } else this.airTime = 0;
+    this.groundedCount = grounded;
+
+    // ---------- Integration (semi-implizit) ----------
+    const prevVel = v[10].copy(this.vel);
+    this.vel.addScaledVector(this.force, this.invMass * dt);
+    const angAcc = this.applyInvInertia(v[5].copy(this.torque));
+    this.angVel.addScaledVector(angAcc, dt);
+    this.angVel.multiplyScalar(1 - 0.08 * dt);      // minimale Luft-/Lagerdämpfung
+    this.pos.addScaledVector(this.vel, dt);
+    const av = this.angVel;
+    this._q.set(av.x * dt * 0.5, av.y * dt * 0.5, av.z * dt * 0.5, 0).multiply(this.quat);
+    this.quat.x += this._q.x; this.quat.y += this._q.y; this.quat.z += this._q.z; this.quat.w += this._q.w;
+    this.quat.normalize();
+
+    // Beschleunigung in g (für Telemetrie/Kamera)
+    const acc = prevVel.subVectors(this.vel, prevVel).divideScalar(dt);
+    this.longAccel = damp(this.longAccel, acc.dot(fwdBody) / 9.81, 10, dt);
+    this.latAccel = damp(this.latAccel, acc.dot(rightBody) / 9.81, 10, dt);
+
+    this.collideChassis(dt);
+    this.enforceBounds();
+
+    // Auf dem Dach/der Seite liegen geblieben → nach 2,5 s automatisch aufrichten
+    if (up.y < 0.35 && this.speed < 3) this.upsideDownTime += dt; else this.upsideDownTime = 0;
+    if (this.upsideDownTime > 2.5) { this.reset(this.pos.clone(), this.yaw()); this.upsideDownTime = 0; }
+  }
+
+  /** Fahrtrichtung (Gierwinkel) – 0 = Richtung −Z. */
+  yaw() {
+    const f = this._v[11].set(0, 0, -1).applyQuaternion(this.quat);
+    return Math.atan2(-f.x, -f.z);
+  }
+
+  /** Karosserie-Eckpunkte gegen Boden: Impuls + Reibung (Überschlag, harte Landungen). */
+  collideChassis(dt) {
+    if (!this._hull) {
+      const pts = [];
+      for (const x of [-0.92, 0.92]) for (const y of [-0.27, 0.42]) for (const z of [-2.15, 2.15]) pts.push(new THREE.Vector3(x, y, z));
+      pts.push(new THREE.Vector3(0, 0.68, 0.1), new THREE.Vector3(-0.92, 0.1, 0), new THREE.Vector3(0.92, 0.1, 0), new THREE.Vector3(0, -0.27, 0));
+      this._hull = pts;
+    }
+    const v = this._v, n = v[6];
+    let maxImpact = 0;
+    for (const lp of this._hull) {
+      const p = v[4].copy(lp).applyQuaternion(this.quat).add(this.pos);
+      const h = this.world.sample(p.x, p.z, n);
+      const depth = h - p.y;
+      if (depth <= 0) continue;
+      const r = v[5].subVectors(p, this.pos);
+      const pv = v[7].crossVectors(this.angVel, r).add(this.vel);
+      const vn = pv.dot(n);
+      // Positionskorrektur
+      this.pos.addScaledVector(n, depth * 0.6);
+      if (vn >= 0) continue;
+      // Effektive Masse entlang der Normale
+      const rn = v[8].crossVectors(r, n);
+      const k = this.invMass + this.applyInvInertia(v[9].copy(rn)).cross(r).dot(n);
+      const jn = -(1 + 0.15) * vn / k;
+      const J = v[9].copy(n).multiplyScalar(jn);
+      // Reibung (Coulomb)
+      const vt = v[10].copy(pv).addScaledVector(n, -vn);
+      const vtl = vt.length();
+      if (vtl > 1e-3) {
+        const jt = Math.min(vtl / k, 0.55 * jn);
+        J.addScaledVector(vt, -jt / vtl);
+      }
+      this.vel.addScaledVector(J, this.invMass);
+      this.angVel.add(this.applyInvInertia(v[11].crossVectors(r, J)));
+      maxImpact = Math.max(maxImpact, -vn);
+    }
+    if (maxImpact > 3) this.lastImpact = maxImpact;
+  }
+
+  /** Unsichtbare Weltgrenze: weich zurückschieben, nie herausfallen. */
+  enforceBounds() {
+    const b = this.world.bound;
+    for (const ax of ['x', 'z']) {
+      if (Math.abs(this.pos[ax]) > b) {
+        const s = Math.sign(this.pos[ax]);
+        this.pos[ax] = s * b;
+        if (this.vel[ax] * s > 0) this.vel[ax] *= -0.3;
+      }
+    }
+    // Sicherheitsnetz: niemals unter das Gelände
+    const h = this.world.sample(this.pos.x, this.pos.z);
+    if (this.pos.y < h - 1.5) { this.pos.y = h + 1.5; this.vel.y = Math.max(this.vel.y, 0); }
+  }
+}
+
+// ============================== CarModel ==============================
+/**
+ * Roadster „Voltara Aero R“ aus Three.js-Geometrien.
+ * Karosserie = extrudierte Seitenprofile (Seitenteile + Mitte mit Cockpit-Ausschnitt),
+ * Glaskuppel, Innenraum, Räder mit Felgen/Bremsen, Licht vorne/hinten.
+ */
+class CarModel {
+  constructor(cfg, q) {
+    this.cfg = cfg;
+    this.root = new THREE.Group();      // im Schwerpunkt-System des Fahrzeugs
+    const body = new THREE.Group();     // Modell ist mit y = 0 auf Bodenhöhe gebaut,
+    this.root.add(body);                // Versatz zum Schwerpunkt folgt am Ende
+    this.body = body;
+
+    // ---------- Materialien ----------
+    this.paint = q.physicalPaint
+      ? new THREE.MeshPhysicalMaterial({ color: 0x8c0612, metalness: 0.25, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.04 })
+      : new THREE.MeshStandardMaterial({ color: 0x8c0612, metalness: 0.25, roughness: 0.32 });
+    this.paint.envMapIntensity = 0.45;   // heller Himmel soll den Lack nicht „auswaschen“
+    const black = new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.55, metalness: 0.3 });
+    const carbon = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.35, metalness: 0.4 });
+    const glass = new THREE.MeshStandardMaterial({ color: 0x0a1018, roughness: 0.05, metalness: 0.9, transparent: true, opacity: 0.42, depthWrite: false });
+    const interior = new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.8 });
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.75 });
+    const seatAccent = new THREE.MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.7 });
+    this.headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 2.2 });
+    this.tailMat = new THREE.MeshStandardMaterial({ color: 0x400008, emissive: 0xff1030, emissiveIntensity: 0.9 });
+    this.revMat = new THREE.MeshStandardMaterial({ color: 0x555555, emissive: 0xffffff, emissiveIntensity: 0 });
+
+    const bevelSegs = q.bevelSegs;
+
+    // ---------- Seitenprofil (z = Länge, y = Höhe), mit Radausschnitten ----------
+    const R = cfg.wheelRadius;
+    const archs = [{ cx: cfg.wheels[0].z, r: R + 0.07 }, { cx: cfg.wheels[2].z, r: R + 0.07 }];
+    const bottomY = 0.2;
+    const makeProfile = (cockpit) => {
+      const s = new THREE.Shape();
+      s.moveTo(-2.08, bottomY);
+      for (const a of archs) {
+        const dy = bottomY - R;                                // Bogenmittelpunkt auf Radmitte
+        const d = Math.asin(clamp(dy / a.r, -1, 1));
+        const a0 = Math.PI - d, a1 = d;
+        s.lineTo(a.cx + Math.cos(a0) * a.r, bottomY);
+        for (let i = 0; i <= 16; i++) {
+          const th = lerp(a0, a1, i / 16);
+          s.lineTo(a.cx + Math.cos(th) * a.r, R + Math.sin(th) * a.r);
+        }
+      }
+      s.lineTo(2.02, 0.22);
+      s.quadraticCurveTo(2.22, 0.26, 2.24, 0.5);       // Heckschürze
+      s.quadraticCurveTo(2.25, 0.76, 2.17, 0.84);      // Abrisskante (Ducktail)
+      s.quadraticCurveTo(1.7, 0.86, 1.15, 0.92);       // Heckdeck → Kotflügel
+      if (cockpit) {
+        s.quadraticCurveTo(0.95, 0.94, 0.84, 0.88);
+        s.lineTo(0.72, 0.5); s.lineTo(-0.6, 0.5); s.lineTo(-0.74, 0.79);
+      } else {
+        s.quadraticCurveTo(0.3, 0.95, -0.74, 0.79);    // Schulterlinie
+      }
+      s.bezierCurveTo(-1.3, 0.75, -1.75, 0.66, -2.04, 0.55);   // Motorhaube
+      s.quadraticCurveTo(-2.27, 0.48, -2.25, 0.36);            // Nase
+      s.quadraticCurveTo(-2.22, 0.22, -2.08, bottomY);
+      return s;
+    };
+    /**
+     * Verformt die extrudierte Platte zu einer organischen Karosserie:
+     * runde Ecken in der Draufsicht, gewölbte Oberseite, schmalere Nase,
+     * ausgestellte hintere Kotflügel.
+     */
+    const halfW = 0.98;
+    const sculpt = (g, xOff) => {
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        let x = p.getX(i) + xOff, y = p.getY(i), z = p.getZ(i);
+        const ax = clamp(Math.abs(x) / halfW, 0, 1);
+        const tEnd = smoothstep(1.35, 2.35, Math.abs(z));
+        z -= Math.sign(z) * tEnd * 0.26 * ax * ax;                       // runde Ecken
+        x *= 1 - 0.09 * smoothstep(1.4, 2.3, -z);                        // schmalere Nase
+        x *= 1 + 0.035 * Math.exp(-((z - cfg.wheels[2].z) ** 2) / 0.35) * smoothstep(0.55, 0.9, ax); // Hüfte hinten
+        y -= 0.085 * ax ** 4 * smoothstep(0.42, 0.85, y);                // Wölbung oben
+        p.setXYZ(i, x, y, z);
+      }
+      p.needsUpdate = true;
+      smoothNormals(g, 38);
+    };
+    const extrudeX = (shape, width, bevel, mat, xOff) => {
+      const depth = Math.max(width - bevel * 2, 0.01);
+      const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: bevelSegs, curveSegments: q.bevelSegs > 1 ? 10 : 5 });
+      g.translate(0, 0, -depth / 2);
+      g.rotateY(-Math.PI / 2);
+      sculpt(g, xOff);
+      const m = new THREE.Mesh(g, mat);
+      m.castShadow = true; m.receiveShadow = true;
+      body.add(m);
+      return m;
+    };
+    const sideW = 0.48;                 // überlappt die Mitte → keine sichtbaren Fugen
+    const shells = [
+      extrudeX(makeProfile(false), sideW, 0.09, this.paint, -halfW + sideW / 2),   // linke Seite
+      extrudeX(makeProfile(false), sideW, 0.09, this.paint, halfW - sideW / 2),    // rechte Seite
+      extrudeX(makeProfile(true), 1.2, 0.09, this.paint, 0),                       // Mitte mit Cockpit
+    ];
+    // Hilfsfunktion: Punkt auf der echten Karosserie-Oberfläche finden (für Lichter usw.)
+    const ray = new THREE.Raycaster();
+    const surf = (x, y, z, dx, dy, dz, push = 0.012) => {
+      ray.set(new THREE.Vector3(x, y, z), new THREE.Vector3(dx, dy, dz));
+      const hit = ray.intersectObjects(shells, false)[0];
+      if (!hit) return new THREE.Vector3(x, y, z);
+      return hit.point.addScaledVector(ray.ray.direction, -push);
+    };
+
+    // Radhäuser (dunkel) – verhindern Durchblick
+    for (const a of archs) {
+      const well = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, a.r * 2), black);
+      well.position.set(0, R + 0.08, a.cx); body.add(well);
+    }
+
+    // Glaskuppel (Targa-Dach) über dem Cockpit
+    const canopy = new THREE.Shape();
+    canopy.moveTo(-0.78, 0.78);
+    canopy.quadraticCurveTo(-0.25, 1.1, 0.25, 1.13);
+    canopy.quadraticCurveTo(0.68, 1.12, 0.86, 0.88);
+    canopy.lineTo(-0.78, 0.78);
+    const cg = new THREE.ExtrudeGeometry(canopy, { depth: 1.18, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.06, bevelSegments: bevelSegs + 1, curveSegments: 10 });
+    cg.translate(0, 0, -0.59); cg.rotateY(-Math.PI / 2);
+    const canopyMesh = new THREE.Mesh(cg, glass); canopyMesh.renderOrder = 2; body.add(canopyMesh);
+    // Dachrahmen (A-Säulen-Optik)
+    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.025, 6, 24, Math.PI), black);
+    frame.rotation.y = Math.PI / 2; frame.position.set(0, 0.8, 0.04); frame.scale.set(1, 0.48, 1.25);
+    body.add(frame);
+
+    // Unterboden, Splitter, Diffusor, Seitenschweller
+    const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; body.add(m); return m; };
+    add(new THREE.BoxGeometry(1.7, 0.06, 3.9), black, 0, 0.2, 0);
+    add(new THREE.BoxGeometry(1.5, 0.025, 0.3), carbon, 0, 0.19, -2.0);              // Frontsplitter
+    add(new THREE.BoxGeometry(1.3, 0.04, 0.32), carbon, 0, 0.23, 1.9, 0.22);          // Diffusor
+    for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.06, 0.08, 1.6), carbon, s * 0.97, 0.26, 0);
+    // Außenspiegel
+    const mirrorGeo = new THREE.SphereGeometry(1, 14, 10);
+    for (const s of [-1, 1]) {
+      add(new THREE.BoxGeometry(0.14, 0.025, 0.05), black, s * 0.97, 0.84, -0.62, 0, 0, s * 0.2);
+      const m = add(mirrorGeo, this.paint, s * 1.06, 0.87, -0.6); m.scale.set(0.07, 0.05, 0.1);
+      const g = add(new THREE.PlaneGeometry(0.1, 0.07), black, s * 1.06, 0.87, -0.5, 0, 0, 0); g.rotation.y = 0; g.scale.set(1, 1, 1);
+    }
+
+    // ---------- Lichter (auf der Karosserie-Oberfläche platziert) ----------
+    const tube = (pts, r, mat) => {
+      const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 3, r, 6, false), mat);
+      body.add(m); return m;
+    };
+    const tailPts = [];
+    for (let x = -0.86; x <= 0.861; x += 0.086) tailPts.push(surf(x, 0.77, 5, 0, 0, -1));
+    tube(tailPts, 0.022, this.tailMat);                                      // durchgehendes Rücklichtband
+    for (const sx of [-1, 1]) {
+      const lo = []; for (let x = 0.62; x <= 0.9; x += 0.07) lo.push(surf(sx * x, 0.69, 5, 0, 0, -1));
+      tube(lo, 0.03, this.tailMat);                                          // Bremsleuchten-Ecken
+      const rv = surf(sx * 0.42, 0.42, 5, 0, 0, -1);
+      add(new THREE.BoxGeometry(0.14, 0.04, 0.02), this.revMat, rv.x, rv.y, rv.z).castShadow = false;
+      // Scheinwerfer: schlanke, nach außen ansteigende Lichtleiste
+      const hp = []; for (let x = 0.36; x <= 0.84; x += 0.06) hp.push(surf(sx * x, 0.455 + (x - 0.36) * 0.12, -5, 0, 0, 1, 0.008));
+      tube(hp, 0.026, this.headMat);
+      const hp2 = []; for (let x = 0.48; x <= 0.8; x += 0.08) hp2.push(surf(sx * x, 0.41 + (x - 0.48) * 0.08, -5, 0, 0, 1, 0.006));
+      tube(hp2, 0.012, this.headMat);
+      // Front-Lufteinlass
+      const fi = surf(sx * 0.52, 0.31, -5, 0, 0, 1, -0.005);
+      add(new THREE.BoxGeometry(0.4, 0.08, 0.06), black, fi.x, fi.y, fi.z);
+      // Seitlicher Lufteinlass hinter der Tür
+      const si = surf(sx * 3, 0.55, 0.85, -sx, 0, 0, -0.01);
+      add(new THREE.BoxGeometry(0.04, 0.11, 0.4), black, si.x, si.y, si.z, 0, 0, 0);
+    }
+
+    // Scheinwerfer-Lichtkegel (Phase 4 nutzt sie für die Nacht)
+    this.headLights = [];
+    if (q.headlights) {
+      for (const s of [-1, 1]) {
+        const sl = new THREE.SpotLight(0xf2f6ff, 0, 70, 0.42, 0.45, 1.6);
+        sl.position.set(s * 0.62, 0.56, -2.1);
+        sl.target.position.set(s * 0.9, 0, -16);
+        body.add(sl); body.add(sl.target);
+        this.headLights.push(sl);
+      }
+    }
+
+    // ---------- Innenraum ----------
+    add(new THREE.BoxGeometry(1.15, 0.03, 1.35), interior, 0, 0.5, 0.05);           // Boden
+    add(new THREE.BoxGeometry(1.2, 0.2, 0.3), interior, 0, 0.75, -0.55, 0.15);      // Armaturenbrett
+    add(new THREE.BoxGeometry(0.16, 0.22, 0.9), interior, 0, 0.6, 0.0);             // Mittelkonsole
+    for (const sx of [-0.33, 0.33]) {
+      add(new THREE.BoxGeometry(0.44, 0.09, 0.48), seatMat, sx, 0.55, 0.2);
+      add(new THREE.BoxGeometry(0.44, 0.42, 0.09), seatMat, sx, 0.76, 0.47, -0.25);
+      add(new THREE.BoxGeometry(0.24, 0.12, 0.07), seatAccent, sx, 1.0, 0.53, -0.25);   // Kopfstütze
+    }
+    // Lenkrad (dreht sich mit)
+    this.steeringWheel = new THREE.Group();
+    this.steeringWheel.position.set(-0.33, 0.83, -0.32);
+    this.steeringWheel.rotation.x = -0.35;
+    const swRim = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.02, 8, 24), black);
+    const swHub = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.04, 12).rotateX(Math.PI / 2), carbon);
+    const swSpoke = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.025, 0.02), carbon);
+    const swMark = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.025, 0.025), new THREE.MeshBasicMaterial({ color: 0x36e0ff }));
+    swMark.position.y = 0.16;
+    this.steeringWheel.add(swRim, swHub, swSpoke, swMark);
+    body.add(this.steeringWheel);
+    // Display in der Mitte
+    const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.18), new THREE.MeshBasicMaterial({ color: 0x0d3a52 }));
+    disp.position.set(0, 0.92, -0.5); disp.rotation.x = -0.5; body.add(disp);
+
+    body.position.y = -cfg.cgHeight;
+
+    // ---------- Räder ----------
+    this.wheels = [];
+    const tireGeo = new THREE.CylinderGeometry(R, R, cfg.wheelWidth, 28, 1).rotateZ(Math.PI / 2);
+    const sideWallGeo = new THREE.TorusGeometry(R - 0.035, 0.035, 6, 28).rotateY(Math.PI / 2);
+    const rimGeo = new THREE.CylinderGeometry(0.24, 0.24, cfg.wheelWidth + 0.004, 24, 1, true).rotateZ(Math.PI / 2);
+    const faceGeo = new THREE.CircleGeometry(0.24, 24).rotateY(Math.PI / 2);
+    const spokeGeo = new THREE.BoxGeometry(0.02, 0.44, 0.045);
+    const discGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.025, 20).rotateZ(Math.PI / 2);
+    const calGeo = new THREE.BoxGeometry(0.07, 0.11, 0.2);
+    const tireMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.92 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 0.9, roughness: 0.25 });
+    const faceMat = new THREE.MeshStandardMaterial({ color: 0x1a1c20, metalness: 0.6, roughness: 0.5 });
+    const discMat = new THREE.MeshStandardMaterial({ color: 0x777b80, metalness: 0.8, roughness: 0.4 });
+    const calMat = new THREE.MeshStandardMaterial({ color: 0x36e0ff, roughness: 0.4, emissive: 0x062030 });
+
+    for (const wd of cfg.wheels) {
+      const side = wd.x < 0 ? -1 : 1;
+      const pivot = new THREE.Group();            // Federweg + Lenkung
+      const spin = new THREE.Group();             // Raddrehung
+      pivot.add(spin);
+      const tire = new THREE.Mesh(tireGeo, tireMat); tire.castShadow = true; spin.add(tire);
+      for (const o of [-1, 1]) { const sw = new THREE.Mesh(sideWallGeo, tireMat); sw.position.x = o * cfg.wheelWidth * 0.42; spin.add(sw); }
+      spin.add(new THREE.Mesh(rimGeo, rimMat));
+      const face = new THREE.Mesh(faceGeo, faceMat);
+      face.position.x = side * (cfg.wheelWidth / 2 - 0.02); if (side < 0) face.rotation.y = Math.PI; spin.add(face);
+      for (let k = 0; k < 5; k++) {
+        const sp = new THREE.Mesh(spokeGeo, rimMat);
+        sp.position.x = side * (cfg.wheelWidth / 2 - 0.01);
+        sp.rotation.x = k * Math.PI * 2 / 5;
+        spin.add(sp);
+      }
+      const disc = new THREE.Mesh(discGeo, discMat); disc.position.x = side * 0.02; spin.add(disc);
+      const cal = new THREE.Mesh(calGeo, calMat); cal.position.set(side * 0.03, 0.12, wd.front ? 0.1 : -0.1); pivot.add(cal);
+      this.root.add(pivot);
+      this.wheels.push({ pivot, spin, x: wd.x, z: wd.z });
+    }
+  }
+
+  /** Optik aus dem Physikzustand aktualisieren. */
+  update(vehicle, dt) {
+    const cfg = this.cfg;
+    for (let i = 0; i < 4; i++) {
+      const w = vehicle.wheels[i], m = this.wheels[i];
+      // Federweg glätten (Optik), Rad sitzt unter dem Aufhängungspunkt
+      const len = w.grounded ? w.suspLen : cfg.suspension.restLength;
+      m.len = m.len === undefined ? len : damp(m.len, len, 40, dt);
+      m.pivot.position.set(m.x, cfg.mountY - m.len, m.z);
+      m.pivot.rotation.y = w.steer;
+      w.spin -= w.omega * dt;
+      m.spin.rotation.x = w.spin % (Math.PI * 2);
+    }
+    this.steeringWheel.rotation.z = vehicle.steerAngle * cfg.steer.wheelToSteeringWheel * 0.5;
+    this.tailMat.emissiveIntensity = vehicle.braking ? 4.5 : 0.9;
+    this.revMat.emissiveIntensity = vehicle.reversing ? 2.5 : 0;
+  }
+
+  setHeadlights(on, intensity = 60) { for (const l of this.headLights) l.intensity = on ? intensity : 0; }
+}
+
+// ============================== SkidMarks ==============================
+/** Reifenspuren als Ringpuffer aus Vierecken in einer Geometrie. */
+class SkidMarks {
+  constructor(scene, max = 1600) {
+    this.max = max; this.next = 0;
+    const pos = new Float32Array(max * 4 * 3);
+    const alpha = new Float32Array(max * 4);
+    const idx = [];
+    for (let i = 0; i < max; i++) { const b = i * 4; idx.push(b, b + 1, b + 2, b + 2, b + 1, b + 3); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('alpha', new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setIndex(idx);
+    const mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+      vertexShader: 'attribute float alpha; varying float vA; void main(){ vA = alpha; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'varying float vA; void main(){ gl_FragColor = vec4(0.04,0.04,0.045, vA * 0.6); }',
+    });
+    this.mesh = new THREE.Mesh(g, mat);
+    this.mesh.frustumCulled = false;
+    scene.add(this.mesh);
+    this.last = [null, null, null, null];
+    this.dirty = false;
+  }
+
+  /** Pro Rad aufrufen; legt Segmente, solange das Rad rutscht. */
+  track(i, wheel, vehicle, world) {
+    const active = wheel.grounded && wheel.sliding && vehicle.speed > 2;
+    if (!active) { this.last[i] = null; return; }
+    const p = wheel.contact;
+    const rx = vehicle._v[0].set(1, 0, 0).applyQuaternion(vehicle.quat);
+    const hw = 0.13;
+    const y = world.sample(p.x, p.z) + 0.03;
+    const cur = { lx: p.x - rx.x * hw, lz: p.z - rx.z * hw, rx: p.x + rx.x * hw, rz: p.z + rx.z * hw, y, a: clamp(0.35 + wheel.slideAmount, 0, 1) };
+    const prev = this.last[i];
+    if (prev && Math.hypot(cur.lx - prev.lx, cur.lz - prev.lz) > 0.35) {
+      const pos = this.mesh.geometry.attributes.position.array;
+      const al = this.mesh.geometry.attributes.alpha.array;
+      const b = this.next * 4;
+      pos.set([prev.lx, prev.y, prev.lz, prev.rx, prev.y, prev.rz, cur.lx, cur.y, cur.lz, cur.rx, cur.y, cur.rz], b * 3);
+      al.set([prev.a, prev.a, cur.a, cur.a], b);
+      this.next = (this.next + 1) % this.max;
+      this.dirty = true;
+      this.last[i] = cur;
+    } else if (!prev) this.last[i] = cur;
+  }
+
+  flush() {
+    if (!this.dirty) return;
+    this.mesh.geometry.attributes.position.needsUpdate = true;
+    this.mesh.geometry.attributes.alpha.needsUpdate = true;
+    this.dirty = false;
+  }
+}
+
+// ============================== CameraRig ==============================
+/** Verfolger-Kamera mit weicher Nachführung (Phase 3: Wischen/Zoom/Cockpit). */
+class CameraRig {
+  constructor(camera, world) {
+    this.cam = camera; this.world = world;
+    this.distance = 6.2; this.height = 1.9;
+    this.pos = new THREE.Vector3(); this.look = new THREE.Vector3();
+    this.heading = new THREE.Vector3(0, 0, -1);
+    this._t = new THREE.Vector3(); this._f = new THREE.Vector3();
+    this.initialized = false;
+  }
+
+  update(dt, carPos, carQuat, vehicle) {
+    const f = this._f.set(0, 0, -1).applyQuaternion(carQuat); f.y = 0;
+    if (f.lengthSq() < 1e-4) f.copy(this.heading); f.normalize();
+    // Richtung folgt der Fahrzeugnase, aber etwas träge (Drift sichtbar)
+    this.heading.lerp(f, 1 - Math.exp(-dt * 4.5)).normalize();
+    const speed = vehicle.speed;
+    const dist = this.distance + clamp(speed * 0.018, 0, 1.6);
+    const target = this._t.copy(carPos).addScaledVector(this.heading, -dist);
+    target.y = carPos.y + this.height + clamp(speed * 0.004, 0, 0.4);
+    // nicht unter das Gelände
+    const gh = this.world.sample(target.x, target.z) + 0.6;
+    if (target.y < gh) target.y = gh;
+    if (!this.initialized) { this.pos.copy(target); this.initialized = true; }
+    this.pos.x = damp(this.pos.x, target.x, 9, dt);
+    this.pos.z = damp(this.pos.z, target.z, 9, dt);
+    this.pos.y = damp(this.pos.y, target.y, 5, dt);
+    const lookTarget = this._t.copy(carPos).addScaledVector(this.heading, 2.2);
+    lookTarget.y += 0.75;
+    this.look.copy(lookTarget);
+    this.cam.position.copy(this.pos);
+    this.cam.lookAt(this.look);
+    // Sichtfeld wird mit Tempo etwas weiter
+    const fov = 60 + clamp(speed * 0.13, 0, 16);
+    if (Math.abs(fov - this.cam.fov) > 0.05) { this.cam.fov = damp(this.cam.fov, fov, 3, dt); this.cam.updateProjectionMatrix(); }
+  }
+}
+
+// ============================== HUD ==============================
+const HUD = {
+  el: {},
+  init() {
+    for (const id of ['fps', 'speedVal', 'gearMain', 'gearSub', 'rpmFill', 'telemetry']) this.el[id] = document.getElementById(id);
+    this.last = {};
+  },
+  set(id, val, prop = 'textContent') {
+    if (this.last[id] === val) return;
+    this.last[id] = val; this.el[id][prop] = val;
+  },
+  update(vehicle, fps) {
+    const kmh = Math.round(Math.abs(vehicle.forwardSpeed) * 3.6);
+    this.set('speedVal', String(kmh));
+    const [g, sub] = vehicle.drivetrain.label();
+    this.set('gearMain', g); this.set('gearSub', sub);
+    const rpmPct = clamp(vehicle.drivetrain.rpm / vehicle.cfg.motor.redline, 0, 1);
+    const w = (Math.round(rpmPct * 200) / 2) + '%';
+    if (this.last.rpm !== w) { this.last.rpm = w; this.el.rpmFill.style.width = w; }
+    this.set('fps', `${fps} FPS · ${Settings.data.quality.toUpperCase()}`);
+  },
+  telemetry(vehicle, extra) {
+    if (!Settings.data.telemetry) { this.el.telemetry.style.display = 'none'; return; }
+    this.el.telemetry.style.display = 'block';
+    const names = ['VL', 'VR', 'HL', 'HR'];
+    let s = '';
+    vehicle.wheels.forEach((w, i) => {
+      s += `${names[i]}  Last ${(w.load / 1000).toFixed(1).padStart(4)} kN  Schräg ${(w.slipAngle * 57.3).toFixed(1).padStart(5)}°  Schlupf ${w.slipRatio.toFixed(2).padStart(5)} ${w.sliding ? '◆' : ' '}\n`;
+    });
+    s += `Längs ${vehicle.longAccel.toFixed(2)} g   Quer ${vehicle.latAccel.toFixed(2)} g\n`;
+    s += `Motor ${Math.round(vehicle.drivetrain.rpm)} U/min   Lenk ${(vehicle.steerAngle * 57.3).toFixed(1)}°\n`;
+    s += `0–100 km/h: ${extra.zeroTo100 ? extra.zeroTo100.toFixed(2) + ' s' : '–'}   Vmax: ${Math.round(extra.vmax * 3.6)} km/h\n`;
+    s += `Pos ${vehicle.pos.x.toFixed(0)}, ${vehicle.pos.z.toFixed(0)}  Luft ${vehicle.airTime.toFixed(1)} s`;
+    this.el.telemetry.textContent = s;
+  },
+};
+
+// ============================== Game ==============================
+class Game {
+  constructor() {
+    this.q = QUALITY[Settings.data.quality] || QUALITY.medium;
+    const canvas = document.getElementById('game');
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.q.antialias, powerPreference: 'high-performance' });
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 2600);
+    this.setupLights();
+    this.setupSky();
+
+    this.world = new World();
+    this.world.build(this.scene, this.q);
+
+    this.vehicle = new Vehicle(this.world, CONFIG.car);
+    this.car = new CarModel(CONFIG.car, this.q);
+    this.scene.add(this.car.root);
+    this.car.setHeadlights(true, 25);
+    this.skid = new SkidMarks(this.scene);
+    this.rig = new CameraRig(this.camera, this.world);
+
+    this.applySettings();
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 200));
+
+    this.acc = 0; this.last = performance.now();
+    this.frames = 0; this.fpsTime = 0; this.fps = 0;
+    this.paused = false;
+    this.stats = { zeroTo100: 0, vmax: 0, launchT: -1 };
+    this._ip = new THREE.Vector3(); this._iq = new THREE.Quaternion();
+    document.addEventListener('visibilitychange', () => { this.last = performance.now(); this.acc = 0; });
+    requestAnimationFrame((t) => this.frame(t));
+  }
+
+  setupLights() {
+    this.hemi = new THREE.HemisphereLight(0xcfe6ff, 0x4a5a3a, 0.75);
+    this.scene.add(this.hemi);
+    this.sun = new THREE.DirectionalLight(0xfff2e0, 2.6);
+    this.sunDir = new THREE.Vector3(-0.45, 0.75, 0.35).normalize();
+    this.sun.shadow.camera.left = -40; this.sun.shadow.camera.right = 40;
+    this.sun.shadow.camera.top = 40; this.sun.shadow.camera.bottom = -40;
+    this.sun.shadow.camera.near = 1; this.sun.shadow.camera.far = 220;
+    this.sun.shadow.bias = -0.0004; this.sun.shadow.normalBias = 0.04;
+    this.scene.add(this.sun); this.scene.add(this.sun.target);
+  }
+
+  setupSky() {
+    const top = new THREE.Color(0x3d7fd6), horizon = new THREE.Color(0xcfe3f2);
+    this.scene.fog = new THREE.Fog(horizon, 250, 1700);
+    const skyGeo = new THREE.SphereGeometry(2400, 32, 16);
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: { top: { value: top }, horizon: { value: horizon }, sunDir: { value: this.sunDir } },
+      vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position,1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w; }',
+      fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; varying vec3 vDir;
+        void main(){ float h = max(vDir.y, 0.0); vec3 c = mix(horizon, top, pow(h, 0.55));
+          if (vDir.y < 0.0) c = mix(horizon, vec3(0.35,0.42,0.38), clamp(-vDir.y*4.0,0.0,1.0));
+          float s = max(dot(normalize(vDir), sunDir), 0.0);
+          c += vec3(1.0,0.85,0.6) * pow(s, 600.0) * 4.0 + vec3(1.0,0.8,0.55) * pow(s, 12.0) * 0.25;
+          gl_FragColor = vec4(c, 1.0); }`,
+    });
+    this.sky = new THREE.Mesh(skyGeo, skyMat);
+    this.sky.frustumCulled = false;
+    this.scene.add(this.sky);
+    // Umgebungs-Reflexionen aus dem Himmel (für Lack/Glas)
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const envScene = new THREE.Scene();
+    envScene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), skyMat.clone()));
+    this.scene.environment = pmrem.fromScene(envScene, 0.02).texture;
+    this.scene.environmentIntensity = 0.65;
+    pmrem.dispose();
+  }
+
+  applySettings() {
+    const s = Settings.data;
+    this.q = QUALITY[s.quality] || QUALITY.medium;
+    this.vehicle.drivetrain.manual = s.transmission === 'manual';
+    if (!this.vehicle.drivetrain.manual && this.vehicle.drivetrain.gear === 0) this.vehicle.drivetrain.gear = 1;
+    this.vehicle.tractionControl = !!s.tractionControl;
+    document.body.classList.toggle('manual', this.vehicle.drivetrain.manual);
+    this.renderer.shadowMap.enabled = this.q.shadows;
+    this.sun.castShadow = this.q.shadows;
+    if (this.q.shadows && this.sun.shadow.mapSize.x !== this.q.shadowSize) {
+      this.sun.shadow.mapSize.set(this.q.shadowSize, this.q.shadowSize);
+      this.sun.shadow.map?.dispose(); this.sun.shadow.map = null;
+    }
+    this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+    this.resize();
+  }
+
+  resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.q.pixelRatio));
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
+  }
+
+  /** Einmalige Eingaben (Gangwechsel, Reset …) */
+  handleActions() {
+    const v = this.vehicle, d = v.drivetrain;
+    if (Input.consume('KeyE') || Input.consume('GearUp')) { if (d.manual && d.shift(1)) haptic(15); }
+    if (Input.consume('KeyQ') || Input.consume('GearDown')) { if (d.manual && d.shift(-1)) haptic(15); }
+    if (Input.consume('KeyR')) this.resetCar();
+    if (Input.consume('KeyT')) { Settings.data.telemetry = !Settings.data.telemetry; Settings.save(); UI.sync(); }
+    if (Input.consume('KeyM')) { Settings.data.transmission = d.manual ? 'auto' : 'manual'; Settings.save(); this.applySettings(); UI.sync(); }
+  }
+
+  resetCar() {
+    const v = this.vehicle;
+    v.reset(v.pos.clone(), v.yaw());
+  }
+
+  frame(now) {
+    requestAnimationFrame((t) => this.frame(t));
+    let dt = (now - this.last) / 1000; this.last = now;
+    if (dt > 0.1) dt = 0.1;               // nach Tab-Wechsel o. Ä. nicht „nachholen“
+    const fixed = 1 / CONFIG.physicsHz;
+
+    Input.update();
+    this.handleActions();
+    if (!this.paused) {
+      this.vehicle.processInput(Input.state, dt);
+      this.acc += dt;
+      let steps = 0;
+      while (this.acc >= fixed && steps < CONFIG.maxSubSteps) {
+        this.vehicle.step(fixed);
+        this.acc -= fixed; steps++;
+      }
+      if (steps === CONFIG.maxSubSteps) this.acc = 0;
+      this.trackStats(dt);
+    }
+    Input.endFrame();
+
+    // Darstellung zwischen letztem und aktuellem Physikzustand interpolieren
+    const alpha = this.acc / fixed;
+    const v = this.vehicle;
+    this._ip.lerpVectors(v.prevPos, v.pos, alpha);
+    this._iq.slerpQuaternions(v.prevQuat, v.quat, alpha);
+    this.car.root.position.copy(this._ip);
+    this.car.root.quaternion.copy(this._iq);
+    this.car.update(v, this.paused ? 0 : dt);
+    for (let i = 0; i < 4; i++) this.skid.track(i, v.wheels[i], v, this.world);
+    this.skid.flush();
+    this.rig.update(dt, this._ip, this._iq, v);
+
+    // Sonne + Schattenkamera folgen dem Auto
+    this.sun.target.position.copy(this._ip);
+    this.sun.position.copy(this._ip).addScaledVector(this.sunDir, 120);
+    this.sky.position.copy(this.camera.position);
+
+    if (v.lastImpact > 0) { haptic(Math.min(60, v.lastImpact * 6)); v.lastImpact = 0; }
+
+    this.renderer.render(this.scene, this.camera);
+
+    // FPS
+    this.frames++; this.fpsTime += dt;
+    if (this.fpsTime >= 0.5) { this.fps = Math.round(this.frames / this.fpsTime); this.frames = 0; this.fpsTime = 0; }
+    HUD.update(v, this.fps);
+    HUD.telemetry(v, this.stats);
+  }
+
+  /** Messwerte zum Abstimmen: 0–100 km/h und Höchstgeschwindigkeit. */
+  trackStats(dt) {
+    const v = this.vehicle, s = this.stats;
+    const spd = v.forwardSpeed;
+    if (spd < 0.3 && v.throttle < 0.05) s.launchT = 0;
+    else if (s.launchT >= 0 && v.throttle > 0) {
+      s.launchT += dt;
+      if (spd >= 100 / 3.6) { s.zeroTo100 = s.launchT; s.launchT = -1; }
+    }
+    if (spd > s.vmax) s.vmax = spd;
+  }
+}
+
+// ============================== UI (Einstellungen) ==============================
+const UI = {
+  init(game) {
+    this.game = game;
+    const panel = document.getElementById('settings');
+    document.getElementById('btnSettings').addEventListener('pointerdown', (e) => { e.preventDefault(); this.open(true); });
+    document.getElementById('btnClose').addEventListener('click', () => this.open(false));
+    document.getElementById('btnReset').addEventListener('pointerdown', (e) => { e.preventDefault(); game.resetCar(); haptic(20); });
+    panel.querySelectorAll('.seg').forEach((seg) => {
+      seg.addEventListener('click', (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        const key = seg.dataset.key; let val = b.dataset.v;
+        if (val === 'true') val = true; else if (val === 'false') val = false;
+        Settings.data[key] = val; Settings.save();
+        game.applySettings(); this.sync();
+      });
+    });
+    this.sync();
+  },
+  open(on) { document.getElementById('settings').classList.toggle('open', on); this.game.paused = on; },
+  sync() {
+    document.querySelectorAll('#settings .seg').forEach((seg) => {
+      const val = String(Settings.data[seg.dataset.key]);
+      seg.querySelectorAll('button').forEach((b) => b.classList.toggle('sel', b.dataset.v === val));
+    });
+  },
+};
+
+// ============================== Start ==============================
+Input.init();
+HUD.init();
+const game = new Game();
+UI.init(game);
+window.__game = game;          // für Tests/Debugging
+</script>
+</body>
+</html>
