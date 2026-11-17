@@ -29,6 +29,7 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 | Boost | BOOST | Shift |
 | Fliegen an / Landen | FLIEGEN (in der Luft: Joystick ↕ Höhe, ↔ Richtung) | F (Leertaste/X hoch/runter) |
 | Polizei-Verfolgung starten/abbrechen (Stufe in den Einstellungen) | 🚨 | P |
+| Missionen (Liste) – oder in eine gelbe Lichtsäule fahren | 🏁 | – |
 | Auto zurücksetzen (auf die nächste Straße) | ↺ | R |
 | Tag / Nacht | Einstellungen | N |
 
@@ -42,7 +43,7 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 - [x] Phase 5 – Kollisionen
 - [x] Phase 6 – Boost und Fliegen
 - [x] Phase 7 – Polizei-Modus
-- [ ] Phase 8 – Missionen
+- [x] Phase 8 – Missionen
 - [ ] Phase 9 – Garage und Upgrades
 - [ ] Phase 10 – Feinschliff und Veröffentlichung
 
@@ -101,8 +102,16 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 - **Belohnung:** Geld nach Stufe, Fluchtzeit und Fahndungslevel; dauerhaft gespeichert.
 - **Ton:** Sirenen auf- und abschwellend mit Doppler-Effekt und Stereo-Position, Hubschrauber-Rotor.
 
+## Technik (Phase 8 – Missionen, Realismus)
+
+- **14 Missionen, 8 Arten:** Checkpoint-Rennen (Stadtrunde, Nachtfahrt), Flug-Parcours (Erster Flug, Waldschneise), Holzfäller, Drift-König, Weitsprung, Polizei-Flucht (Ausbruch, Großfahndung, Staatsfeind Nr. 1), Lieferung ohne Polizeikontakt (Eilige Lieferung, Nachtkurier), Rennen gegen KI-Gegner (Autobahn-Duell, Brückenrennen). Nachtmissionen schalten die Tageszeit um.
+- **Ablauf:** Startpunkte als gelbe Lichtsäulen in der Welt und auf der Minimap, Countdown, Checkpoint-Tore bzw. Ringe, Richtungspfeil über dem Auto, Bronze/Silber/Gold, Geld (nur die Verbesserung wird ausgezahlt), Freischaltung nach und nach.
+- **Routen** folgen dem Straßennetz (Dijkstra-Wegsuche); KI-Gegner fahren mit kurvenabhängigem Tempo und „Gummiband“.
+- **Realismus:** Bodentexturen (Gras, Waldboden, Fels, Sand) nach Gelände gemischt, in zwei Maßstäben gegen Kachelmuster; Kontaktschatten unter allen Fahrzeugen; Bäume wiegen im Wind; Gebäude unten abgedunkelt; leichte Vignette.
+- **Querformat erzwingen:** Bleibt die App im Hochformat (z. B. eingebettet), dreht sich das Spiel selbst um 90°.
+
 ## Code-Aufbau
 
 Bis Phase 9 steckt alles in `index.html`, in klar getrennten Abschnitten:
-`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Particles`, `Grass`, `RigidBox`, `SoundFX`, `SaveData`, `PoliceSystem`, `View`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
+`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Particles`, `Grass`, `RigidBox`, `SoundFX`, `SaveData`, `PoliceSystem`, `View`, `MissionSystem`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
 In Phase 10 wird der Code in einzelne Module aufgeteilt.
