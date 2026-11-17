@@ -165,9 +165,9 @@ const Input = {
     const dz = 0.04;
     const a = Math.abs(x);
     if (a < dz) return 0;
-    const sens = { low: 0.8, mid: 1.0, high: 1.25 }[Settings.data.steerSens] || 1;
+    const sens = { low: 0.9, mid: 1.15, high: 1.4 }[Settings.data.steerSens] || 1;
     // nahezu linear: halber Ausschlag ≈ halber Lenkeinschlag
-    return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.1) * sens, 0, 1);
+    return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.0) * sens, 0, 1);
   },
 
   // ---------- Neigungssteuerung ----------

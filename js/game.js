@@ -50,7 +50,7 @@ class Game {
     CamInput.init(this.canvas);
     // Start: Stadtstraße, Blick nach Osten
     this.spawnAt(WORLD.city.x0 + 250, WORLD.city.z0 + 300, -Math.PI / 2);
-    this.traffic = new TrafficSystem(this.world, this.scene, this.q.traffic);
+    this.traffic = new TrafficSystem(this.world, this.scene, this.q.traffic, this.q.parked || 0);
     this.traffic.spawnAll(this.vehicle.pos);
     this.minimap = new Minimap(this.world);
     this.particles = new Particles(this.scene, this.q.particles);
@@ -124,13 +124,14 @@ class Game {
 
   setTimeOfDay(mode) {
     this.timeOfDay = mode;
-    const night = mode === 'night';
+    const night = mode === 'night', lights = mode !== 'day';      // abends sind Laternen und Scheinwerfer schon an
     this.env.setTime(mode);
-    this.world.setNight(night);
-    this.traffic.setNight(night);
-    this.car.setHeadlights(true, night ? (this.q.headlights ? 320 : 480) : 0);
-    this.furniture.setNight(night);
-    this.mountains.material.color.setScalar(night ? 0.09 : 1);
+    this.world.setNight(lights);
+    this.traffic.setNight(lights);
+    this.car.setHeadlights(true, lights ? (this.q.headlights ? 320 : 480) * (night ? 1 : 0.6) : 0);
+    this.car.setBeams(night ? 1 : lights ? 0.4 : 0);
+    this.furniture.setNight(lights);
+    if (mode === 'dusk') this.mountains.material.color.setRGB(1.0, 0.72, 0.62); else this.mountains.material.color.setScalar(night ? 0.09 : 1);
     this.weather.apply(Settings.data.weather || 'clear');   // nach der Tageszeit, da es Licht/Nebel/Himmel anpasst
   }
 
@@ -294,6 +295,7 @@ class Game {
     this.grass.update(dt, this.camera.position);
     this.scenery.update(this.camera.position);
     this.weather.update(dt, this.camera.position, v);
+    this.car.setBeamHaze(1 + this.weather.rain * 2.5 + (this.weather.type === 'fog' ? 3.5 : 0) + (this.weather.type === 'cloudy' ? 0.5 : 0));
     if (this.flare) {
       this.flare.visible = this.timeOfDay !== 'night' && this.weather.W.cover < 1.8 && this.rig.mode !== 'cockpit';
       this.flare.position.copy(this.camera.position).addScaledVector(this.env.sunDir, 2400);

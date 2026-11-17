@@ -161,6 +161,14 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Ladenzeilen** im Erdgeschoss der Stadthäuser mit Schaufenstern und farbigen Schildern, nachts teils beleuchtet.
 - **Sonnenreflex** (Lens Flare) beim Blick in die Sonne.
 
+## Technik (Realismus-Paket 2)
+- **Lenkung kräftiger:** größerer Lenkeinschlag (0,6 rad), schnellere Lenkrate, höhere Empfindlichkeit; ca. 1,15 g Querbeschleunigung bei allen Tempi, stabil ohne Dreher.
+- **Tageszeit „Abend“:** tiefe Sonne, orange Horizont, warmer Nebel; Licht an Autos und Laternen.
+- **Filmischer Look:** eigener Shader-Pass mit leichter chromatischer Aberration, S-Kurve, Split-Toning und Filmkorn.
+- **Scheinwerferkegel:** sichtbare Lichtkegel und Leuchtpunkte, bei Regen/Nebel stärker (Lichtstreuung).
+- **Geparkte Autos** am Straßenrand der Stadt (anfahrbar, kehren danach an ihren Platz zurück).
+- **Lichthöfe** an Scheinwerfern und Rücklichtern des Verkehrs bei Nacht.
+
 ## Code-Aufbau
 
 ```

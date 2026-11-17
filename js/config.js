@@ -36,8 +36,8 @@ const CONFIG = {
       loadSensitivity: 0.14,      // Grip wächst unterproportional mit Radlast
       rearGrip: 1.10,             // breitere Hinterreifen → stabiler
     },
-    steer: { max: 0.56, speedFalloff: 0.11, rate: 2.6, returnRate: 4.2, wheelToSteeringWheel: 8 },
-    aero: { rho: 1.225, CdA: 0.62, ClA: 0.55, frontDownforceShare: 0.42 },
+    steer: { max: 0.6, speedFalloff: 0.06, rate: 3.8, returnRate: 5.5, wheelToSteeringWheel: 8 },
+    aero: { rho: 1.225, CdA: 0.62, ClA: 1.0, frontDownforceShare: 0.42 },
     brake: { maxForce: 28000, frontBias: 0.62, handbrakeForce: 9000 },
     motor: {
       maxTorque: 1000,            // Nm – voller Antritt ab 0 U/min
@@ -87,11 +87,11 @@ Settings.load();
 
 const QUALITY = {
   low:    { pixelRatio: 1.0, shadows: false, shadowSize: 0,    antialias: false, physicalPaint: false, headlights: false, bevelSegs: 1,
-            treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, rainDrops: 1500, scenery: 500, sceneryRadius: 110, grass: 0,    grassRadius: 0,  particles: 500, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
+            treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, parked: 10, rainDrops: 1500, scenery: 500, sceneryRadius: 110, grass: 0,    grassRadius: 0,  particles: 500, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
   medium: { pixelRatio: 1.5, shadows: true,  shadowSize: 1024, antialias: true,  physicalPaint: false, headlights: true,  bevelSegs: 2,
-            treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, rainDrops: 3200, scenery: 1300, sceneryRadius: 160, grass: 3500, grassRadius: 38, particles: 1200, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },
+            treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, parked: 26, rainDrops: 3200, scenery: 1300, sceneryRadius: 160, grass: 3500, grassRadius: 38, particles: 1200, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },
   high:   { pixelRatio: 2.0, shadows: true,  shadowSize: 2048, antialias: true,  physicalPaint: true,  headlights: true,  bevelSegs: 3,
-            treeDensity: 0.62, treeNear: 230, treeFar: 1100, traffic: 34, rainDrops: 6000, scenery: 2400, sceneryRadius: 220, grass: 7500, grassRadius: 55, particles: 2000, lampLights: 5, bloom: true,  clouds: true,  fogFar: 2200, terrainNear: 340 },
+            treeDensity: 0.62, treeNear: 230, treeFar: 1100, traffic: 34, parked: 42, rainDrops: 6000, scenery: 2400, sceneryRadius: 220, grass: 7500, grassRadius: 55, particles: 2000, lampLights: 5, bloom: true,  clouds: true,  fogFar: 2200, terrainNear: 340 },
 };
 
 export { CONFIG, clamp, lerp, smoothstep, damp, approach, Settings, QUALITY };

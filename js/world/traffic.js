@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp } from '../config.js';
 import { mulberry32 } from './noise.js';
-import { ROAD_CLASS, mergeParts, makeBlobTexture } from './world.js';
+import { ROAD_CLASS, mergeParts, makeBlobTexture, radialTexture } from './world.js';
 import { RigidBox } from '../fx.js';
 
 // ============================== Verkehr ==============================
@@ -66,7 +66,7 @@ function makeTrafficVariant(type) {
  * physikalisch weg (Phase 5 erweitert das mit Überschlägen).
  */
 class TrafficSystem {
-  constructor(world, scene, count) {
+  constructor(world, scene, count, parked = 0) {
     this.w = world; this.rng = mulberry32(4242); this.cars = [];
     this.bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.35 });
     this.lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -74,6 +74,8 @@ class TrafficSystem {
     this.variants = types.map((t) => makeTrafficVariant(t));
     const pick = () => { let r = this.rng(), acc = 0; for (let i = 0; i < types.length; i++) { acc += TRAFFIC_TYPES[types[i]].weight; if (r <= acc) return i; } return 0; };
     const chosen = Array.from({ length: count }, pick);
+    // geparkte Autos (keine Lkw) am Straßenrand der Stadt
+    for (let k = 0; k < parked; k++) { let t; do { t = pick(); } while (types[t] === 'truck'); chosen.push(t); }
     for (const v of this.variants) {
       const n = Math.max(1, chosen.filter((i) => this.variants[i] === v).length);
       v.bodyMesh = new THREE.InstancedMesh(v.body, this.bodyMat, n);
@@ -91,11 +93,21 @@ class TrafficSystem {
       const p = v.type === 'truck' ? [0.9, 0.9, 0.9] : CAR_PAINTS[Math.floor(this.rng() * CAR_PAINTS.length)];
       v.bodyMesh.setColorAt(car.slot, col.setRGB(p[0], p[1], p[2], THREE.SRGBColorSpace));
       car.idx = this.cars.length;
+      car.parked = car.idx >= count;
       this.cars.push(car);
     }
+    for (const c of this.cars) if (c.parked) this.placeParked(c, true);
     for (const v of this.variants) { v.bodyMesh.count = v.n; v.lightMesh.count = v.n; }
     this.blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ map: makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }), count);
+      new THREE.MeshBasicMaterial({ map: makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }), this.cars.length);
+    // Lichthöfe der Scheinwerfer/Rücklichter (nachts), ein Draw-Call für alle
+    const N = this.cars.length * 4;
+    this.glowGeo = new THREE.BufferGeometry();
+    this.glowGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    this.glowGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    this.glow = new THREE.Points(this.glowGeo, new THREE.PointsMaterial({ map: radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), size: 1.7, vertexColors: true,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
+    this.glow.frustumCulled = false; this.glow.visible = false; scene.add(this.glow);
     this.blobs.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.blobs.frustumCulled = false; this.blobs.renderOrder = 1;
     scene.add(this.blobs);
     this._up = new THREE.Vector3(0, 1, 0); this._bs = new THREE.Vector3();
@@ -107,7 +119,22 @@ class TrafficSystem {
     this._pos = new THREE.Vector3(); this._one = new THREE.Vector3(1, 1, 1);
   }
 
-  setNight(on) { this.lightMat.color.setScalar(on ? 4 : 1.2); }
+  setNight(on) { this.lightMat.color.setScalar(on ? 4 : 1.2); this.glow.visible = on; }
+
+  /** Parkplatz am Straßenrand einer Stadtstraße suchen (bzw. den alten wieder einnehmen). */
+  placeParked(car, fresh) {
+    const city = this.w.edges.filter((e) => e.cls === 'city');
+    if (fresh || !car.spot) {
+      for (let t = 0; t < 40; t++) {
+        const e = city[Math.floor(this.rng() * city.length)], s = 18 + this.rng() * (e.len - 36), dir = this.rng() < 0.5 ? 1 : -1;
+        if (this.cars.some((o) => o !== car && o.spot && o.spot.e === e && o.spot.dir === dir && Math.abs(o.spot.s - s) < 7)) continue;
+        car.spot = { e, s, dir }; break;
+      }
+    }
+    const sp = car.spot;
+    Object.assign(car, { e: sp.e, s: sp.s, dir: sp.dir, lane: 0, speed: 0, state: 'parked', latOff: 5.6 - sp.e.C.lanes[0], body: null, stopT: 0 });
+    this.place(car, 0, true);
+  }
 
   randomEdge() {
     const r = this.rng() * this.edgeTotal;
@@ -142,7 +169,7 @@ class TrafficSystem {
     return (dx * f.x + dz * f.z) / Math.hypot(dx, dz) > 0.5;
   }
 
-  spawnAll(focus) { for (const c of this.cars) this.respawn(c, focus, 40, 600); }
+  spawnAll(focus) { for (const c of this.cars) if (!c.parked) this.respawn(c, focus, 40, 600); }
 
   /** Weltposition aus Kante/Spur berechnen (mit weicher Überblendung bei Kantenwechseln). */
   place(car, dt, snap) {
@@ -177,6 +204,7 @@ class TrafficSystem {
     const w = this.w;
     for (const car of this.cars) {
       if (car.state === 'loose') { this.updateLoose(car, dt, player, camera); continue; }
+      if (car.state === 'parked') continue;
       const e = car.e, C = e.C;
       const node = car.dir > 0 ? e.b : e.a;
       const toNode = car.dir > 0 ? e.len - car.s : car.s;
@@ -282,7 +310,7 @@ class TrafficSystem {
     const hidden = !this.inView(camera, car);
     if ((car.stopT > 6 && d > 60 && hidden) || (car.stopT > 25 && d > 25) || d > 700 || car.y < this.w.waterLevel - 6) {
       car.body = null;
-      this.respawn(car, player.pos, 250, 650, camera);
+      if (car.parked) this.placeParked(car, false); else this.respawn(car, player.pos, 250, 650, camera);
     }
   }
 
@@ -296,7 +324,7 @@ class TrafficSystem {
         e.set(car.pitch, car.yaw, 0, 'YXZ'); q.setFromEuler(e); p.set(car.x, car.y, car.z);
         m.compose(p, q, this._one);
       }
-      car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, m);
+      car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, car.state === 'parked' ? this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0)) : m);
       // Kontaktschatten
       const bx = car.body ? car.body.pos.x : car.x, bz = car.body ? car.body.pos.z : car.z;
       const gy = car.body ? this.w.sample(bx, bz) : car.y;
@@ -306,6 +334,21 @@ class TrafficSystem {
       this.blobs.setMatrixAt(car.idx, m);
     }
     this.blobs.instanceMatrix.needsUpdate = true;
+    // Lichthöfe (nur fahrende Autos, nur nachts)
+    if (this.glow.visible) {
+      const pa = this.glowGeo.attributes.position.array, ca = this.glowGeo.attributes.color.array;
+      let k = 0;
+      for (const car of this.cars) {
+        if (car.state !== 'drive') continue;
+        const fx = -Math.sin(car.yaw), fz = -Math.cos(car.yaw), rx = -fz, rz = fx, L = car.v.L / 2 + 0.06, W = car.v.W / 2 - 0.3;
+        for (const [a, b, y, r, g, bl] of [[L, W, 0.66, 1, 0.95, 0.85], [L, -W, 0.66, 1, 0.95, 0.85], [-L, W, 0.74, 0.9, 0.05, 0.05], [-L, -W, 0.74, 0.9, 0.05, 0.05]]) {
+          pa[k * 3] = car.x + fx * a + rx * b; pa[k * 3 + 1] = car.y + y * (car.v.type === 'truck' ? 1.35 : 1); pa[k * 3 + 2] = car.z + fz * a + rz * b;
+          ca[k * 3] = r; ca[k * 3 + 1] = g; ca[k * 3 + 2] = bl; k++;
+        }
+      }
+      this.glowGeo.setDrawRange(0, k);
+      this.glowGeo.attributes.position.needsUpdate = true; this.glowGeo.attributes.color.needsUpdate = true;
+    }
     for (const v of this.variants) { v.bodyMesh.instanceMatrix.needsUpdate = true; v.lightMesh.instanceMatrix.needsUpdate = true; }
   }
 

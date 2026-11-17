@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { clamp, smoothstep } from './config.js';
 import { fbm } from './world/noise.js';
 import { WORLD } from './world/world.js';
@@ -87,6 +88,24 @@ class Environment {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.35, 0.5, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    // Filmische Farbkorrektur: leichte S-Kurve, warme Lichter/kühle Schatten, feines Korn, minimale Farbsäume am Rand
+    this.grade = new ShaderPass({
+      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 1 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uWarm; varying vec2 vUv;
+        float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+        void main(){
+          vec2 d = vUv - 0.5; float r = dot(d, d);
+          vec3 c; c.r = texture2D(tDiffuse, vUv + d * r * 0.012).r; c.g = texture2D(tDiffuse, vUv).g; c.b = texture2D(tDiffuse, vUv - d * r * 0.012).b;
+          c = mix(c, c * c * (3.0 - 2.0 * c), 0.22);                       // Kontrast-S-Kurve
+          float l = dot(c, vec3(0.299, 0.587, 0.114));
+          c += (vec3(0.035, 0.015, -0.03) * smoothstep(0.45, 1.0, l) + vec3(-0.02, 0.0, 0.03) * (1.0 - smoothstep(0.0, 0.4, l))) * uWarm;
+          c = mix(vec3(l), c, 1.06);                                         // etwas mehr Sättigung
+          c += (h(vUv * 1000.0 + uTime) - 0.5) * 0.025;                      // Filmkorn
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    });
+    this.composer.addPass(this.grade);
     this.applyBloomParams();
   }
   applyBloomParams() {
@@ -98,7 +117,7 @@ class Environment {
   resize(w, h) { if (this.composer) { this.composer.setSize(w, h); this.composer.setPixelRatio(this.renderer.getPixelRatio()); } }
 
   setTime(mode) {
-    const night = mode === 'night';
+    const night = mode === 'night', dusk = mode === 'dusk';
     this.night = night;
     const u = this.uniforms;
     u.uNight.value = night ? 1 : 0;
@@ -110,6 +129,15 @@ class Environment {
       this.scene.fog.color.set(0x0a111c); this.scene.fog.near = 120; this.scene.fog.far = Math.min(1300, this.q.fogFar);
       this.renderer.toneMappingExposure = 1.15;
       this.envGround.material.color.set(0x050607);
+    } else if (dusk) {
+      // Abendsonne: tief, warm, lange Schatten
+      u.uTop.value.set(0x2d3f78); u.uHorizon.value.set(0xf6a56a);
+      this.sunDir.set(-0.78, 0.13, 0.6).normalize();
+      this.sun.color.set(0xffa55e); this.sun.intensity = 2.4;
+      this.hemi.color.set(0x8d8fb8); this.hemi.groundColor.set(0x4a3a2a); this.hemi.intensity = 0.55;
+      this.scene.fog.color.set(0xd99a72); this.scene.fog.near = 220; this.scene.fog.far = this.q.fogFar * 0.85;
+      this.renderer.toneMappingExposure = 1.05;
+      this.envGround.material.color.set(0x3a2e24);
     } else {
       u.uTop.value.set(0x2f6fd0); u.uHorizon.value.set(0xbcd6ea);
       this.sunDir.set(-0.5, 0.5, 0.42).normalize();
@@ -123,13 +151,15 @@ class Environment {
     // Reflexionen aus dem aktuellen Himmel neu berechnen
     const old = this.scene.environment;
     this.scene.environment = this.pmrem.fromScene(this.envScene, 0.03).texture;
-    this.scene.environmentIntensity = night ? 0.3 : 0.7;
+    this.scene.environmentIntensity = night ? 0.3 : dusk ? 0.55 : 0.7;
+    if (this.grade) this.grade.uniforms.uWarm.value = night ? 0.4 : dusk ? 1.6 : 1;
     old?.dispose?.();
     this.applyBloomParams();
   }
 
   update(dt, focus, camPos) {
     this.uniforms.uTime.value += dt;
+    if (this.grade) this.grade.uniforms.uTime.value = this.uniforms.uTime.value % 100;
     this.sun.target.position.copy(focus);
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 200);
     this.sky.position.copy(camPos);

@@ -348,7 +348,7 @@
     <div class="row"><div>Polizei-Modus<small>Start/Stopp mit 🚨. Normal 2, Schwer 4, Extrem 6 + Hubschrauber, Insane 10 Wagen</small></div>
       <div class="seg" data-key="policeLevel"><button data-v="normal">Normal</button><button data-v="hard">Schwer</button><button data-v="extreme">Extrem</button><button data-v="insane">Insane</button></div></div>
     <div class="row"><div>Tageszeit<small>Nachts: Scheinwerfer, Laternen, beleuchtete Fenster</small></div>
-      <div class="seg" data-key="timeOfDay"><button data-v="day">Tag</button><button data-v="night">Nacht</button></div></div>
+      <div class="seg" data-key="timeOfDay"><button data-v="day">Tag</button><button data-v="dusk">Abend</button><button data-v="night">Nacht</button></div></div>
     <div class="row"><div>Wetter<small>Regen: nasse, spiegelnde Straßen und weniger Grip</small></div>
       <div class="seg" data-key="weather"><button data-v="clear">Sonnig</button><button data-v="cloudy">Bewölkt</button><button data-v="rain">Regen</button><button data-v="fog">Nebel</button></div></div>
     <div class="row"><div>Lenkung<small>Neigen: Gerät wie ein Lenkrad drehen</small></div>
@@ -389,6 +389,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
 
 // ---- js/config.js ----
@@ -428,8 +429,8 @@ const CONFIG = {
       loadSensitivity: 0.14,      // Grip wächst unterproportional mit Radlast
       rearGrip: 1.10,             // breitere Hinterreifen → stabiler
     },
-    steer: { max: 0.56, speedFalloff: 0.11, rate: 2.6, returnRate: 4.2, wheelToSteeringWheel: 8 },
-    aero: { rho: 1.225, CdA: 0.62, ClA: 0.55, frontDownforceShare: 0.42 },
+    steer: { max: 0.6, speedFalloff: 0.06, rate: 3.8, returnRate: 5.5, wheelToSteeringWheel: 8 },
+    aero: { rho: 1.225, CdA: 0.62, ClA: 1.0, frontDownforceShare: 0.42 },
     brake: { maxForce: 28000, frontBias: 0.62, handbrakeForce: 9000 },
     motor: {
       maxTorque: 1000,            // Nm – voller Antritt ab 0 U/min
@@ -479,11 +480,11 @@ Settings.load();
 
 const QUALITY = {
   low:    { pixelRatio: 1.0, shadows: false, shadowSize: 0,    antialias: false, physicalPaint: false, headlights: false, bevelSegs: 1,
-            treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, rainDrops: 1500, scenery: 500, sceneryRadius: 110, grass: 0,    grassRadius: 0,  particles: 500, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
+            treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, parked: 10, rainDrops: 1500, scenery: 500, sceneryRadius: 110, grass: 0,    grassRadius: 0,  particles: 500, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
   medium: { pixelRatio: 1.5, shadows: true,  shadowSize: 1024, antialias: true,  physicalPaint: false, headlights: true,  bevelSegs: 2,
-            treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, rainDrops: 3200, scenery: 1300, sceneryRadius: 160, grass: 3500, grassRadius: 38, particles: 1200, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },
+            treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, parked: 26, rainDrops: 3200, scenery: 1300, sceneryRadius: 160, grass: 3500, grassRadius: 38, particles: 1200, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },
   high:   { pixelRatio: 2.0, shadows: true,  shadowSize: 2048, antialias: true,  physicalPaint: true,  headlights: true,  bevelSegs: 3,
-            treeDensity: 0.62, treeNear: 230, treeFar: 1100, traffic: 34, rainDrops: 6000, scenery: 2400, sceneryRadius: 220, grass: 7500, grassRadius: 55, particles: 2000, lampLights: 5, bloom: true,  clouds: true,  fogFar: 2200, terrainNear: 340 },
+            treeDensity: 0.62, treeNear: 230, treeFar: 1100, traffic: 34, parked: 42, rainDrops: 6000, scenery: 2400, sceneryRadius: 220, grass: 7500, grassRadius: 55, particles: 2000, lampLights: 5, bloom: true,  clouds: true,  fogFar: 2200, terrainNear: 340 },
 };
 
 // ---- js/input.js ----
@@ -652,9 +653,9 @@ const Input = {
     const dz = 0.04;
     const a = Math.abs(x);
     if (a < dz) return 0;
-    const sens = { low: 0.8, mid: 1.0, high: 1.25 }[Settings.data.steerSens] || 1;
+    const sens = { low: 0.9, mid: 1.15, high: 1.4 }[Settings.data.steerSens] || 1;
     // nahezu linear: halber Ausschlag ≈ halber Lenkeinschlag
-    return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.1) * sens, 0, 1);
+    return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.0) * sens, 0, 1);
   },
 
   // ---------- Neigungssteuerung ----------
@@ -925,6 +926,24 @@ class Environment {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.35, 0.5, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    // Filmische Farbkorrektur: leichte S-Kurve, warme Lichter/kühle Schatten, feines Korn, minimale Farbsäume am Rand
+    this.grade = new ShaderPass({
+      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 1 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uWarm; varying vec2 vUv;
+        float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+        void main(){
+          vec2 d = vUv - 0.5; float r = dot(d, d);
+          vec3 c; c.r = texture2D(tDiffuse, vUv + d * r * 0.012).r; c.g = texture2D(tDiffuse, vUv).g; c.b = texture2D(tDiffuse, vUv - d * r * 0.012).b;
+          c = mix(c, c * c * (3.0 - 2.0 * c), 0.22);                       // Kontrast-S-Kurve
+          float l = dot(c, vec3(0.299, 0.587, 0.114));
+          c += (vec3(0.035, 0.015, -0.03) * smoothstep(0.45, 1.0, l) + vec3(-0.02, 0.0, 0.03) * (1.0 - smoothstep(0.0, 0.4, l))) * uWarm;
+          c = mix(vec3(l), c, 1.06);                                         // etwas mehr Sättigung
+          c += (h(vUv * 1000.0 + uTime) - 0.5) * 0.025;                      // Filmkorn
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    });
+    this.composer.addPass(this.grade);
     this.applyBloomParams();
   }
   applyBloomParams() {
@@ -936,7 +955,7 @@ class Environment {
   resize(w, h) { if (this.composer) { this.composer.setSize(w, h); this.composer.setPixelRatio(this.renderer.getPixelRatio()); } }
 
   setTime(mode) {
-    const night = mode === 'night';
+    const night = mode === 'night', dusk = mode === 'dusk';
     this.night = night;
     const u = this.uniforms;
     u.uNight.value = night ? 1 : 0;
@@ -948,6 +967,15 @@ class Environment {
       this.scene.fog.color.set(0x0a111c); this.scene.fog.near = 120; this.scene.fog.far = Math.min(1300, this.q.fogFar);
       this.renderer.toneMappingExposure = 1.15;
       this.envGround.material.color.set(0x050607);
+    } else if (dusk) {
+      // Abendsonne: tief, warm, lange Schatten
+      u.uTop.value.set(0x2d3f78); u.uHorizon.value.set(0xf6a56a);
+      this.sunDir.set(-0.78, 0.13, 0.6).normalize();
+      this.sun.color.set(0xffa55e); this.sun.intensity = 2.4;
+      this.hemi.color.set(0x8d8fb8); this.hemi.groundColor.set(0x4a3a2a); this.hemi.intensity = 0.55;
+      this.scene.fog.color.set(0xd99a72); this.scene.fog.near = 220; this.scene.fog.far = this.q.fogFar * 0.85;
+      this.renderer.toneMappingExposure = 1.05;
+      this.envGround.material.color.set(0x3a2e24);
     } else {
       u.uTop.value.set(0x2f6fd0); u.uHorizon.value.set(0xbcd6ea);
       this.sunDir.set(-0.5, 0.5, 0.42).normalize();
@@ -961,13 +989,15 @@ class Environment {
     // Reflexionen aus dem aktuellen Himmel neu berechnen
     const old = this.scene.environment;
     this.scene.environment = this.pmrem.fromScene(this.envScene, 0.03).texture;
-    this.scene.environmentIntensity = night ? 0.3 : 0.7;
+    this.scene.environmentIntensity = night ? 0.3 : dusk ? 0.55 : 0.7;
+    if (this.grade) this.grade.uniforms.uWarm.value = night ? 0.4 : dusk ? 1.6 : 1;
     old?.dispose?.();
     this.applyBloomParams();
   }
 
   update(dt, focus, camPos) {
     this.uniforms.uTime.value += dt;
+    if (this.grade) this.grade.uniforms.uTime.value = this.uniforms.uTime.value % 100;
     this.sun.target.position.copy(focus);
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 200);
     this.sky.position.copy(camPos);
@@ -4610,6 +4640,36 @@ class CarModel {
 
   setHeadlights(on, intensity = 60) { for (const l of this.headLights) l.intensity = on ? intensity : 0; }
 
+  /** Sichtbare Lichtkegel der Scheinwerfer (Dunst/Regen/Nebel verstärken sie) und Lichthöfe. */
+  setBeams(k) {
+    if (!this.beams) {
+      this.beamU = { uOp: { value: 0 } };
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: this.beamU,
+        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform float uOp; varying vec2 vUv; void main(){ float a = pow(vUv.y, 2.2) * uOp; gl_FragColor = vec4(vec3(0.95, 0.97, 1.0) * a, a); }',
+      });
+      this.beams = [];
+      for (const s of [-0.62, 0.62]) {
+        const b = new THREE.Mesh(new THREE.ConeGeometry(3.2, 26, 20, 1, true).translate(0, -13, 0).rotateX(Math.PI / 2), mat);
+        b.position.set(s, 0.55, -2.15); b.rotation.x = -0.035; b.renderOrder = 8; b.frustumCulled = false;
+        this.body.add(b); this.beams.push(b);
+      }
+      const glowTex = radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)');
+      this.glowSprites = [];
+      for (const [x, y, z, c, sc] of [[-0.62, 0.55, -2.2, 0xf4f8ff, 1.3], [0.62, 0.55, -2.2, 0xf4f8ff, 1.3], [-0.7, 0.72, 2.28, 0xff2030, 0.9], [0.7, 0.72, 2.28, 0xff2030, 0.9]]) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: c, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 }));
+        sp.position.set(x, y, z); sp.scale.setScalar(sc); this.body.add(sp); this.glowSprites.push(sp);
+      }
+    }
+    this.beamK = k;
+    for (const b of this.beams) b.visible = k > 0;
+    for (const sp of this.glowSprites) { sp.visible = k > 0; sp.material.opacity = Math.min(1, k * 0.9); }
+  }
+
+  /** Dunst/Nebel/Regen machen die Lichtkegel sichtbarer. */
+  setBeamHaze(h) { if (this.beamU) this.beamU.uOp.value = (this.beamK || 0) * 0.045 * h; }
+
   /** Fahrer-Display (Tempo, Gang, Leistung) und Mittel-Display (g-Meter). */
   updateScreens(vehicle) {
     const st = this.screenStyle;
@@ -5986,7 +6046,7 @@ function makeTrafficVariant(type) {
  * physikalisch weg (Phase 5 erweitert das mit Überschlägen).
  */
 class TrafficSystem {
-  constructor(world, scene, count) {
+  constructor(world, scene, count, parked = 0) {
     this.w = world; this.rng = mulberry32(4242); this.cars = [];
     this.bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.35 });
     this.lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -5994,6 +6054,8 @@ class TrafficSystem {
     this.variants = types.map((t) => makeTrafficVariant(t));
     const pick = () => { let r = this.rng(), acc = 0; for (let i = 0; i < types.length; i++) { acc += TRAFFIC_TYPES[types[i]].weight; if (r <= acc) return i; } return 0; };
     const chosen = Array.from({ length: count }, pick);
+    // geparkte Autos (keine Lkw) am Straßenrand der Stadt
+    for (let k = 0; k < parked; k++) { let t; do { t = pick(); } while (types[t] === 'truck'); chosen.push(t); }
     for (const v of this.variants) {
       const n = Math.max(1, chosen.filter((i) => this.variants[i] === v).length);
       v.bodyMesh = new THREE.InstancedMesh(v.body, this.bodyMat, n);
@@ -6011,11 +6073,21 @@ class TrafficSystem {
       const p = v.type === 'truck' ? [0.9, 0.9, 0.9] : CAR_PAINTS[Math.floor(this.rng() * CAR_PAINTS.length)];
       v.bodyMesh.setColorAt(car.slot, col.setRGB(p[0], p[1], p[2], THREE.SRGBColorSpace));
       car.idx = this.cars.length;
+      car.parked = car.idx >= count;
       this.cars.push(car);
     }
+    for (const c of this.cars) if (c.parked) this.placeParked(c, true);
     for (const v of this.variants) { v.bodyMesh.count = v.n; v.lightMesh.count = v.n; }
     this.blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ map: makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }), count);
+      new THREE.MeshBasicMaterial({ map: makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }), this.cars.length);
+    // Lichthöfe der Scheinwerfer/Rücklichter (nachts), ein Draw-Call für alle
+    const N = this.cars.length * 4;
+    this.glowGeo = new THREE.BufferGeometry();
+    this.glowGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    this.glowGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    this.glow = new THREE.Points(this.glowGeo, new THREE.PointsMaterial({ map: radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), size: 1.7, vertexColors: true,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
+    this.glow.frustumCulled = false; this.glow.visible = false; scene.add(this.glow);
     this.blobs.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.blobs.frustumCulled = false; this.blobs.renderOrder = 1;
     scene.add(this.blobs);
     this._up = new THREE.Vector3(0, 1, 0); this._bs = new THREE.Vector3();
@@ -6027,7 +6099,22 @@ class TrafficSystem {
     this._pos = new THREE.Vector3(); this._one = new THREE.Vector3(1, 1, 1);
   }
 
-  setNight(on) { this.lightMat.color.setScalar(on ? 4 : 1.2); }
+  setNight(on) { this.lightMat.color.setScalar(on ? 4 : 1.2); this.glow.visible = on; }
+
+  /** Parkplatz am Straßenrand einer Stadtstraße suchen (bzw. den alten wieder einnehmen). */
+  placeParked(car, fresh) {
+    const city = this.w.edges.filter((e) => e.cls === 'city');
+    if (fresh || !car.spot) {
+      for (let t = 0; t < 40; t++) {
+        const e = city[Math.floor(this.rng() * city.length)], s = 18 + this.rng() * (e.len - 36), dir = this.rng() < 0.5 ? 1 : -1;
+        if (this.cars.some((o) => o !== car && o.spot && o.spot.e === e && o.spot.dir === dir && Math.abs(o.spot.s - s) < 7)) continue;
+        car.spot = { e, s, dir }; break;
+      }
+    }
+    const sp = car.spot;
+    Object.assign(car, { e: sp.e, s: sp.s, dir: sp.dir, lane: 0, speed: 0, state: 'parked', latOff: 5.6 - sp.e.C.lanes[0], body: null, stopT: 0 });
+    this.place(car, 0, true);
+  }
 
   randomEdge() {
     const r = this.rng() * this.edgeTotal;
@@ -6062,7 +6149,7 @@ class TrafficSystem {
     return (dx * f.x + dz * f.z) / Math.hypot(dx, dz) > 0.5;
   }
 
-  spawnAll(focus) { for (const c of this.cars) this.respawn(c, focus, 40, 600); }
+  spawnAll(focus) { for (const c of this.cars) if (!c.parked) this.respawn(c, focus, 40, 600); }
 
   /** Weltposition aus Kante/Spur berechnen (mit weicher Überblendung bei Kantenwechseln). */
   place(car, dt, snap) {
@@ -6097,6 +6184,7 @@ class TrafficSystem {
     const w = this.w;
     for (const car of this.cars) {
       if (car.state === 'loose') { this.updateLoose(car, dt, player, camera); continue; }
+      if (car.state === 'parked') continue;
       const e = car.e, C = e.C;
       const node = car.dir > 0 ? e.b : e.a;
       const toNode = car.dir > 0 ? e.len - car.s : car.s;
@@ -6202,7 +6290,7 @@ class TrafficSystem {
     const hidden = !this.inView(camera, car);
     if ((car.stopT > 6 && d > 60 && hidden) || (car.stopT > 25 && d > 25) || d > 700 || car.y < this.w.waterLevel - 6) {
       car.body = null;
-      this.respawn(car, player.pos, 250, 650, camera);
+      if (car.parked) this.placeParked(car, false); else this.respawn(car, player.pos, 250, 650, camera);
     }
   }
 
@@ -6216,7 +6304,7 @@ class TrafficSystem {
         e.set(car.pitch, car.yaw, 0, 'YXZ'); q.setFromEuler(e); p.set(car.x, car.y, car.z);
         m.compose(p, q, this._one);
       }
-      car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, m);
+      car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, car.state === 'parked' ? this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0)) : m);
       // Kontaktschatten
       const bx = car.body ? car.body.pos.x : car.x, bz = car.body ? car.body.pos.z : car.z;
       const gy = car.body ? this.w.sample(bx, bz) : car.y;
@@ -6226,6 +6314,21 @@ class TrafficSystem {
       this.blobs.setMatrixAt(car.idx, m);
     }
     this.blobs.instanceMatrix.needsUpdate = true;
+    // Lichthöfe (nur fahrende Autos, nur nachts)
+    if (this.glow.visible) {
+      const pa = this.glowGeo.attributes.position.array, ca = this.glowGeo.attributes.color.array;
+      let k = 0;
+      for (const car of this.cars) {
+        if (car.state !== 'drive') continue;
+        const fx = -Math.sin(car.yaw), fz = -Math.cos(car.yaw), rx = -fz, rz = fx, L = car.v.L / 2 + 0.06, W = car.v.W / 2 - 0.3;
+        for (const [a, b, y, r, g, bl] of [[L, W, 0.66, 1, 0.95, 0.85], [L, -W, 0.66, 1, 0.95, 0.85], [-L, W, 0.74, 0.9, 0.05, 0.05], [-L, -W, 0.74, 0.9, 0.05, 0.05]]) {
+          pa[k * 3] = car.x + fx * a + rx * b; pa[k * 3 + 1] = car.y + y * (car.v.type === 'truck' ? 1.35 : 1); pa[k * 3 + 2] = car.z + fz * a + rz * b;
+          ca[k * 3] = r; ca[k * 3 + 1] = g; ca[k * 3 + 2] = bl; k++;
+        }
+      }
+      this.glowGeo.setDrawRange(0, k);
+      this.glowGeo.attributes.position.needsUpdate = true; this.glowGeo.attributes.color.needsUpdate = true;
+    }
     for (const v of this.variants) { v.bodyMesh.instanceMatrix.needsUpdate = true; v.lightMesh.instanceMatrix.needsUpdate = true; }
   }
 
@@ -6858,7 +6961,7 @@ class Game {
     CamInput.init(this.canvas);
     // Start: Stadtstraße, Blick nach Osten
     this.spawnAt(WORLD.city.x0 + 250, WORLD.city.z0 + 300, -Math.PI / 2);
-    this.traffic = new TrafficSystem(this.world, this.scene, this.q.traffic);
+    this.traffic = new TrafficSystem(this.world, this.scene, this.q.traffic, this.q.parked || 0);
     this.traffic.spawnAll(this.vehicle.pos);
     this.minimap = new Minimap(this.world);
     this.particles = new Particles(this.scene, this.q.particles);
@@ -6932,13 +7035,14 @@ class Game {
 
   setTimeOfDay(mode) {
     this.timeOfDay = mode;
-    const night = mode === 'night';
+    const night = mode === 'night', lights = mode !== 'day';      // abends sind Laternen und Scheinwerfer schon an
     this.env.setTime(mode);
-    this.world.setNight(night);
-    this.traffic.setNight(night);
-    this.car.setHeadlights(true, night ? (this.q.headlights ? 320 : 480) : 0);
-    this.furniture.setNight(night);
-    this.mountains.material.color.setScalar(night ? 0.09 : 1);
+    this.world.setNight(lights);
+    this.traffic.setNight(lights);
+    this.car.setHeadlights(true, lights ? (this.q.headlights ? 320 : 480) * (night ? 1 : 0.6) : 0);
+    this.car.setBeams(night ? 1 : lights ? 0.4 : 0);
+    this.furniture.setNight(lights);
+    if (mode === 'dusk') this.mountains.material.color.setRGB(1.0, 0.72, 0.62); else this.mountains.material.color.setScalar(night ? 0.09 : 1);
     this.weather.apply(Settings.data.weather || 'clear');   // nach der Tageszeit, da es Licht/Nebel/Himmel anpasst
   }
 
@@ -7102,6 +7206,7 @@ class Game {
     this.grass.update(dt, this.camera.position);
     this.scenery.update(this.camera.position);
     this.weather.update(dt, this.camera.position, v);
+    this.car.setBeamHaze(1 + this.weather.rain * 2.5 + (this.weather.type === 'fog' ? 3.5 : 0) + (this.weather.type === 'cloudy' ? 0.5 : 0));
     if (this.flare) {
       this.flare.visible = this.timeOfDay !== 'night' && this.weather.W.cover < 1.8 && this.rig.mode !== 'cockpit';
       this.flare.position.copy(this.camera.position).addScaledVector(this.env.sunDir, 2400);

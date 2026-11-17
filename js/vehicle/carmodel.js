@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { radialTexture } from '../world/world.js';
 import { clamp, lerp, smoothstep, damp, approach, Settings } from '../config.js';
 import { smoothNormals } from '../environment.js';
 
@@ -370,6 +371,36 @@ class CarModel {
   }
 
   setHeadlights(on, intensity = 60) { for (const l of this.headLights) l.intensity = on ? intensity : 0; }
+
+  /** Sichtbare Lichtkegel der Scheinwerfer (Dunst/Regen/Nebel verstärken sie) und Lichthöfe. */
+  setBeams(k) {
+    if (!this.beams) {
+      this.beamU = { uOp: { value: 0 } };
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: this.beamU,
+        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform float uOp; varying vec2 vUv; void main(){ float a = pow(vUv.y, 2.2) * uOp; gl_FragColor = vec4(vec3(0.95, 0.97, 1.0) * a, a); }',
+      });
+      this.beams = [];
+      for (const s of [-0.62, 0.62]) {
+        const b = new THREE.Mesh(new THREE.ConeGeometry(3.2, 26, 20, 1, true).translate(0, -13, 0).rotateX(Math.PI / 2), mat);
+        b.position.set(s, 0.55, -2.15); b.rotation.x = -0.035; b.renderOrder = 8; b.frustumCulled = false;
+        this.body.add(b); this.beams.push(b);
+      }
+      const glowTex = radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)');
+      this.glowSprites = [];
+      for (const [x, y, z, c, sc] of [[-0.62, 0.55, -2.2, 0xf4f8ff, 1.3], [0.62, 0.55, -2.2, 0xf4f8ff, 1.3], [-0.7, 0.72, 2.28, 0xff2030, 0.9], [0.7, 0.72, 2.28, 0xff2030, 0.9]]) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: c, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 }));
+        sp.position.set(x, y, z); sp.scale.setScalar(sc); this.body.add(sp); this.glowSprites.push(sp);
+      }
+    }
+    this.beamK = k;
+    for (const b of this.beams) b.visible = k > 0;
+    for (const sp of this.glowSprites) { sp.visible = k > 0; sp.material.opacity = Math.min(1, k * 0.9); }
+  }
+
+  /** Dunst/Nebel/Regen machen die Lichtkegel sichtbarer. */
+  setBeamHaze(h) { if (this.beamU) this.beamU.uOp.value = (this.beamK || 0) * 0.045 * h; }
 
   /** Fahrer-Display (Tempo, Gang, Leistung) und Mittel-Display (g-Meter). */
   updateScreens(vehicle) {
