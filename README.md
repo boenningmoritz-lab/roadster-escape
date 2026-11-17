@@ -28,6 +28,7 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 | Ego-Perspektive an/aus | EGO | V |
 | Boost | BOOST | Shift |
 | Fliegen an / Landen | FLIEGEN (in der Luft: Joystick ↕ Höhe, ↔ Richtung) | F (Leertaste/X hoch/runter) |
+| Polizei-Verfolgung starten/abbrechen (Stufe in den Einstellungen) | 🚨 | P |
 | Auto zurücksetzen (auf die nächste Straße) | ↺ | R |
 | Tag / Nacht | Einstellungen | N |
 
@@ -40,7 +41,7 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 - [x] Phase 4 – Offene Welt
 - [x] Phase 5 – Kollisionen
 - [x] Phase 6 – Boost und Fliegen
-- [ ] Phase 7 – Polizei-Modus
+- [x] Phase 7 – Polizei-Modus
 - [ ] Phase 8 – Missionen
 - [ ] Phase 9 – Garage und Upgrades
 - [ ] Phase 10 – Feinschliff und Veröffentlichung
@@ -90,8 +91,18 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 - **Fliegen:** Räder klappen flach unter die Karosserie, vier Hubdüsen leuchten. Joystick ↕ regelt die Steigrate, Gas gibt Schub, Lenken dreht und neigt in die Kurve; die Lage wird automatisch stabilisiert. Flugenergie begrenzt; ist sie leer, setzt automatisch ein sanfter Landeanflug ein.
 - **Gras** wiegt im Wind rund um die Kamera, **Ton** komplett synthetisch (E-Motor nach Drehzahl, Wechselrichter-Pfeifen, Reifen, Wind, Abrollgeräusch, Boost, Düsen, Aufprall, Baum-Krachen).
 
+## Technik (Phase 7 – Polizei)
+
+- **Fahrzeuge:** große, fliegende Luxus-SUVs (frei gestaltet) mit Blaulicht-Doppelblitz, „POLIZEI“-Schriftzug, Hubdüsen; nachts werfen die zwei nächsten Wagen echtes blaues Licht.
+- **KI:** Verfolgung mit Vorhersage der Fluchtroute (je Stufe stärker), Bremsweg-gerechtes Heranfahren, Einkesseln auf festen Plätzen rund um den Spieler, Rammen, Straßensperren quer auf der vermuteten Route (ab „Schwer“), Ausweichen über Häuser/Bäume/Wasser im Flug, am Spieler herunter auf die Straße.
+- **Stufen:** Normal 2 Wagen (langsam), Schwer 4 (schneller), Extrem 6 + Hubschrauber mit Suchscheinwerfer, Insane 10 (sehr aggressiv, weite Vorhersage).
+- **Fahndungslevel:** 1–5 Sterne, steigt mit der Zeit und mit Rammstößen; die Polizei wird schneller.
+- **Ende:** Entkommen nach 8–18 s außer Sicht (Sichtlinie gegen Gelände und Gebäude), erwischt bei Einkesselung oder Stillstand mit Polizei daneben (Fortschrittsbalken).
+- **Belohnung:** Geld nach Stufe, Fluchtzeit und Fahndungslevel; dauerhaft gespeichert.
+- **Ton:** Sirenen auf- und abschwellend mit Doppler-Effekt und Stereo-Position, Hubschrauber-Rotor.
+
 ## Code-Aufbau
 
 Bis Phase 9 steckt alles in `index.html`, in klar getrennten Abschnitten:
-`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Particles`, `Grass`, `RigidBox`, `SoundFX`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
+`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Particles`, `Grass`, `RigidBox`, `SoundFX`, `SaveData`, `PoliceSystem`, `View`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
 In Phase 10 wird der Code in einzelne Module aufgeteilt.
