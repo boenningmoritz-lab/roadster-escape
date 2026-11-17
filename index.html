@@ -214,6 +214,37 @@
   .closeBtn { margin-top: 14px; width: 100%; padding: 12px; border-radius: 12px; border: none; background: var(--accent); color: #031018; font: 700 15px sans-serif; }
   .help { font-size: 12px; color: var(--hud-dim); margin-top: 10px; line-height: 1.5; }
 
+  /* ---------- Hauptmenü ---------- */
+  #mainMenu { position: fixed; inset: 0; z-index: 14; display: flex; flex-direction: column; justify-content: center; gap: calc(14px * var(--m));
+              padding-left: calc(48px * var(--s) + env(safe-area-inset-left)); background: linear-gradient(90deg, rgba(4,7,12,0.88), rgba(4,7,12,0.55) 45%, rgba(4,7,12,0) 75%); }
+  #mainMenu[hidden] { display: none; }
+  body.inMenu #hud, body.inMenu #touch, body.inMenu .topbtn, body.inMenu #mPrompt { display: none !important; }
+  .mmLogo { display: flex; flex-direction: column; line-height: 0.88; animation: mmIn .9s cubic-bezier(.2,.8,.2,1) both; }
+  .mmLogo .l1 { font: 900 calc(54px * var(--m)) -apple-system, "SF Pro Display", sans-serif; letter-spacing: calc(9px * var(--m)); color: #fff; }
+  .mmLogo .l2 { font: 900 calc(54px * var(--m)) -apple-system, "SF Pro Display", sans-serif; letter-spacing: calc(9px * var(--m));
+                background: linear-gradient(100deg, #36e0ff 20%, #ffffff 40%, #7c5cff 60%, #36e0ff 80%); background-size: 250% 100%;
+                -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 4s linear infinite; }
+  .mmLogo small { margin-top: calc(8px * var(--m)); font: 600 calc(12px * var(--m)) sans-serif; letter-spacing: 2px; color: var(--hud-dim); }
+  @keyframes shine { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+  @keyframes mmIn { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: none; } }
+  .mmBtns { display: flex; flex-direction: column; gap: calc(7px * var(--m)); width: calc(270px * var(--m)); }
+  .mmBtn { text-align: left; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); color: #fff; border-radius: 14px;
+           padding: calc(10px * var(--m)) calc(16px * var(--m)); font: 700 calc(16px * var(--m)) sans-serif; animation: mmIn .6s cubic-bezier(.2,.8,.2,1) both; }
+  .mmBtn:nth-child(2) { animation-delay: .08s; } .mmBtn:nth-child(3) { animation-delay: .16s; } .mmBtn:nth-child(5) { animation-delay: .24s; } .mmBtn:nth-child(6) { animation-delay: .32s; }
+  .mmBtn.primary { background: var(--accent); color: #031018; border-color: transparent; }
+  #mmPoliceSel { display: flex; gap: 6px; } #mmPoliceSel[hidden] { display: none; }
+  #mmPoliceSel button { flex: 1; background: rgba(40,80,255,0.35); border: 1px solid #7da2ff; color: #fff; border-radius: 10px; padding: 8px 4px; font: 700 calc(12px * var(--s)) sans-serif; }
+  #mmMoney { font: 900 calc(18px * var(--m)) sans-serif; color: #ffe08a; }
+  body.inMenu #hint { display: none; }
+  /* ---------- Tutorial ---------- */
+  #coach { position: fixed; left: 50%; top: calc(150px * var(--s)); transform: translateX(-50%); z-index: 7; max-width: 60%;
+           background: rgba(8,12,20,0.9); border: 1px solid var(--accent); border-radius: 14px; padding: 10px 14px; font: 600 14px sans-serif; text-align: center; }
+  #coach[hidden] { display: none; }
+  #coach span { color: var(--accent); font-weight: 900; margin-right: 6px; }
+  #coach button { margin-left: 8px; background: none; border: 1px solid rgba(255,255,255,0.3); color: var(--hud-dim); border-radius: 8px; padding: 3px 8px; font-size: 11px; }
+  .coachTarget { animation: coachPulse 1s ease-in-out infinite; }
+  @keyframes coachPulse { 50% { box-shadow: 0 0 0 calc(10px * var(--s)) rgba(54,224,255,0.35); border-color: var(--accent); } }
+
   /* ---------- Ladebildschirm ---------- */
   #loading { position: fixed; inset: 0; z-index: 30; background: radial-gradient(circle at 50% 40%, #12202e, #05070c 70%);
              display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; transition: opacity .5s; }
@@ -292,6 +323,19 @@
     <div id="gList"></div>
   </div>
 </div>
+<div id="mainMenu" hidden>
+  <div class="mmLogo"><span class="l1">ROADSTER</span><span class="l2">ESCAPE</span><small>Voltara Aero R · elektrischer Hypercar-Roadster</small></div>
+  <div class="mmBtns">
+    <button id="mmFree" class="mmBtn primary">▶ Freie Fahrt</button>
+    <button id="mmMissions" class="mmBtn">🏁 Missionen</button>
+    <button id="mmPolice" class="mmBtn">🚨 Polizei-Modus</button>
+    <div id="mmPoliceSel" hidden><button data-v="normal">Normal</button><button data-v="hard">Schwer</button><button data-v="extreme">Extrem</button><button data-v="insane">Insane</button></div>
+    <button id="mmGarage" class="mmBtn">🔧 Garage</button>
+    <button id="mmSettings" class="mmBtn">⚙︎ Einstellungen</button>
+  </div>
+  <div id="mmMoney"></div>
+</div>
+<div id="coach" hidden></div>
 <div id="result" hidden><div class="panel"><h2 id="resTitle"></h2><p id="resText"></p><div id="resMoney"></div>
   <button class="closeBtn" id="resBtn">Weiter</button></div></div>
 <div id="hint"><span id="hintText"></span><button id="hintBtn" hidden>Vollbild</button></div>
@@ -299,7 +343,8 @@
 
 <div id="settings">
   <div class="panel">
-    <h2>EINSTELLUNGEN</h2>
+    <h2>PAUSE · EINSTELLUNGEN</h2>
+    <button class="closeBtn" id="btnMenu" style="margin:0 0 10px;background:rgba(255,255,255,0.1);color:#fff">☰ Hauptmenü</button>
     <div class="row"><div>Polizei-Modus<small>Start/Stopp mit 🚨. Normal 2, Schwer 4, Extrem 6 + Hubschrauber, Insane 10 Wagen</small></div>
       <div class="seg" data-key="policeLevel"><button data-v="normal">Normal</button><button data-v="hard">Schwer</button><button data-v="extreme">Extrem</button><button data-v="insane">Insane</button></div></div>
     <div class="row"><div>Tageszeit<small>Nachts: Scheinwerfer, Laternen, beleuchtete Fenster</small></div>
@@ -310,6 +355,10 @@
       <div class="seg" data-key="steerSens"><button data-v="low">Niedrig</button><button data-v="mid">Mittel</button><button data-v="high">Hoch</button></div></div>
     <div class="row"><div>Neigung umkehren<small>Falls das Auto beim Neigen in die falsche Richtung lenkt</small></div>
       <div class="seg" data-key="tiltInvert"><button data-v="false">Aus</button><button data-v="true">An</button></div></div>
+    <div class="row"><div>Musik<small>Generierter Synthwave-Soundtrack</small></div>
+      <div class="seg" data-key="music"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
+    <div class="row"><div>Auflösung automatisch<small>Hält die Bildrate stabil (empfohlen)</small></div>
+      <div class="seg" data-key="dynres"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <div class="row"><div>Ton<small>E-Motor, Reifen, Wind, Boost, Aufprall</small></div>
       <div class="seg" data-key="sound"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <div class="row"><div>Vibration<small>Haptisches Feedback, wo das Gerät es unterstützt</small></div>
@@ -435,7 +484,7 @@ const approach = (v, t, step) => (v < t ? Math.min(v + step, t) : Math.max(v - s
 const Settings = {
   KEY: 'roadsterEscape.settings.v1',
   data: { transmission: 'auto', tractionControl: true, quality: 'auto', telemetry: false,
-          timeOfDay: 'day', sound: true, policeLevel: 'normal', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
+          timeOfDay: 'day', sound: true, music: true, dynres: true, policeLevel: 'normal', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.KEY) || '{}')); } catch (e) { /* privat-Modus */ }
     if (this.data.quality === 'auto') {
@@ -556,6 +605,7 @@ const Input = {
     const w = View.w, h = View.h;
     this.scale = clamp(Math.min(h / 640, w / 1080), 0.78, 1.25);
     document.documentElement.style.setProperty('--s', this.scale.toFixed(3));
+    document.documentElement.style.setProperty('--m', Math.min(this.scale, h / 500).toFixed(3));   // Menü-Maßstab nach Spielhöhe (auch im gedrehten Modus)
     this.stick.radius = 58 * this.scale;
     if (this.stick.id === null) this.placeStick(null);
   },
@@ -4478,7 +4528,7 @@ const HUD = {
     const rpmPct = clamp(vehicle.drivetrain.rpm / vehicle.cfg.motor.redline, 0, 1);
     const w = (Math.round(rpmPct * 200) / 2) + '%';
     if (this.last.rpm !== w) { this.last.rpm = w; this.el.rpmFill.style.width = w; }
-    this.set('fps', `${fps} FPS · ${Settings.data.quality.toUpperCase()}`);
+    this.set('fps', `${fps} FPS · ${Settings.data.quality.toUpperCase()}${DynRes.scale < 1 ? ' · ' + Math.round(DynRes.scale * 100) + ' %' : ''}`);
     this.set('money', '💰 ' + fmtMoney(SaveData.data.money));
     const bw = Math.round(vehicle.boostEnergy * 100) + '%', fw = Math.round(vehicle.flyEnergy * 100) + '%';
     if (this.last.bw !== bw) { this.last.bw = bw; this.el.boostFill.style.width = bw; this.el.tBoost.style.setProperty('--e', vehicle.boostEnergy.toFixed(2)); }
@@ -6243,6 +6293,163 @@ class Garage {
   }
 }
 
+// ============================== Musik (generiert) ==============================
+/**
+ * Synthwave-Schleife, komplett erzeugt (keine Dateien): Flächen, Bass-Arpeggio,
+ * Kick, Snare, Hi-Hats. Planung mit Vorlauf über die Audio-Uhr (taktgenau).
+ */
+class Music {
+  constructor(sound) { this.s = sound; this.on = Settings.data.music !== false; this.playing = false; }
+  start() {
+    const ctx = this.s.ctx;
+    if (!ctx || this.playing || !this.on) return;
+    this.playing = true;
+    this.out = ctx.createGain(); this.out.gain.value = 0.0001; this.out.connect(this.s.master);
+    this.out.gain.setTargetAtTime(0.16, ctx.currentTime, 1.5);
+    this.lp = ctx.createBiquadFilter(); this.lp.type = 'lowpass'; this.lp.frequency.value = 2200; this.lp.connect(this.out);
+    this.bpm = 102; this.step = 0; this.next = ctx.currentTime + 0.1;
+    // Akkorde (Am – F – C – G), Grundton in Hz
+    this.chords = [[220, 261.6, 329.6], [174.6, 220, 261.6], [130.8, 164.8, 196], [196, 246.9, 293.7]];
+    this.timer = setInterval(() => this.schedule(), 30);
+  }
+  stop() {
+    if (!this.playing) return;
+    this.playing = false; clearInterval(this.timer);
+    const ctx = this.s.ctx; this.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4);
+    const o = this.out; setTimeout(() => o.disconnect(), 2000);
+  }
+  setOn(on) { this.on = on; if (on) this.start(); else this.stop(); }
+  schedule() {
+    const ctx = this.s.ctx, sp = 60 / this.bpm / 4;            // Sechzehntel
+    while (this.next < ctx.currentTime + 0.15) {
+      const st = this.step % 64, bar = Math.floor(st / 16), beat = st % 16, t = this.next;
+      const ch = this.chords[bar];
+      if (beat === 0) for (const f of ch) this.pad(t, f, sp * 16);
+      if (beat % 2 === 0) this.bass(t, ch[[0, 0, 2, 0, 1, 0, 2, 1][beat / 2]] / 2, sp * 1.8);
+      if (beat % 4 === 0) this.kick(t);
+      if (beat === 4 || beat === 12) this.snare(t);
+      if (beat % 2 === 1) this.hat(t, beat % 4 === 3 ? 0.05 : 0.03);
+      this.next += sp; this.step++;
+    }
+  }
+  env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + d); }
+  pad(t, f, dur) {
+    const ctx = this.s.ctx;
+    for (const det of [-7, 7]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det;
+      const g = ctx.createGain(); this.env(g, t, 0.6, 0.05, dur);
+      o.connect(g).connect(this.lp); o.start(t); o.stop(t + dur + 0.1);
+    }
+  }
+  bass(t, f, dur) {
+    const ctx = this.s.ctx, o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f;
+    const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.setValueAtTime(900, t); fl.frequency.exponentialRampToValueAtTime(180, t + dur);
+    const g = ctx.createGain(); this.env(g, t, 0.01, 0.12, dur);
+    o.connect(fl).connect(g).connect(this.out); o.start(t); o.stop(t + dur + 0.05);
+  }
+  kick(t) {
+    const ctx = this.s.ctx, o = ctx.createOscillator(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.18);
+    const g = ctx.createGain(); this.env(g, t, 0.004, 0.5, 0.28);
+    o.connect(g).connect(this.out); o.start(t); o.stop(t + 0.3);
+  }
+  noise(t, type, f, peak, dur) {
+    const ctx = this.s.ctx, src = ctx.createBufferSource(); src.buffer = this.s.noiseBuf;
+    const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f;
+    const g = ctx.createGain(); this.env(g, t, 0.002, peak, dur);
+    src.connect(fl).connect(g).connect(this.out); src.start(t, Math.random()); src.stop(t + dur + 0.02);
+  }
+  snare(t) { this.noise(t, 'bandpass', 1800, 0.22, 0.2); }
+  hat(t, v) { this.noise(t, 'highpass', 7000, v, 0.05); }
+}
+
+// ============================== Hauptmenü, Pause, Tutorial ==============================
+const Menu = {
+  init(game) {
+    this.g = game;
+    const $ = (id) => document.getElementById(id);
+    $('mmFree').addEventListener('click', () => this.close());
+    $('mmMissions').addEventListener('click', () => { this.close(); game.missions.openList(); });
+    $('mmPolice').addEventListener('click', () => { $('mmPoliceSel').hidden = !$('mmPoliceSel').hidden; });
+    document.querySelectorAll('#mmPoliceSel button').forEach((b) => b.addEventListener('click', () => {
+      Settings.data.policeLevel = b.dataset.v; Settings.save(); UI.sync();
+      this.close(); if (!game.police.active) game.togglePolice();
+    }));
+    $('mmGarage').addEventListener('click', () => { this.close(); game.openGarage(); });
+    $('mmSettings').addEventListener('click', () => { UI.open(true); });
+    $('btnMenu').addEventListener('click', () => { UI.open(false); this.open(); });
+    $('mmMoney').textContent = '💰 ' + fmtMoney(SaveData.data.money);
+  },
+  open() {
+    const g = this.g;
+    if (g.missions.active) g.missions.finish(false, null, true);
+    if (g.police.active) { g.police.stop(false); document.getElementById('btnPolice').classList.remove('on'); }
+    g.menuOpen = true; g.paused = true; Input.releaseAll();
+    document.getElementById('mainMenu').hidden = false;
+    document.body.classList.add('inMenu');
+    document.getElementById('mmMoney').textContent = '💰 ' + fmtMoney(SaveData.data.money);
+    document.getElementById('mmPoliceSel').hidden = true;
+  },
+  close() {
+    const g = this.g;
+    g.menuOpen = false; g.paused = false; g.rig.initialized = false;
+    document.getElementById('mainMenu').hidden = true;
+    document.body.classList.remove('inMenu');
+    g.sound.start(); g.music?.start();
+    Tutorial.maybeStart(g);
+  },
+};
+
+/** Kurze Einführung in den ersten Sekunden (nur beim ersten Spielstart). */
+const Tutorial = {
+  steps: [
+    { text: 'Halte <b>GAS</b> gedrückt, um loszufahren.', el: 'tGas', done: (v) => v.throttle > 0.9, min: 1.2 },
+    { text: 'Schiebe den <b>Lenk-Schieber</b> nach links oder rechts – je weiter, desto stärker.', el: 'stick', done: () => Math.abs(Input.state.steer) > 0.45, min: 0.8 },
+    { text: '<b>BOOST</b> gibt Extra-Schub. Der Ring zeigt die Energie.', el: 'tBoost', done: (v) => v.boosting, min: 0.6 },
+    { text: '<b>FLIEGEN</b>: abheben – in der Luft steuerst du mit dem Joystick die Höhe.', el: 'tFly', done: (v) => v.flying, min: 0.5, skip: 9 },
+    { text: 'Mit 🎥 und <b>EGO</b> wechselst du die Kamera. 🏁 Missionen, 🚨 Polizei, 🔧 Garage. Viel Spaß!', el: null, done: () => false, skip: 5 },
+  ],
+  maybeStart(game) {
+    if (SaveData.data.tutorialDone || this.active) return;
+    this.g = game; this.active = true; this.i = -1; this.next();
+  },
+  next() {
+    const el = document.getElementById('coach');
+    document.querySelectorAll('.coachTarget').forEach((e) => e.classList.remove('coachTarget'));
+    this.i++;
+    if (this.i >= this.steps.length) { this.active = false; el.hidden = true; SaveData.data.tutorialDone = true; SaveData.save(); return; }
+    const s = this.steps[this.i];
+    el.innerHTML = `<span>${this.i + 1}/${this.steps.length}</span> ${s.text} <button id="coachSkip">Überspringen</button>`;
+    el.hidden = false;
+    document.getElementById('coachSkip').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.i = this.steps.length - 1; this.next(); });
+    if (s.el) document.getElementById(s.el)?.classList.add('coachTarget');
+    this.t = 0; this.held = 0;
+  },
+  update(dt, v) {
+    if (!this.active) return;
+    const s = this.steps[this.i];
+    this.t += dt;
+    if (s.done(v)) this.held += dt; else this.held = Math.max(0, this.held - dt * 0.5);
+    if (this.held >= s.min || (s.skip && this.t > s.skip)) { Haptics.pulse(15); this.next(); }
+  },
+};
+
+/** Dynamische Auflösung: hält die Bildrate stabil, indem die Pixeldichte nachgeregelt wird. */
+const DynRes = {
+  scale: 1, acc: 0, frames: 0, cool: 0,
+  update(game, dt) {
+    if (Settings.data.dynres === false) return;
+    this.acc += dt; this.frames++;
+    if (this.acc < 1) return;
+    const fps = this.frames / this.acc; this.acc = 0; this.frames = 0;
+    if ((this.cool -= 1) > 0) return;
+    const target = 56;
+    const old = this.scale;
+    if (fps < target - 6 && this.scale > 0.55) this.scale = Math.max(0.55, this.scale - (fps < 35 ? 0.15 : 0.08));
+    else if (fps > target + 2 && this.scale < 1) this.scale = Math.min(1, this.scale + 0.05);
+    if (old !== this.scale) { game.resize(); this.cool = 2; }
+  },
+};
+
 // ============================== Game ==============================
 class Game {
   constructor() {
@@ -6284,13 +6491,14 @@ class Game {
     this.scene.add(this.blob);
     this.grass = new Grass(this.world, this.scene, this.q);
     this.sound = new SoundFX();
+    this.music = new Music(this.sound);
     this.police = new PoliceSystem(this.world, this.scene, this.q, this.sound);
     this._camR = new THREE.Vector3();
     this.missions = new MissionSystem(this);
     // Gekaufte Upgrades und Optik übernehmen
     this.vehicle.setConfig(buildCarConfig());
     this.car.applyLook(SaveData.data.look);
-    const startSound = () => this.sound.start();
+    const startSound = () => { this.sound.start(); if (!this.menuOpen) this.music.start(); };
     window.addEventListener('pointerdown', startSound); window.addEventListener('keydown', startSound);
     this.env.setupBloom();
     this.timeOfDay = null;
@@ -6351,7 +6559,7 @@ class Game {
     View.update();
     const w = View.w, h = View.h;
     Input.layout();
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.q.pixelRatio));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.q.pixelRatio) * DynRes.scale);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
     this.env.resize(w, h);
@@ -6423,6 +6631,15 @@ class Game {
     this.spawnAt(v.pos.x, v.pos.z, v.yaw());
   }
 
+  /** Kamerafahrt um das Auto im Hauptmenü. */
+  menuCamera(dt) {
+    this.menuA = (this.menuA || 0.6) + dt * 0.12;
+    const c = this.camera, p = this._ip, a = this.menuA;
+    c.position.set(p.x + Math.sin(a) * 8.5, p.y + 1.6 + Math.sin(a * 0.7) * 0.5, p.z + Math.cos(a) * 8.5);
+    c.lookAt(p.x - Math.cos(a) * 1.5, p.y + 0.4, p.z + Math.sin(a) * 1.5);
+    if (c.fov !== 55) { c.fov = 55; c.updateProjectionMatrix(); }
+  }
+
   openGarage() {
     if (this.missions.active) { toast('Erst die Mission beenden', 1200); return; }
     if (this.police.active) { this.police.stop(false); document.getElementById('btnPolice').classList.remove('on'); }
@@ -6466,6 +6683,7 @@ class Game {
       const res = this.police.update(dt, v, this.camera);
       if (res && !this.missions.onPoliceResult(res)) this.showResult(res);
       this.missions.update(dt);
+      Tutorial.update(dt, v);
       document.body.classList.toggle('inMission', !!this.missions.active);
       this.trackStats(dt);
       // Im See gelandet → nach kurzer Zeit zurück auf die Straße
@@ -6484,7 +6702,7 @@ class Game {
     this.car.update(v, this.paused ? 0 : dt);
     for (let i = 0; i < 4; i++) this.skid.track(i, v.wheels[i], v, this.world);
     this.skid.flush();
-    this.rig.update(dt, this._ip, this._iq, v);
+    if (this.menuOpen) this.menuCamera(dt); else this.rig.update(dt, this._ip, this._iq, v);
     // Kontaktschatten unter dem Auto (wird mit der Höhe schwächer)
     { const gy = this.world.sample(this._ip.x, this._ip.z, undefined, this._ip.y), alt = this._ip.y - 0.45 - gy;
       this.blob.position.set(this._ip.x, gy + 0.05, this._ip.z); this.blob.rotation.y = v.yaw();
@@ -6513,6 +6731,7 @@ class Game {
     }
 
     this.env.render(this.camera);
+    DynRes.update(this, dt);
 
     // FPS
     this.frames++; this.fpsTime += dt;
@@ -6624,6 +6843,8 @@ const UI = {
         }
         Settings.data[key] = val; Settings.save();
         if (key === 'sound') game.sound.setOn(val);
+        if (key === 'music') game.music.setOn(val);
+        if (key === 'dynres' && !val) { DynRes.scale = 1; game.resize(); }
         game.applySettings(); this.sync();
       });
     });
@@ -6650,11 +6871,13 @@ Orientation.init();
 HUD.init();
 const game = new Game();
 window.__game = game;          // für Tests/Debugging
-Object.assign(window, { Input, CamInput, Settings, WORLD, View, SaveData, POLICE_LEVELS, MISSIONS, buildCarConfig });
+Object.assign(window, { Input, CamInput, Settings, WORLD, View, SaveData, POLICE_LEVELS, MISSIONS, buildCarConfig, Menu, Tutorial, DynRes });
 const loadFill = document.getElementById('lFill'), loadText = document.getElementById('lText');
 game.init((p, msg) => { loadFill.style.width = Math.round(p * 100) + '%'; loadText.textContent = msg; })
   .then(() => {
     UI.init(game);
+    Menu.init(game);
+    Menu.open();
     document.getElementById('loading').classList.add('done');
     setTimeout(() => document.getElementById('loading').remove(), 600);
     // Neigungssteuerung nach dem Neuladen: iOS verlangt die Erlaubnis bei einem Tipp
