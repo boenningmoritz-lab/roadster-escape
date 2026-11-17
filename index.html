@@ -63,17 +63,22 @@
      --s skaliert alle Bedienelemente passend zur Bildschirmgröße (per JS gesetzt). */
   #touch { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
   #stickZone { position: absolute; left: 0; bottom: 0; width: 42%; height: 74%; pointer-events: auto; }
-  #stick { position: absolute; left: 0; top: 0; width: calc(150px * var(--s)); height: calc(150px * var(--s));
-           margin: calc(-75px * var(--s)) 0 0 calc(-75px * var(--s)); border-radius: 50%;
-           border: 2px solid rgba(255,255,255,0.28);
-           background: radial-gradient(circle, rgba(255,255,255,0.10), rgba(255,255,255,0.03) 70%);
-           pointer-events: none; opacity: 0.5; transition: opacity .15s; }
+  /* Lenkung: waagrechter Schieber (nur links/rechts). Beim Fliegen wird daraus ein Kreuz-Joystick. */
+  #stick { position: absolute; left: 0; top: 0; --sw: 250px; --sh: 76px;
+           width: calc(var(--sw) * var(--s)); height: calc(var(--sh) * var(--s));
+           margin: calc(var(--sh) * var(--s) * -0.5) 0 0 calc(var(--sw) * var(--s) * -0.5);
+           border-radius: calc(var(--sh) * var(--s) * 0.5); border: 2px solid rgba(255,255,255,0.28);
+           background: linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.03) 70%, rgba(255,255,255,0.12));
+           pointer-events: none; opacity: 0.55; transition: opacity .15s; }
+  #stick::before { content: ""; position: absolute; left: 50%; top: 18%; bottom: 18%; width: 2px; margin-left: -1px; background: rgba(255,255,255,0.3); }
+  body.flying #stick { --sw: 150px; --sh: 150px; background: radial-gradient(circle, rgba(255,255,255,0.10), rgba(255,255,255,0.03) 70%); }
+  body.flying #stick::before { display: none; }
   #stick.active { opacity: 1; }
-  #stickKnob { position: absolute; left: 50%; top: 50%; width: calc(64px * var(--s)); height: calc(64px * var(--s));
-               margin: calc(-32px * var(--s)) 0 0 calc(-32px * var(--s)); border-radius: 50%;
+  #stickKnob { position: absolute; left: 50%; top: 50%; width: calc(60px * var(--s)); height: calc(60px * var(--s));
+               margin: calc(-30px * var(--s)) 0 0 calc(-30px * var(--s)); border-radius: 50%;
                background: rgba(255,255,255,0.32); border: 2px solid rgba(255,255,255,0.7); }
   #stick.active #stickKnob { background: rgba(54,224,255,0.45); border-color: var(--accent); }
-  #stickLabel { position: absolute; left: 0; right: 0; top: 104%; text-align: center; font: 700 calc(11px * var(--s)) sans-serif;
+  #stickLabel { position: absolute; left: -40px; right: -40px; top: 108%; text-align: center; font: 700 calc(11px * var(--s)) sans-serif;
                 letter-spacing: 1px; color: var(--hud-dim); }
   body.tilt #stick { opacity: 0.25; }
   .tbtn { position: absolute; pointer-events: auto; border-radius: 50%;
@@ -93,7 +98,21 @@
   #tHand  { --d: 68px;  --r: 276px; --b: 22px; font-size: calc(11px * var(--s)); }
   #tDown  { --d: 58px;  --r: 264px; --b: 112px; font-size: calc(20px * var(--s)); }
   #tUp    { --d: 58px;  --r: 264px; --b: 180px; font-size: calc(20px * var(--s)); }
-  #tBoost.on { background: rgba(255,140,40,0.4); border-color: #ffa040; }
+  #tBoost.on { background: rgba(80,190,255,0.45); border-color: #8fe0ff; }
+  /* Energie-Ring um Boost/Fliegen */
+  #tBoost, #tFly { background: radial-gradient(circle, rgba(255,255,255,0.12) 62%, transparent 63%),
+                   conic-gradient(var(--rc) calc(var(--e, 1) * 360deg), rgba(255,255,255,0.08) 0); --rc: rgba(90,200,255,0.75); }
+  #tFly { --rc: rgba(160,255,190,0.75); }
+  #tFly.active { border-color: #a0ffbe; color: #c8ffd8; }
+  #btnEgo { right: calc(174px + env(safe-area-inset-right)); font: 800 12px sans-serif; letter-spacing: .5px; }
+  #btnEgo.on { background: rgba(54,224,255,0.4); border-color: var(--accent); }
+  #bars { display: flex; gap: calc(10px * var(--s)); justify-content: center; margin-top: calc(6px * var(--s)); }
+  .bar { display: flex; align-items: center; gap: 5px; font: 700 calc(9px * var(--s)) sans-serif; letter-spacing: 1px; color: var(--hud-dim); }
+  .bar .track { width: calc(70px * var(--s)); height: 5px; border-radius: 3px; background: rgba(255,255,255,0.15); overflow: hidden; }
+  .bar .fill { height: 100%; width: 100%; border-radius: 3px; }
+  #boostFill { background: linear-gradient(90deg, #3aa8ff, #9ff0ff); }
+  #flyFill { background: linear-gradient(90deg, #41d67f, #c5ffd6); }
+  #altInfo { font: 700 calc(12px * var(--s)) sans-serif; color: #c5ffd6; margin-top: 3px; min-height: 1em; }
   .manualOnly { display: none !important; }
   body.manual .manualOnly { display: flex !important; }
   #btnCam { right: calc(120px + env(safe-area-inset-right)); font-size: 19px; }
@@ -165,12 +184,16 @@
     <div><span id="speedVal">0</span><span id="gearBox"><span id="gearMain">D</span><span id="gearSub">1</span></span></div>
     <div id="speedUnit">KM/H</div>
     <div id="rpmBar"><div id="rpmFill"></div></div>
+    <div id="bars"><div class="bar">BOOST<div class="track"><div class="fill" id="boostFill"></div></div></div>
+      <div class="bar">FLUG<div class="track"><div class="fill" id="flyFill"></div></div></div></div>
+    <div id="altInfo"></div>
   </div>
 </div>
 
 <button class="topbtn" id="btnSettings" aria-label="Einstellungen">⚙︎</button>
 <button class="topbtn" id="btnReset" aria-label="Auto zurücksetzen">↺</button>
 <button class="topbtn" id="btnCam" aria-label="Kamera wechseln">🎥</button>
+<button class="topbtn" id="btnEgo" aria-label="Ego-Perspektive">EGO</button>
 
 <div id="touch">
   <div id="stickZone"></div>
@@ -178,8 +201,8 @@
   <div class="tbtn" id="tGas">GAS</div>
   <div class="tbtn" id="tBrake">BREMSE<small>halten = R</small></div>
   <div class="tbtn" id="tHand">HAND-<br>BREMSE</div>
-  <div class="tbtn soon" id="tBoost">BOOST<small>bald</small></div>
-  <div class="tbtn soon" id="tFly">FLIEGEN<small>bald</small></div>
+  <div class="tbtn" id="tBoost">BOOST</div>
+  <div class="tbtn" id="tFly">FLIEGEN<small id="flyLbl">abheben</small></div>
   <div class="tbtn manualOnly" id="tUp">▲</div>
   <div class="tbtn manualOnly" id="tDown">▼</div>
 </div>
@@ -198,6 +221,8 @@
       <div class="seg" data-key="steerSens"><button data-v="low">Niedrig</button><button data-v="mid">Mittel</button><button data-v="high">Hoch</button></div></div>
     <div class="row"><div>Neigung umkehren<small>Falls das Auto beim Neigen in die falsche Richtung lenkt</small></div>
       <div class="seg" data-key="tiltInvert"><button data-v="false">Aus</button><button data-v="true">An</button></div></div>
+    <div class="row"><div>Ton<small>E-Motor, Reifen, Wind, Boost, Aufprall</small></div>
+      <div class="seg" data-key="sound"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <div class="row"><div>Vibration<small>Haptisches Feedback, wo das Gerät es unterstützt</small></div>
       <div class="seg" data-key="haptics"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <div class="row"><div>Getriebe<small>Handschaltung: Gänge selbst wechseln</small></div>
@@ -210,8 +235,8 @@
       <div class="seg" data-key="telemetry"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <button class="closeBtn" id="btnClose">Weiterfahren</button>
     <div class="help">Tastatur (zum Testen am Rechner): W/↑ Gas · S/↓ Bremse/Rückwärts · A/D ←/→ Lenken ·
-      Leertaste Handbremse · E/Q Gang hoch/runter · C Kamera · N Tag/Nacht · R Zurücksetzen · T Telemetrie · M Getriebe umschalten.<br>
-      Touch: links Joystick zum Lenken, rechts Gas/Bremse. Auf freier Fläche wischen dreht die Kamera, zwei Finger zoomen.</div>
+      Leertaste Handbremse · E/Q Gang hoch/runter · C Kamera · V Ego · Shift Boost · F Fliegen (Leertaste/X: hoch/runter) · N Tag/Nacht · R Zurücksetzen · T Telemetrie · M Getriebe umschalten.<br>
+      Touch: links der Schieber zum Lenken (je weiter, desto stärker), rechts Gas/Bremse/Boost/Fliegen. Auf freier Fläche wischen dreht die Kamera, zwei Finger zoomen.</div>
   </div>
 </div>
 
@@ -226,7 +251,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /* =====================================================================
-   ROADSTER ESCAPE – Phasen 1–4: Fahrphysik, Touch, Kameras, offene Welt
+   ROADSTER ESCAPE – Phasen 1–6: Fahrphysik, Touch, Kameras, Welt, Kollisionen, Boost & Fliegen
    ---------------------------------------------------------------------
    Module (in dieser Datei als Abschnitte, ab Phase 10 eigene Dateien):
      CONFIG      – alle Abstimmungswerte an einem Ort
@@ -241,6 +266,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
      World       – 4×4-km-Welt: Höhenfeld, Straßengraph, Stadt, Wald, See, Brücke
      Traffic     – Verkehrs-KI (Spuren, Ampeln, Vorfahrt, Ausweichen)
      Environment – Tag/Nacht, Himmel, Nebel, Bloom;  Minimap
+     Particles / Grass / RigidBox / SoundFX – Effekte, Gras, Starrkörper, Ton
      CamInput    – Wischen/Zoomen auf freier Fläche
      CameraRig   – Verfolger-, Weit- und Cockpit-Kamera, Wackeln
      HUD         – Tacho, Gang, Drehzahl, Telemetrie
@@ -303,6 +329,8 @@ const CONFIG = {
     },
     driveSplitFront: 0.38,        // Allrad, hecklastig verteilt
     tractionControlSlack: 0.97,
+    boost: { force: 12500, drain: 1 / 3.4, recharge: 1 / 10, delay: 1.2 },
+    flight: { thrust: 9500, climb: 10, landRate: 4.5, yawRate: 1.25, drain: 1 / 28, recharge: 1 / 16, ceiling: 380 },
     stabilityAssist: 5200,        // Nm pro rad/s Gierraten-Abweichung (Fahrhilfe)
   },
 };
@@ -318,7 +346,7 @@ const approach = (v, t, step) => (v < t ? Math.min(v + step, t) : Math.max(v - s
 const Settings = {
   KEY: 'roadsterEscape.settings.v1',
   data: { transmission: 'auto', tractionControl: true, quality: 'auto', telemetry: false,
-          timeOfDay: 'day', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
+          timeOfDay: 'day', sound: true, steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.KEY) || '{}')); } catch (e) { /* privat-Modus */ }
     if (this.data.quality === 'auto') {
@@ -333,11 +361,11 @@ Settings.load();
 
 const QUALITY = {
   low:    { pixelRatio: 1.0, shadows: false, shadowSize: 0,    antialias: false, physicalPaint: false, headlights: false, bevelSegs: 1,
-            treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
+            treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, grass: 0,    grassRadius: 0,  particles: 500, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
   medium: { pixelRatio: 1.5, shadows: true,  shadowSize: 1024, antialias: true,  physicalPaint: false, headlights: true,  bevelSegs: 2,
-            treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },
+            treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, grass: 3500, grassRadius: 38, particles: 1200, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },
   high:   { pixelRatio: 2.0, shadows: true,  shadowSize: 2048, antialias: true,  physicalPaint: true,  headlights: true,  bevelSegs: 3,
-            treeDensity: 0.62, treeNear: 230, treeFar: 1100, traffic: 34, lampLights: 5, bloom: true,  clouds: true,  fogFar: 2200, terrainNear: 340 },
+            treeDensity: 0.62, treeNear: 230, treeFar: 1100, traffic: 34, grass: 7500, grassRadius: 55, particles: 2000, lampLights: 5, bloom: true,  clouds: true,  fogFar: 2200, terrainNear: 340 },
 };
 
 // ============================== Haptics ==============================
@@ -446,8 +474,9 @@ const Input = {
   placeStick(x, y) {
     const el = document.getElementById('stick');
     if (x === null) {   // Ruheposition unten links
-      x = 30 + 105 * this.scale;
-      y = window.innerHeight - 30 - 105 * this.scale;
+      const fl = document.body.classList.contains('flying');
+      x = 30 + (fl ? 80 : 128) * this.scale;
+      y = window.innerHeight - 40 - (fl ? 80 : 50) * this.scale;
     }
     this.stick.cx = x; this.stick.cy = y;
     el.style.transform = `translate(${x}px, ${y}px)`;
@@ -462,8 +491,9 @@ const Input = {
       this.stick.id = e.pointerId;
       try { zone.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
       // Joystick erscheint unter dem Daumen (nicht zu nah am Rand)
-      const r = this.stick.radius;
-      this.placeStick(clamp(e.clientX, r + 10, window.innerWidth * 0.42), clamp(e.clientY, r + 10, window.innerHeight - r - 10));
+      const fl = document.body.classList.contains('flying');
+      const hw = (fl ? 75 : 125) * this.scale, hh = (fl ? 75 : 38) * this.scale;
+      this.placeStick(clamp(e.clientX, hw + 6, window.innerWidth * 0.42), clamp(e.clientY, hh + 10, window.innerHeight - hh - 10));
       el.classList.add('active');
       this.moveStick(e);
     });
@@ -473,11 +503,18 @@ const Input = {
   },
 
   moveStick(e) {
-    const r = this.stick.radius;
     let dx = e.clientX - this.stick.cx, dy = e.clientY - this.stick.cy;
-    const len = Math.hypot(dx, dy);
-    if (len > r) { dx *= r / len; dy *= r / len; }
-    this.stick.x = dx / r; this.stick.y = -dy / r;
+    if (document.body.classList.contains('flying')) {
+      // Fliegen: Kreuz-Joystick (↔ Richtung, ↕ Höhe)
+      const r = this.stick.radius, len = Math.hypot(dx, dy);
+      if (len > r) { dx *= r / len; dy *= r / len; }
+      this.stick.x = dx / r; this.stick.y = -dy / r;
+    } else {
+      // Fahren: nur links/rechts; je weiter, desto stärker
+      const range = 92 * this.scale;
+      dx = clamp(dx, -range, range); dy = 0;
+      this.stick.x = dx / range; this.stick.y = 0;
+    }
     document.getElementById('stickKnob').style.transform = `translate(${dx}px, ${dy}px)`;
   },
 
@@ -490,11 +527,12 @@ const Input = {
 
   /** Joystick-Ausschlag → Lenkwert (Totzone + Kurve für feines Lenken um die Mitte). */
   shapeSteer(x) {
-    const dz = 0.07;
+    const dz = 0.04;
     const a = Math.abs(x);
     if (a < dz) return 0;
-    const sens = { low: 0.8, mid: 1.0, high: 1.3 }[Settings.data.steerSens] || 1;
-    return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.35) * sens, 0, 1);
+    const sens = { low: 0.8, mid: 1.0, high: 1.25 }[Settings.data.steerSens] || 1;
+    // nahezu linear: halber Ausschlag ≈ halber Lenkeinschlag
+    return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.1) * sens, 0, 1);
   },
 
   // ---------- Neigungssteuerung ----------
@@ -563,6 +601,8 @@ const Input = {
     st.handbrake = k.has('Space') || b.hand;
     st.boost = k.has('ShiftLeft') || k.has('ShiftRight') || b.boost;
     st.fly = b.fly;
+    // Steigen/Sinken beim Fliegen: Joystick hoch/runter oder Leertaste/X
+    st.climb = (k.has('Space') ? 1 : 0) - (k.has('KeyX') ? 1 : 0) || this.stick.y;
   },
   consume(code) { const had = this.pressed.has(code); this.pressed.delete(code); return had; },
   endFrame() { this.pressed.clear(); },
@@ -807,6 +847,7 @@ class World {
     this.ramps = [];
     this.time = 0;
     this._stamp = 1;
+    this.fx = [];               // Effekt-Ereignisse (Funken, Baum …) für Partikel und Ton
   }
 
   // ---------------------------------------------------------------- Erzeugung
@@ -824,6 +865,8 @@ class World {
     progress(0.7, 'Wald pflanzen …'); await tick();
     this.genTrees();
     this.genRamps();
+    this.treeHash = new SpatialHash(16);
+    for (let i = 0; i < this.trees.count; i++) this.treeHash.insert(this.trees.x[i], this.trees.z[i], this.trees.x[i], this.trees.z[i], i);
   }
 
   /** Großräumiges Gelände: Hügel, Bergkämme, See-Becken, Randgebirge, flache Stadt/Flugplatz. */
@@ -1083,7 +1126,7 @@ class World {
     const WL = this.waterLevel, C = WORLD.city, A = WORLD.air;
     const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
     const LUSH = [70, 98, 40], DRY = [126, 120, 66], FOREST = [50, 62, 30], ROCK = [112, 106, 98], SNOW = [232, 236, 240],
-      SAND = [178, 160, 118], WET = [96, 88, 64], GRAVEL = [116, 108, 94], ASPH = [92, 88, 80], CITY = [88, 88, 90], MOWN = [88, 118, 50];
+      SAND = [178, 160, 118], WET = [96, 88, 64], GRAVEL = [112, 104, 88], ASPH = [86, 82, 70], CITY = [88, 88, 90], MOWN = [88, 118, 50];
     this.forestD = new Uint8Array(n * n);
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
@@ -1100,7 +1143,7 @@ class World {
         const sand = smoothstep(WL + 3.2, WL + 1.0, h);
         c = mix(c, SAND, sand);
         if (h < WL) c = mix(SAND, WET, smoothstep(WL, WL - 3, h));
-        c = mix(c, GRAVEL, smoothstep(0.1, 0.6, roadW[k]) * 0.75);
+        c = mix(c, GRAVEL, smoothstep(0.55, 0.95, roadW[k]) * 0.5);
         let su = surf[k];
         if (su === 1) c = ASPH;
         if (x > C.x0 - 14 && x < C.x1 + 14 && z > C.z0 - 14 && z < C.z1 + 14) c = CITY;
@@ -1415,6 +1458,8 @@ class World {
         else { const s = Math.sign(lz); this.resolveContact(v, cx, cz, fx * s, fz * s, pzd); }
       }
     });
+    // Bäume
+    this.collideTrees(v, px, pz, fx, fz, rx, rz, HX, HZ, stamp);
     // Leitplanken (Liniensegmente mit Dicke; man kann sie überspringen)
     this.barrierHash.near(px, pz, 3, (s) => {
       if (s._st === stamp) return; s._st = stamp;
@@ -1449,7 +1494,8 @@ class World {
     if (vtl > 1e-3) J.addScaledVector(vt, -Math.min(vtl / k, 0.3 * jn) / vtl);
     v.vel.addScaledVector(J, v.invMass);
     v.angVel.add(v.applyInvInertia(t[10].crossVectors(r, J)));
-    if (-vn > 2.5) v.lastImpact = Math.max(v.lastImpact, -vn);
+    if (-vn > 2.5) { v.lastImpact = Math.max(v.lastImpact, -vn); if (this.fx.length < 30) this.fx.push({ type: 'spark', x, y: v.pos.y - 0.1, z, s: -vn, nx, nz }); }
+    else if (vt.length() > 4 && Math.random() < 0.3 && this.fx.length < 30) this.fx.push({ type: 'scrape', x, y: v.pos.y - 0.15, z, s: vt.length() });
   }
 }
 
@@ -1678,6 +1724,7 @@ Object.assign(World.prototype, {
     this.buildCity();
     this.buildTrees();
     this.buildRamps();
+    this.setupFallers();
     this.updateTimers = { lod: 0, trees: 0, sig: 0, lights: 0 };
     this.lastTreePos = new THREE.Vector3(1e9, 0, 0);
     this.frustum = new THREE.Frustum(); this._pm = new THREE.Matrix4();
@@ -2105,6 +2152,7 @@ Object.assign(World.prototype, {
       { geo: GREY(0.5, 0.95, 3.5, 10.5)(sphereNormals(dense(jitter(new THREE.IcosahedronGeometry(3.7, 1).scale(1.1, 0.9, 1.1).translate(0, 7, 0), 0.6, rng)), 0, 7, 0)) },
     ]);
     const mat = new THREE.MeshStandardMaterial({ map: A, vertexColors: true, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.88, metalness: 0 });
+    this.treeMat = mat;
     const T = this.trees, N = T.count;
     const cap = [0, 0]; for (let i = 0; i < N; i++) cap[T.t[i]]++;
     const mk = (geo, t, shadow) => {
@@ -2158,6 +2206,8 @@ Object.assign(World.prototype, {
     this.waterNormal.offset.x += dt * 0.006; this.waterNormal.offset.y += dt * 0.004;
     if ((T.lod -= dt) <= 0) { T.lod = 0.25; this.updateTerrainLod(camera); }
     if ((T.sig -= dt) <= 0) { T.sig = 0.3; this.updateSignals(); }
+    this.updateFallers(dt);
+    if (this.treesDirty) { this.treesDirty = false; T.trees = 0; }
     const moved = camera.position.distanceToSquared(this.lastTreePos) > 100;
     if ((T.trees -= dt) <= 0 || moved) { T.trees = 0.25; this.updateTrees(camera); this.lastTreePos.copy(camera.position); }
     if ((T.lights -= dt) <= 0) { T.lights = 0.3; this.updateLampLights(focus); }
@@ -2200,9 +2250,12 @@ Object.assign(World.prototype, {
         const list = ch.lists[t], im = lvl === 0 ? this.treeNear[t] : this.treeFar[t];
         const ma = im.instanceMatrix.array, ca = im.instanceColor.array;
         let c = cnt[lvl][t];
+        const st = this.treeState;
         for (let k = 0; k < list.length; k++) {
           const i = list[k];
+          if (st[i] === 1) continue;                       // umgefallen
           ma.set(M.subarray(i * 16, i * 16 + 16), c * 16);
+          if (st[i] === 2) { const g = this.treeGrow[i], o = c * 16; for (const q of [0, 1, 2, 4, 5, 6, 8, 9, 10]) ma[o + q] *= g; }   // wächst nach
           ca[c * 3] = Cc[i * 3]; ca[c * 3 + 1] = Cc[i * 3 + 1]; ca[c * 3 + 2] = Cc[i * 3 + 2];
           c++;
         }
@@ -2491,24 +2544,43 @@ class TrafficSystem {
     this.writeInstances();
   }
 
-  /** Angefahrenes Auto: rutscht mit Reibung aus, dreht sich. */
+  /** Angefahrenes Auto: echter Starrkörper – rutscht, kippt, überschlägt sich. */
+  makeLoose(car) {
+    if (car.body) return;
+    const v = car.v, b = new RigidBox(v.mass, v.W / 2, v.H / 2, v.L / 2);
+    this._e.set(car.pitch, car.yaw, 0, 'YXZ'); b.quat.setFromEuler(this._e);
+    b.pos.set(car.x, car.y + v.H / 2, car.z);
+    b.vel.set(-Math.sin(car.yaw) * car.speed, 0, -Math.cos(car.yaw) * car.speed);
+    car.body = b; car.state = 'loose'; car.stopT = 0; car.bx = car.bz = 0;
+  }
+
   updateLoose(car, dt, player, camera) {
-    const sp = Math.hypot(car.vx, car.vz);
-    if (sp > 0.01) { const dec = Math.min(sp, 6.5 * dt); car.vx -= car.vx / sp * dec; car.vz -= car.vz / sp * dec; }
-    car.yawRate *= Math.exp(-dt * 1.6);
-    car.x += car.vx * dt; car.z += car.vz * dt; car.yaw += car.yawRate * dt;
-    car.y = this.w.sample(car.x, car.z) + 0.02;
-    car.pitch *= Math.exp(-dt * 3);
-    if (sp < 0.3) car.stopT += dt; else car.stopT = 0;
+    const b = car.body;
+    if (!b) { car.state = 'drive'; return; }
+    const n = 3;
+    for (let k = 0; k < n; k++) b.step(dt / n, this.w);
+    const f = this._pos.set(0, 0, -1).applyQuaternion(b.quat);
+    car.yaw = Math.atan2(-f.x, -f.z);
+    car.x = b.pos.x; car.z = b.pos.z; car.y = b.pos.y - car.v.H / 2;
+    if (b.sleep > 0.5) car.stopT += dt; else car.stopT = 0;
     const d = Math.hypot(car.x - player.pos.x, car.z - player.pos.z);
-    if ((car.stopT > 8 && d > 60) || d > 700) this.respawn(car, player.pos, 250, 650, camera);
+    const hidden = !this.inView(camera, car);
+    if ((car.stopT > 6 && d > 60 && hidden) || (car.stopT > 25 && d > 25) || d > 700 || car.y < this.w.waterLevel - 6) {
+      car.body = null;
+      this.respawn(car, player.pos, 250, 650, camera);
+    }
   }
 
   writeInstances() {
     const m = this._m, q = this._q, e = this._e, p = this._pos;
+    if (!this._off) this._off = this.variants.map((v) => new THREE.Matrix4().makeTranslation(0, -v.H / 2, 0));
     for (const car of this.cars) {
-      e.set(car.pitch, car.yaw, 0, 'YXZ'); q.setFromEuler(e); p.set(car.x, car.y, car.z);
-      m.compose(p, q, this._one);
+      if (car.body) {
+        m.compose(car.body.pos, car.body.quat, this._one).multiply(this._off[this.variants.indexOf(car.v)]);
+      } else {
+        e.set(car.pitch, car.yaw, 0, 'YXZ'); q.setFromEuler(e); p.set(car.x, car.y, car.z);
+        m.compose(p, q, this._one);
+      }
       car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, m);
     }
     for (const v of this.variants) { v.bodyMesh.instanceMatrix.needsUpdate = true; v.lightMesh.instanceMatrix.needsUpdate = true; }
@@ -2524,6 +2596,7 @@ class TrafficSystem {
       const R = c.v.L / 2 + 2.6, dx = c.x - px, dz = c.z - pz;
       if (dx * dx + dz * dz > R * R) continue;
       if (v.pos.y - 0.45 > c.y + c.v.H || v.pos.y + 0.6 < c.y) continue;   // drüber gesprungen
+      if (c.body && c.body.sleep > 1.2) c.body.sleep = 0;
       const cfx = -Math.sin(c.yaw), cfz = -Math.cos(c.yaw), crx = -cfz, crz = cfx;
       const CHX = c.v.W / 2, CHZ = c.v.L / 2;
       // Spieler-Ecken im Verkehrsauto
@@ -2532,8 +2605,8 @@ class TrafficSystem {
         const ax = (x - c.x) * crx + (z - c.z) * crz, az = -((x - c.x) * cfx + (z - c.z) * cfz);
         if (Math.abs(ax) >= CHX || Math.abs(az) >= CHZ) continue;
         const ddx = CHX - Math.abs(ax), ddz = CHZ - Math.abs(az);
-        if (ddx < ddz) { const s = Math.sign(ax); this.resolvePair(v, c, x, z, crx * s, crz * s, ddx); }
-        else { const s = -Math.sign(az); this.resolvePair(v, c, x, z, cfx * s, cfz * s, ddz); }
+        const sx = Math.sign(ax), sz = -Math.sign(az);
+        this.pickAxis(v, c, x, z, crx * sx, crz * sx, ddx, cfx * sz, cfz * sz, ddz);
       }
       // Ecken des Verkehrsautos im Spieler
       for (const [lx, lz] of [[-CHX, -CHZ], [CHX, -CHZ], [-CHX, CHZ], [CHX, CHZ]]) {
@@ -2541,40 +2614,59 @@ class TrafficSystem {
         const ax = (x - px) * prx + (z - pz) * prz, az = -((x - px) * pfx + (z - pz) * pfz);
         if (Math.abs(ax) >= PHX || Math.abs(az) >= PHZ) continue;
         const ddx = PHX - Math.abs(ax), ddz = PHZ - Math.abs(az);
-        if (ddx < ddz) { const s = -Math.sign(ax); this.resolvePair(v, c, x, z, prx * s, prz * s, ddx); }
-        else { const s = Math.sign(az); this.resolvePair(v, c, x, z, pfx * s, pfz * s, ddz); }
+        const sx = -Math.sign(ax), sz = Math.sign(az);
+        this.pickAxis(v, c, x, z, prx * sx, prz * sx, ddx, pfx * sz, pfz * sz, ddz);
       }
     }
   }
 
-  /** n zeigt vom Verkehrsauto zum Spieler. */
+  /**
+   * Ecken-Kontakt: von zwei möglichen Trennachsen die nehmen, entlang der sich
+   * die Autos tatsächlich annähern (sonst „rutscht“ man an Ecken hindurch).
+   */
+  pickAxis(v, c, x, z, n1x, n1z, d1, n2x, n2z, d2) {
+    const cvx = c.body ? c.body.vel.x : -Math.sin(c.yaw) * c.speed, cvz = c.body ? c.body.vel.z : -Math.cos(c.yaw) * c.speed;
+    const rvx = v.vel.x - cvx, rvz = v.vel.z - cvz;
+    const a1 = rvx * n1x + rvz * n1z < -0.5, a2 = rvx * n2x + rvz * n2z < -0.5;
+    let use1 = d1 <= d2;
+    if (use1 && !a1 && a2 && d2 < 1.6) use1 = false;
+    else if (!use1 && !a2 && a1 && d1 < 1.6) use1 = true;
+    if (use1) this.resolvePair(v, c, x, z, n1x, n1z, d1); else this.resolvePair(v, c, x, z, n2x, n2z, d2);
+  }
+
+  /** n zeigt vom Verkehrsauto zum Spieler. Impuls in 3D: die flache Front hebelt das Auto an. */
   resolvePair(v, c, x, z, nx, nz, depth) {
-    const m2 = c.v.mass, wP = m2 / (m2 + v.mass);
+    this.makeLoose(c);
+    const b = c.body, m2 = c.v.mass, wP = m2 / (m2 + v.mass);
     v.pos.x += nx * depth * wP; v.pos.z += nz * depth * wP;
-    c.x -= nx * depth * (1 - wP); c.z -= nz * depth * (1 - wP);
-    if (c.state === 'drive') {
-      c.state = 'loose'; c.vx = -Math.sin(c.yaw) * c.speed; c.vz = -Math.cos(c.yaw) * c.speed; c.yawRate = 0; c.stopT = 0;
-      c.bx = c.bz = 0;
-    }
+    b.pos.x -= nx * depth * (1 - wP); b.pos.z -= nz * depth * (1 - wP);
     const t = v._v;
-    const r1 = t[4].set(x - v.pos.x, -0.15, z - v.pos.z);
-    const n = t[5].set(nx, 0, nz);
+    const P = t[3].set(x, Math.min(v.pos.y - 0.12, b.pos.y - 0.25), z);   // Stoß auf Stoßfängerhöhe
+    const r1 = t[4].subVectors(P, v.pos);
     const v1 = t[6].crossVectors(v.angVel, r1).add(v.vel);
-    const r2x = x - c.x, r2z = z - c.z;
-    const v2x = c.vx + c.yawRate * r2z, v2z = c.vz - c.yawRate * r2x;
-    const vn = (v1.x - v2x) * nx + (v1.z - v2z) * nz;
+    const v2 = b.pointVel(P, t[9]);
+    const vn = (v1.x - v2.x) * nx + (v1.z - v2.z) * nz;
     if (vn >= 0) return;
+    const lift = clamp(-vn * 0.01, 0, 0.18);
+    const n = t[5].set(nx, -lift, nz).normalize();
     const rn = t[7].crossVectors(r1, n);
     const k1 = v.invMass + v.applyInvInertia(t[8].copy(rn)).cross(r1).dot(n);
-    const r2n = r2z * nx - r2x * nz;
-    const k = k1 + 1 / m2 + r2n * r2n / c.v.inertia;
-    const j = -(1 + 0.2) * vn / k;
+    const k2 = b.effInv(t[2].subVectors(P, b.pos), n);
+    const j = -(1 + 0.18) * vn / (k1 + k2);
     const J = t[8].copy(n).multiplyScalar(j);
     v.vel.addScaledVector(J, v.invMass);
     v.angVel.add(v.applyInvInertia(t[9].crossVectors(r1, J)));
-    c.vx -= nx * j / m2; c.vz -= nz * j / m2;
-    c.yawRate -= r2n * j / c.v.inertia;
-    if (-vn > 2) v.lastImpact = Math.max(v.lastImpact, -vn);
+    b.impulse(J.negate(), P);
+    // Keil-Effekt: die flache Front schiebt sich bei harten Treffern unter das Auto → kann es aushebeln
+    const now = performance.now();
+    if (-vn > 13 && !(c.wedgeT > now)) {             // nur einmal pro Zusammenstoß
+      c.wedgeT = now + 600;
+      b.impulse(t[2].set(0, Math.min(-vn - 13, 14) * m2 * 0.05, 0), P);
+    }
+    if (-vn > 2) {
+      v.lastImpact = Math.max(v.lastImpact, -vn);
+      if (this.w.fx.length < 30) this.w.fx.push({ type: 'spark', x, y: P.y, z, s: -vn, nx, nz });
+    }
   }
 }
 
@@ -2588,7 +2680,7 @@ class Environment {
     this.g = game; this.scene = game.scene; this.renderer = game.renderer; this.q = game.q;
     this.hemi = new THREE.HemisphereLight(0xbfdcff, 0x5a6040, 0.9);
     this.sun = new THREE.DirectionalLight(0xfff1dc, 3);
-    this.sunDir = new THREE.Vector3(-0.42, 0.62, 0.38).normalize();
+    this.sunDir = new THREE.Vector3(-0.5, 0.5, 0.42).normalize();
     const sc = this.sun.shadow.camera;
     sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 1; sc.far = 400;
     this.sun.shadow.bias = -0.0003; this.sun.shadow.normalBias = 0.05;
@@ -2680,8 +2772,8 @@ class Environment {
       this.envGround.material.color.set(0x050607);
     } else {
       u.uTop.value.set(0x2f6fd0); u.uHorizon.value.set(0xbcd6ea);
-      this.sunDir.set(-0.42, 0.62, 0.38).normalize();
-      this.sun.color.set(0xfff1dc); this.sun.intensity = 3.0;
+      this.sunDir.set(-0.5, 0.5, 0.42).normalize();
+      this.sun.color.set(0xffe9cf); this.sun.intensity = 3.2;
       this.hemi.color.set(0xbfdcff); this.hemi.groundColor.set(0x5a6040); this.hemi.intensity = 0.85;
       this.scene.fog.color.set(0xbcd6ea); this.scene.fog.near = 300; this.scene.fog.far = this.q.fogFar;
       this.renderer.toneMappingExposure = 0.95;
@@ -2994,6 +3086,9 @@ class Vehicle {
     this.airTime = 0; this.groundedCount = 0;
     this.lastImpact = 0;
     this.upsideDownTime = 0;   // für automatisches Aufrichten
+    this.boostEnergy = 1; this.boostCool = 0; this.boosting = false; this.boostIn = false;
+    this.flyEnergy = 1; this.flying = false; this.landing = false; this.altitude = 0;
+    this.steerIn = 0; this.climbIn = 0; this.inWater = 0;
 
     // Wiederverwendbare Vektoren (keine Allokationen pro Schritt)
     this._v = Array.from({ length: 12 }, () => new THREE.Vector3());
@@ -3009,6 +3104,7 @@ class Vehicle {
     this.vel.set(0, 0, 0); this.angVel.set(0, 0, 0);
     this.prevPos.copy(this.pos); this.prevQuat.copy(this.quat);
     this.drivetrain.gear = 1; this.direction = 1; this.steerAngle = 0;
+    this.flying = false; this.landing = false; this.altitude = 0; this.airTime = 0;
     for (const w of this.wheels) { w.omega = 0; w.compression = w.prevCompression = 0; }
   }
 
@@ -3051,6 +3147,7 @@ class Vehicle {
     this.throttle = approach(this.throttle, throttle, dt * 7);
     this.brake = approach(this.brake, brake, dt * 9);
     this.handbrake = inp.handbrake;
+    this.boostIn = inp.boost; this.steerIn = inp.steer; this.climbIn = inp.climb || 0;
     this.braking = this.brake > 0.05;
     this.reversing = dtn.gear < 0;
 
@@ -3073,6 +3170,14 @@ class Vehicle {
     const v = this._v;
     this.prevPos.copy(this.pos); this.prevQuat.copy(this.quat);
     this.force.set(0, 0, 0); this.torque.set(0, 0, 0);
+    // Boost-Energie: leert sich beim Boosten, lädt nach kurzer Pause langsam nach
+    const B = cfg.boost;
+    this.boosting = this.boostIn && this.boostEnergy > 0.01;
+    if (this.boosting) { this.boostEnergy = Math.max(0, this.boostEnergy - dt * B.drain); this.boostCool = B.delay; }
+    else if ((this.boostCool -= dt) <= 0) this.boostEnergy = Math.min(1, this.boostEnergy + dt * B.recharge);
+    if (this.flying) { this.stepFlight(dt); return; }
+    if (this.groundedCount > 0) this.flyEnergy = Math.min(1, this.flyEnergy + dt * cfg.flight.recharge);
+    this.altitude = 0;
 
     const up = v[0].set(0, 1, 0).applyQuaternion(this.quat);
     const fwdBody = v[1].set(0, 0, -1).applyQuaternion(this.quat);
@@ -3266,6 +3371,8 @@ class Vehicle {
       }
     }
     this.force.y -= 9.81 * this.mass;
+    // Boost: Schub im Schwerpunkt (wirkt auch in der Luft, z. B. bei Sprüngen)
+    if (this.boosting) this.force.addScaledVector(fwdBody, B.force);
 
     // Fahrhilfe (ESP-ähnlich): dämpft ungewolltes Eindrehen, Driften bleibt möglich
     if (this.tractionControl && grounded >= 3 && this.speed > 3 && !this.handbrake) {
@@ -3317,6 +3424,81 @@ class Vehicle {
     // Auf dem Dach/der Seite liegen geblieben → nach 2,5 s automatisch aufrichten
     if (up.y < 0.35 && this.speed < 3) this.upsideDownTime += dt; else this.upsideDownTime = 0;
     if (this.upsideDownTime > 2.5) { this.reset(this.pos.clone(), this.yaw()); this.upsideDownTime = 0; }
+  }
+
+  /** Abheben bzw. Landeanflug einleiten. */
+  toggleFly() {
+    if (!this.flying) {
+      if (this.flyEnergy < 0.12) return 'empty';
+      this.flying = true; this.landing = false;
+      this.vel.y = Math.max(this.vel.y, 3);
+      return 'up';
+    }
+    this.landing = true;
+    return 'land';
+  }
+
+  /**
+   * Flugphysik: Hubdüsen regeln die Steig-/Sinkrate (Joystick ↕), Schub nach vorn
+   * mit Gas, Lenken dreht (gieren) und neigt das Auto in die Kurve. Die Lage wird
+   * geregelt, damit es sich gutmütig fliegt. Energie begrenzt; nahe am Boden
+   * wird das Sinken automatisch abgebremst → sanfte Landung.
+   */
+  stepFlight(dt) {
+    const cfg = this.cfg, F = cfg.flight, v = this._v;
+    const up = v[0].set(0, 1, 0).applyQuaternion(this.quat);
+    const fwd = v[1].set(0, 0, -1).applyQuaternion(this.quat);
+    const right = v[2].set(1, 0, 0).applyQuaternion(this.quat);
+    this.forwardSpeed = this.vel.dot(fwd); this.speed = this.vel.length();
+    for (const w of this.wheels) { w.grounded = false; w.load = 0; w.sliding = false; w.slideAmount = 0; w.omega *= 0.985; w.compression = w.prevCompression = 0; w.suspLen = cfg.suspension.restLength; }
+    this.groundedCount = 0; this.airTime += dt;
+    const ground = this.world.sample(this.pos.x, this.pos.z, undefined, this.pos.y);
+    const alt = this.pos.y - cfg.cgHeight - Math.max(ground, this.world.waterLevel);
+    this.altitude = alt;
+    if (!this.landing) { this.flyEnergy -= dt * F.drain; if (this.flyEnergy <= 0) { this.flyEnergy = 0; this.landing = true; } }
+    // Steigrate
+    let climb = this.landing ? -F.landRate : this.climbIn * F.climb;
+    if (this.pos.y > F.ceiling) climb = Math.min(climb, 0);
+    if (climb < 0) climb = Math.max(climb, -(0.7 + Math.max(alt, 0) * 0.55));
+    const vy = this.vel.y;
+    this.force.y += this.mass * clamp((climb - vy) * 2.3, -7, 9);
+    // Vortrieb in Blickrichtung (waagrecht)
+    const fh = v[3].set(fwd.x, 0, fwd.z); fh.multiplyScalar(1 / (fh.length() || 1));
+    const rh = v[4].set(-fh.z, 0, fh.x);
+    let thrust = this.throttle * F.thrust - this.brake * F.thrust * 0.8;
+    if (this.boosting) thrust += cfg.boost.force * 1.3;
+    this.force.addScaledVector(fh, thrust);
+    // Seitliche Führung + Luftwiderstand
+    this.force.addScaledVector(rh, -this.vel.dot(rh) * this.mass * 1.6);
+    const A = cfg.aero;
+    this.force.addScaledVector(this.vel, -0.5 * A.rho * A.CdA * 1.3 * this.speed - this.mass * 0.05);
+    // Lageregelung
+    const Ix = 1 / this.invInertia.x, Iy = 1 / this.invInertia.y, Iz = 1 / this.invInertia.z;
+    const hs = Math.hypot(this.vel.x, this.vel.z);
+    const yawT = this.steerIn * F.yawRate * (0.55 + 0.45 * Math.min(1, hs / 12));
+    this.torque.y += Iy * 5 * (yawT - this.angVel.y);
+    const pitch = Math.asin(clamp(fwd.y, -1, 1)), tp = clamp(vy / 18, -0.3, 0.3) - this.throttle * 0.05 + this.brake * 0.06;
+    this.torque.addScaledVector(right, Ix * (7 * (tp - pitch) - 3.5 * this.angVel.dot(right)));
+    const roll = -Math.asin(clamp(right.y, -1, 1)), tr = -this.steerIn * 0.42 * Math.min(1, hs / 15);
+    this.torque.addScaledVector(fwd, Iz * (7 * (tr - roll) - 3.5 * this.angVel.dot(fwd)));
+    // Integration (Hubdüsen heben die Schwerkraft auf → keine Gewichtskraft addieren)
+    const prevVel = v[10].copy(this.vel);
+    this.vel.addScaledVector(this.force, this.invMass * dt);
+    this.angVel.addScaledVector(this.applyInvInertia(v[5].copy(this.torque)), dt);
+    this.pos.addScaledVector(this.vel, dt);
+    const av = this.angVel;
+    this._q.set(av.x * dt * 0.5, av.y * dt * 0.5, av.z * dt * 0.5, 0).multiply(this.quat);
+    this.quat.x += this._q.x; this.quat.y += this._q.y; this.quat.z += this._q.z; this.quat.w += this._q.w;
+    this.quat.normalize();
+    const acc = prevVel.subVectors(this.vel, prevVel).divideScalar(dt);
+    this.longAccel = damp(this.longAccel, acc.dot(fwd) / 9.81, 10, dt);
+    this.latAccel = damp(this.latAccel, acc.dot(right) / 9.81, 10, dt);
+    this.collideChassis(dt);
+    this.world.collideVehicle?.(this);
+    this.applyWater(dt);
+    this.enforceBounds();
+    // Aufsetzen
+    if (this.landing && alt < 0.15) { this.flying = false; this.landing = false; this.airTime = 0; }
   }
 
   /** Fahrtrichtung (Gierwinkel) – 0 = Richtung −Z. */
@@ -3410,10 +3592,12 @@ class CarModel {
     this.body = body;
 
     // ---------- Materialien ----------
+    // Perlweiß mit Klarlack (Phase 9: Farbe in der Garage wählbar)
+    const paintCol = new THREE.Color(Settings.data.paint || '#f2f2ee');
     this.paint = q.physicalPaint
-      ? new THREE.MeshPhysicalMaterial({ color: 0x8c0612, metalness: 0.25, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.04 })
-      : new THREE.MeshStandardMaterial({ color: 0x8c0612, metalness: 0.25, roughness: 0.32 });
-    this.paint.envMapIntensity = 0.45;   // heller Himmel soll den Lack nicht „auswaschen“
+      ? new THREE.MeshPhysicalMaterial({ color: paintCol, metalness: 0.12, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03, sheen: 0.2, sheenColor: 0xffffff })
+      : new THREE.MeshStandardMaterial({ color: paintCol, metalness: 0.12, roughness: 0.28 });
+    this.paint.envMapIntensity = 0.75;
     const black = new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.55, metalness: 0.3 });
     const carbon = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.35, metalness: 0.4 });
     const glass = new THREE.MeshStandardMaterial({ color: 0x0a1018, roughness: 0.05, metalness: 0.9, transparent: true, opacity: 0.42, depthWrite: false });
@@ -3638,6 +3822,47 @@ class CarModel {
     body.add(this.center.mesh);
     this.screenStyle = { accent: '#36e0ff', bg: '#04111a' };   // Phase 9: Display-Design wählbar
 
+    // ---------- Plasma-Düsen (Boost) und Hubdüsen (Fliegen) ----------
+    this.fxTime = { value: 0 };
+    const plasmaMat = (a, b) => new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false,
+      uniforms: { uTime: this.fxTime, uPower: { value: 0 }, uA: { value: new THREE.Color(...a) }, uB: { value: new THREE.Color(...b) } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform float uTime; uniform float uPower; uniform vec3 uA; uniform vec3 uB; varying vec2 vUv;
+        float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y); }
+        void main(){ float t = 1.0 - vUv.y; float fl = n(vec2(vUv.x * 9.0, vUv.y * 6.0 - uTime * 20.0));
+          float a = pow(t, 1.5) * (0.5 + 0.7 * fl) * uPower; vec3 c = mix(uB, uA, pow(t, 3.0));
+          gl_FragColor = vec4(c * a * 1.8, a); }`,
+    });
+    this.boostMat = plasmaMat([1.0, 1.0, 1.0], [0.15, 0.55, 1.6]);
+    this.jetMat = plasmaMat([0.9, 1.0, 1.0], [0.1, 1.2, 0.8]);
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0x2a2d31, metalness: 0.9, roughness: 0.3 });
+    this.nozzleGlow = new THREE.MeshBasicMaterial({ color: 0x103040, toneMapped: false });
+    this.flames = []; this.nozzles = [];
+    for (const sx of [-0.42, 0.42]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.035, 8, 20), ringMat);
+      ring.position.set(sx, 0.4, 2.24); body.add(ring);
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), this.nozzleGlow); disc.position.set(sx, 0.4, 2.235); disc.rotation.y = Math.PI; body.add(disc);
+      const fl = new THREE.Mesh(new THREE.ConeGeometry(0.14, 1.7, 16, 1, true).translate(0, 0.85, 0).rotateX(Math.PI / 2), this.boostMat);
+      fl.position.set(sx, 0.4, 2.27); fl.visible = false; fl.renderOrder = 6; body.add(fl);
+      this.flames.push(fl); this.nozzles.push(fl);
+    }
+    this.jets = []; this.jetPads = [];
+    this.jetGlow = new THREE.MeshBasicMaterial({ color: 0x0a2018, toneMapped: false });
+    for (const [jx, jz] of [[-0.62, -1.25], [0.62, -1.25], [-0.62, 1.3], [0.62, 1.3]]) {
+      const pad = new THREE.Mesh(new THREE.CircleGeometry(0.16, 18), this.jetGlow); pad.rotation.x = Math.PI / 2; pad.position.set(jx, 0.165, jz); body.add(pad);
+      const jet = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.3, 14, 1, true).translate(0, 0.65, 0).rotateX(Math.PI), this.jetMat);
+      jet.position.set(jx, 0.16, jz); jet.visible = false; jet.renderOrder = 6; body.add(jet);
+      this.jets.push(jet);
+    }
+    this.boostLight = q.headlights ? new THREE.PointLight(0x5cc8ff, 0, 9, 1.8) : null;
+    if (this.boostLight) { this.boostLight.position.set(0, 0.45, 2.8); body.add(this.boostLight); }
+    this.jetLight = q.headlights ? new THREE.PointLight(0x5cffc0, 0, 7, 1.6) : null;
+    if (this.jetLight) { this.jetLight.position.set(0, -0.2, 0); body.add(this.jetLight); }
+    this.flyBlend = 0; this.boostBlend = 0;
+
     body.position.y = -cfg.cgHeight;
 
     // ---------- Räder ----------
@@ -3686,13 +3911,30 @@ class CarModel {
       // Federweg glätten (Optik), Rad sitzt unter dem Aufhängungspunkt
       const len = w.grounded ? w.suspLen : cfg.suspension.restLength;
       m.len = m.len === undefined ? len : damp(m.len, len, 40, dt);
-      m.pivot.position.set(m.x, cfg.mountY - m.len, m.z);
-      m.pivot.rotation.y = w.steer;
+      // Beim Fliegen klappen die Räder flach nach innen unter die Karosserie
+      const fb = this.flyBlend, side = m.x < 0 ? -1 : 1;
+      m.pivot.position.set(m.x - side * 0.2 * fb, cfg.mountY - m.len + 0.14 * fb, m.z);
+      m.pivot.rotation.set(0, w.steer * (1 - fb), side * fb * Math.PI / 2);
       w.spin -= w.omega * dt;
       m.spin.rotation.x = w.spin % (Math.PI * 2);
     }
     this.steeringWheel.rotation.z = vehicle.steerAngle * cfg.steer.wheelToSteeringWheel * 0.5;
     this.tailMat.emissiveIntensity = vehicle.braking ? 4.5 : 0.9;
+    // Düsen
+    this.fxTime.value += dt;
+    const wantFly = vehicle.flying && !(vehicle.landing && vehicle.altitude < 3) ? 1 : 0;
+    this.flyBlend = approach(this.flyBlend, wantFly, dt * 1.8);
+    this.boostBlend = damp(this.boostBlend, vehicle.boosting ? 1 : 0, 12, dt);
+    const bp = this.boostBlend * (0.85 + 0.15 * Math.sin(this.fxTime.value * 50));
+    this.boostMat.uniforms.uPower.value = bp;
+    for (const f of this.flames) { f.visible = bp > 0.02; f.scale.set(1, 1, 0.5 + bp * 1.1); }
+    this.nozzleGlow.color.setRGB(0.06 + bp * 1.2, 0.18 + bp * 2.4, 0.25 + bp * 3.2);
+    const jp = vehicle.flying ? (0.55 + vehicle.throttle * 0.25 + Math.max(0, vehicle.climbIn) * 0.3) * this.flyBlend : 0;
+    this.jetMat.uniforms.uPower.value = jp;
+    for (const j of this.jets) { j.visible = jp > 0.02; j.scale.set(1, 0.7 + jp * 0.8, 1); }
+    this.jetGlow.color.setRGB(0.04 + jp * 0.6, 0.12 + jp * 2.6, 0.08 + jp * 1.6);
+    if (this.boostLight) this.boostLight.intensity = bp * 14;
+    if (this.jetLight) this.jetLight.intensity = jp * 10;
     this.revMat.emissiveIntensity = vehicle.reversing ? 2.5 : 0;
   }
 
@@ -3857,8 +4099,17 @@ class CameraRig {
     this.fovExtra = 0;              // Phase 6: Boost weitet das Sichtfeld
   }
 
-  static MODES = ['chase', 'far', 'cockpit'];
-  static LABELS = { chase: 'Verfolger', far: 'Verfolger weit', cockpit: 'Cockpit' };
+  static MODES = ['chase', 'far', 'hood', 'cockpit'];
+  static LABELS = { chase: 'Verfolger', far: 'Verfolger weit', hood: 'Motorhaube', cockpit: 'Ego-Perspektive (Cockpit)' };
+
+  /** Direkt zwischen Ego-Perspektive und der letzten Außenansicht umschalten. */
+  toggleEgo() {
+    if (this.mode === 'cockpit') this.mode = this.lastOutside || 'chase';
+    else { this.lastOutside = this.mode === 'hood' ? 'chase' : this.mode; this.mode = 'cockpit'; }
+    Settings.data.camMode = this.mode; Settings.save();
+    CamInput.yaw = 0; CamInput.pitch = 0; this.initialized = false;
+    return this.mode;
+  }
 
   next() {
     const i = CameraRig.MODES.indexOf(this.mode);
@@ -3881,10 +4132,11 @@ class CameraRig {
     CamInput.yaw = Math.atan2(Math.sin(CamInput.yaw), Math.cos(CamInput.yaw));
     this.shake *= Math.exp(-dt * 5.5);
 
-    const near = this.mode === 'cockpit' ? 0.05 : 0.1;
+    const inside = this.mode === 'cockpit' || this.mode === 'hood';
+    const near = inside ? 0.05 : 0.1;
     if (this.cam.near !== near) { this.cam.near = near; this.cam.updateProjectionMatrix(); }
 
-    if (this.mode === 'cockpit') this.updateCockpit(dt, carPos, carQuat, vehicle);
+    if (inside) this.updateCockpit(dt, carPos, carQuat, vehicle);
     else this.updateChase(dt, carPos, carQuat, vehicle);
 
     // Wackeln (zwei überlagerte Sinus-„Rauschen“)
@@ -3896,7 +4148,7 @@ class CameraRig {
     }
 
     const speed = vehicle.speed;
-    const baseFov = this.mode === 'cockpit' ? 70 + clamp(speed * 0.07, 0, 9) : 60 + clamp(speed * 0.13, 0, 16);
+    const baseFov = inside ? 70 + clamp(speed * 0.07, 0, 9) : 60 + clamp(speed * 0.13, 0, 16);
     const fov = baseFov + this.fovExtra;
     if (Math.abs(fov - this.cam.fov) > 0.05) { this.cam.fov = damp(this.cam.fov, fov, 3, dt); this.cam.updateProjectionMatrix(); }
   }
@@ -3913,8 +4165,9 @@ class CameraRig {
     const h = this._h.set(this.heading.x * c + this.heading.z * sn, 0, -this.heading.x * sn + this.heading.z * c);
     const speed = vehicle.speed;
     const zoom = CamInput.zoom;
-    const dist = ((far ? 10 : 6.2) + clamp(speed * 0.018, 0, 1.6)) * zoom;
-    const height = (far ? 3.4 : 1.9) * Math.sqrt(zoom) + clamp(speed * 0.004, 0, 0.4);
+    const fly = vehicle.flying ? 1 : 0;
+    const dist = ((far ? 10 : 6.2) + clamp(speed * 0.018, 0, 1.6) + fly * 2.5) * zoom;
+    const height = (far ? 3.4 : 1.9) * Math.sqrt(zoom) + clamp(speed * 0.004, 0, 0.4) + fly * 1.2;
     const pitch = CamInput.pitch;
     const target = this._t.copy(carPos).addScaledVector(h, -dist * Math.cos(pitch));
     target.y = carPos.y + height + dist * Math.sin(pitch);
@@ -3940,10 +4193,16 @@ class CameraRig {
 
   updateCockpit(dt, carPos, carQuat, vehicle) {
     // Kopf auf dem Fahrersitz; leichtes Mitschwingen mit den g-Kräften
-    const head = this._t.set(
-      -0.33 - clamp(vehicle.latAccel, -1.5, 1.5) * 0.014,
-      CONFIG.car.cockpitEyeY - CONFIG.car.cgHeight,
-      0.42 + clamp(vehicle.longAccel, -1.5, 1.5) * 0.02);
+    const hood = this.mode === 'hood';
+    const head = hood
+      ? this._t.set(0, 0.98 - CONFIG.car.cgHeight, -0.95)
+      : this._t.set(
+        -0.33 - clamp(vehicle.latAccel, -1.5, 1.5) * 0.014,
+        CONFIG.car.cockpitEyeY - CONFIG.car.cgHeight,
+        0.42 + clamp(vehicle.longAccel, -1.5, 1.5) * 0.02);
+    // feines Vibrieren bei hohem Tempo / Boost (realistischer Eindruck von Geschwindigkeit)
+    const vib = clamp((vehicle.speed - 30) / 60, 0, 1) * 0.004 + (vehicle.boosting ? 0.004 : 0);
+    if (vib > 0) { head.y += Math.sin(this.time * 73) * vib; head.x += Math.sin(this.time * 61 + 1) * vib * 0.6; }
     head.applyQuaternion(carQuat).add(carPos);
     this.cam.position.copy(head);
     this._e.set(-0.07 - CamInput.pitch * 0.6, CamInput.yaw * 1.2, 0, 'YXZ');
@@ -3956,7 +4215,7 @@ class CameraRig {
 const HUD = {
   el: {},
   init() {
-    for (const id of ['fps', 'speedVal', 'gearMain', 'gearSub', 'rpmFill', 'telemetry']) this.el[id] = document.getElementById(id);
+    for (const id of ['fps', 'speedVal', 'gearMain', 'gearSub', 'rpmFill', 'telemetry', 'boostFill', 'flyFill', 'altInfo', 'flyLbl', 'tBoost', 'tFly']) this.el[id] = document.getElementById(id);
     this.last = {};
   },
   set(id, val, prop = 'textContent') {
@@ -3972,6 +4231,12 @@ const HUD = {
     const w = (Math.round(rpmPct * 200) / 2) + '%';
     if (this.last.rpm !== w) { this.last.rpm = w; this.el.rpmFill.style.width = w; }
     this.set('fps', `${fps} FPS · ${Settings.data.quality.toUpperCase()}`);
+    const bw = Math.round(vehicle.boostEnergy * 100) + '%', fw = Math.round(vehicle.flyEnergy * 100) + '%';
+    if (this.last.bw !== bw) { this.last.bw = bw; this.el.boostFill.style.width = bw; this.el.tBoost.style.setProperty('--e', vehicle.boostEnergy.toFixed(2)); }
+    if (this.last.fw !== fw) { this.last.fw = fw; this.el.flyFill.style.width = fw; this.el.tFly.style.setProperty('--e', vehicle.flyEnergy.toFixed(2)); }
+    this.set('altInfo', vehicle.flying ? `HÖHE ${Math.max(0, Math.round(vehicle.altitude))} m${vehicle.landing ? ' · LANDUNG' : ''}` : '');
+    this.set('flyLbl', vehicle.flying ? 'landen' : 'abheben');
+    if (this.last.flying !== vehicle.flying) { this.last.flying = vehicle.flying; this.el.tFly.classList.toggle('active', vehicle.flying); }
   },
   telemetry(vehicle, extra) {
     if (!Settings.data.telemetry) { this.el.telemetry.style.display = 'none'; return; }
@@ -3988,6 +4253,435 @@ const HUD = {
     this.el.telemetry.textContent = s;
   },
 };
+
+// ============================== Partikel ==============================
+/**
+ * Funken, Reifenqualm, Staub, Blätter, Holzsplitter, Wasser, Plasma.
+ * Zwei Punktwolken (additiv für Leuchtendes, normal für Rauch/Staub),
+ * jeweils ein Draw-Call; die Bewegung rechnet die CPU.
+ */
+const PARTICLE_KINDS = {
+  spark:  { add: true,  life: 0.5, size: [0.22, 0.05], col: [[1.6, 0.9, 0.35], [1.2, 0.3, 0.05]], alpha: [1, 0.6], g: 9.8, drag: 0.6 },
+  plasma: { add: true,  life: 0.32, size: [0.7, 0.1], col: [[0.6, 1.3, 1.8], [0.2, 0.4, 1.6]], alpha: [0.9, 0], g: 0, drag: 3 },
+  smoke:  { add: false, life: 2.2, size: [1.2, 5.0], col: [[0.86, 0.86, 0.88], [0.7, 0.7, 0.72]], alpha: [0.32, 0], g: -0.7, drag: 1.6 },
+  dust:   { add: false, life: 1.7, size: [1.0, 4.2], col: [[0.6, 0.53, 0.4], [0.62, 0.56, 0.45]], alpha: [0.42, 0], g: -0.2, drag: 1.8 },
+  leaf:   { add: false, life: 3.2, size: [0.28, 0.24], col: [[0.25, 0.45, 0.12], [0.35, 0.42, 0.12]], alpha: [1, 0.9], g: 1.3, drag: 2.6, flutter: true },
+  chip:   { add: false, life: 1.4, size: [0.2, 0.18], col: [[0.55, 0.4, 0.25], [0.5, 0.36, 0.22]], alpha: [1, 1], g: 9.8, drag: 0.4 },
+  splash: { add: false, life: 1.0, size: [0.5, 1.8], col: [[0.85, 0.92, 0.98], [0.75, 0.85, 0.95]], alpha: [0.7, 0], g: 9.8, drag: 0.8 },
+};
+
+class Particles {
+  constructor(scene, cap) {
+    this.sys = [true, false].map((add) => this.makeSystem(scene, cap, add));
+    this.rng = Math.random;
+  }
+  makeSystem(scene, cap, add) {
+    const g = new THREE.BufferGeometry();
+    const pos = new Float32Array(cap * 3), col = new Float32Array(cap * 3), alpha = new Float32Array(cap), size = new Float32Array(cap);
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('alpha', new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('size', new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
+    const mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending,
+      uniforms: { uScale: { value: 400 } },
+      vertexShader: `attribute float size; attribute float alpha; attribute vec3 color; uniform float uScale; varying vec4 vC;
+        void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(size * uScale / -mv.z, 1.0, 256.0);
+          gl_Position = projectionMatrix * mv; vC = vec4(color, alpha); }`,
+      fragmentShader: `varying vec4 vC; void main(){ float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.05, d);
+          gl_FragColor = vec4(vC.rgb, vC.a * a);
+          #include <colorspace_fragment>
+        }`,
+    });
+    const pts = new THREE.Points(g, mat);
+    pts.frustumCulled = false; pts.renderOrder = 5;
+    scene.add(pts);
+    return { pts, g, mat, cap, n: 0, P: [] };
+  }
+  setScale(px) { for (const s of this.sys) s.mat.uniforms.uScale.value = px; }
+
+  emit(kind, x, y, z, vx, vy, vz, count = 1, spread = 1) {
+    const K = PARTICLE_KINDS[kind], s = this.sys[K.add ? 0 : 1];
+    for (let i = 0; i < count; i++) {
+      if (s.P.length >= s.cap) s.P.shift();
+      const r = this.rng;
+      s.P.push({ K, x: x + (r() - 0.5) * 0.3 * spread, y: y + (r() - 0.5) * 0.2 * spread, z: z + (r() - 0.5) * 0.3 * spread,
+        vx: vx + (r() - 0.5) * 2 * spread, vy: vy + (r() - 0.5) * 2 * spread, vz: vz + (r() - 0.5) * 2 * spread,
+        age: 0, life: K.life * (0.7 + r() * 0.6), ph: r() * 6.28, sz: 0.8 + r() * 0.4 });
+    }
+  }
+
+  update(dt) {
+    for (const s of this.sys) {
+      const pa = s.g.attributes.position.array, ca = s.g.attributes.color.array, aa = s.g.attributes.alpha.array, sa = s.g.attributes.size.array;
+      let n = 0;
+      const keep = [];
+      for (const p of s.P) {
+        p.age += dt;
+        if (p.age >= p.life) continue;
+        const K = p.K, t = p.age / p.life;
+        const dk = Math.exp(-K.drag * dt);
+        p.vx *= dk; p.vz *= dk; p.vy = p.vy * dk - K.g * dt;
+        if (K.flutter) { p.vx += Math.sin(p.age * 6 + p.ph) * 3 * dt; p.vz += Math.cos(p.age * 5 + p.ph) * 3 * dt; }
+        p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+        pa[n * 3] = p.x; pa[n * 3 + 1] = p.y; pa[n * 3 + 2] = p.z;
+        ca[n * 3] = lerp(K.col[0][0], K.col[1][0], t); ca[n * 3 + 1] = lerp(K.col[0][1], K.col[1][1], t); ca[n * 3 + 2] = lerp(K.col[0][2], K.col[1][2], t);
+        aa[n] = lerp(K.alpha[0], K.alpha[1], t) * Math.min(1, p.age * 12);
+        sa[n] = lerp(K.size[0], K.size[1], Math.sqrt(t)) * p.sz;
+        keep.push(p); n++;
+      }
+      s.P = keep;
+      s.g.setDrawRange(0, n);
+      for (const k of ['position', 'color', 'alpha', 'size']) s.g.attributes[k].needsUpdate = true;
+    }
+  }
+}
+
+// ============================== Gras ==============================
+/** Grasbüschel rund um die Kamera (wiegen im Wind), nur auf Wiesen. */
+class Grass {
+  constructor(world, scene, q) {
+    this.w = world; this.cap = q.grass; this.R = q.grassRadius; this.cell = 1.35;
+    this.last = new THREE.Vector3(1e9, 0, 0);
+    if (!this.cap) return;
+    // Textur: viele schmale Halme mit Transparenz
+    const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const c = cv.getContext('2d'), rng = mulberry32(12);
+    for (let i = 0; i < 140; i++) {
+      const x = 8 + rng() * (S - 16), h = S * (0.45 + rng() * 0.55), bend = (rng() - 0.5) * 40, w = 2 + rng() * 3;
+      const l = 17 + rng() * 17;
+      c.fillStyle = `hsl(${70 + rng() * 26},${24 + rng() * 20}%,${l}%)`;
+      c.beginPath(); c.moveTo(x - w, S); c.quadraticCurveTo(x + bend * 0.3, S - h * 0.6, x + bend, S - h); c.quadraticCurveTo(x + bend * 0.3 + w * 0.3, S - h * 0.6, x + w, S); c.fill();
+    }
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const parts = [];
+    for (let k = 0; k < 3; k++) {
+      const p = new THREE.PlaneGeometry(0.9, 0.5); p.translate(0, 0.25, 0); p.rotateY(k * Math.PI / 3);
+      // Normalen nach oben kippen → wirkt wie Wiese, nicht wie Karten
+      const n = p.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, n.getX(i) * 0.3, 0.95, n.getZ(i) * 0.3);
+      parts.push(p);
+    }
+    const geo = new THREE.BufferGeometry();
+    const merged = parts.map((p) => p.toNonIndexed());
+    const cnt = merged.reduce((a, g) => a + g.attributes.position.count, 0);
+    for (const k of ['position', 'normal', 'uv']) {
+      const sz = k === 'uv' ? 2 : 3, arr = new Float32Array(cnt * sz); let o = 0;
+      for (const g of merged) { arr.set(g.attributes[k].array, o); o += g.attributes[k].array.length; }
+      geo.setAttribute(k, new THREE.BufferAttribute(arr, sz));
+    }
+    this.time = { value: 0 };
+    const mat = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 });
+    const time = this.time;
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = time;
+      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec3 ip = instanceMatrix[3].xyz;
+        float sway = sin(uTime * 1.8 + ip.x * 0.35 + ip.z * 0.27) + 0.5 * sin(uTime * 3.1 + ip.x * 0.9);
+        transformed.x += sway * 0.07 * position.y; transformed.z += sway * 0.05 * position.y;`);
+    };
+    this.mesh = new THREE.InstancedMesh(geo, mat, this.cap);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.setColorAt(0, new THREE.Color(1, 1, 1));
+    this.mesh.count = 0; this.mesh.frustumCulled = false; this.mesh.receiveShadow = true;
+    scene.add(this.mesh);
+    this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._p = new THREE.Vector3(); this._s = new THREE.Vector3(); this._c = new THREE.Color();
+    this._up = new THREE.Vector3(0, 1, 0);
+  }
+
+  update(dt, cam) {
+    if (!this.cap) return;
+    this.time.value += dt;
+    if (cam.distanceToSquared(this.last) < 36) return;
+    this.last.copy(cam);
+    const w = this.w, C = this.cell, R = this.R, cnt = this.cap;
+    let k = 0;
+    const i0 = Math.floor((cam.x - R) / C), i1 = Math.floor((cam.x + R) / C), j0 = Math.floor((cam.z - R) / C), j1 = Math.floor((cam.z + R) / C);
+    for (let j = j0; j <= j1 && k < cnt; j++) {
+      for (let i = i0; i <= i1 && k < cnt; i++) {
+        const h1 = hash2(i, j, 91) * 0.5 + 0.5, h2 = hash2(i, j, 92) * 0.5 + 0.5, h3 = hash2(i, j, 93) * 0.5 + 0.5;
+        const x = (i + h1) * C, z = (j + h2) * C;
+        const d = Math.hypot(x - cam.x, z - cam.z);
+        if (d > R) continue;
+        const su = w.surfaceAt(x, z);
+        if (su !== 0 && !(su === 2 && h3 > 0.5)) continue;
+        const gi = Math.round((x + w.half) / w.cell), gj = Math.round((z + w.half) / w.cell);
+        if (w.roadW[gj * w.n + gi] > 0.15) continue;
+        const y = w.sample(x, z);
+        if (y < w.waterLevel + 0.6) continue;
+        const sc = (0.75 + h3 * 0.7) * (1 - smoothstep(R * 0.7, R, d));
+        this._q.setFromAxisAngle(this._up, h1 * 6.28);
+        this._m.compose(this._p.set(x, y - 0.05, z), this._q, this._s.set(sc, sc * (0.8 + h2 * 0.5), sc));
+        this.mesh.setMatrixAt(k, this._m);
+        this.mesh.setColorAt(k, this._c.setRGB(0.78 + h2 * 0.22, 0.82 + h1 * 0.14, 0.62 + h3 * 0.16));
+        k++;
+      }
+    }
+    this.mesh.count = k;
+    this.mesh.instanceMatrix.needsUpdate = true; this.mesh.instanceColor.needsUpdate = true;
+  }
+}
+
+// ============================== Starrkörper (Verkehr nach Zusammenstoß) ==============================
+/** Quader mit 6 Freiheitsgraden: kann rutschen, kippen und sich überschlagen. */
+class RigidBox {
+  constructor(mass, hx, hy, hz) {
+    this.m = mass; this.invM = 1 / mass;
+    this.inv = new THREE.Vector3(3 / (mass * (hy * hy + hz * hz)), 3 / (mass * (hx * hx + hz * hz)), 3 / (mass * (hx * hx + hy * hy)));
+    this.pos = new THREE.Vector3(); this.quat = new THREE.Quaternion();
+    this.vel = new THREE.Vector3(); this.angVel = new THREE.Vector3();
+    this.h = [hx, hy, hz];
+    this.corners = [];
+    for (const x of [-hx, hx]) for (const y of [-hy, hy]) for (const z of [-hz, hz]) this.corners.push(new THREE.Vector3(x, y, z));
+    this.sleep = 0;
+    this._t = Array.from({ length: 8 }, () => new THREE.Vector3()); this._qi = new THREE.Quaternion(); this._dq = new THREE.Quaternion();
+  }
+  invI(v) { this._qi.copy(this.quat).invert(); v.applyQuaternion(this._qi); v.x *= this.inv.x; v.y *= this.inv.y; v.z *= this.inv.z; return v.applyQuaternion(this.quat); }
+  pointVel(p, out) { return out.subVectors(p, this.pos).crossVectors(this.angVel, out).add(this.vel); }
+  effInv(r, n) { const t = this._t[7].crossVectors(r, n); return this.invM + this.invI(t).cross(r).dot(n); }
+  impulse(J, p) {
+    this.vel.addScaledVector(J, this.invM);
+    const r = this._t[6].subVectors(p, this.pos);
+    this.angVel.add(this.invI(r.cross(J)));
+    this.sleep = 0;
+  }
+  step(dt, world) {
+    if (this.sleep > 1.2) return;
+    this.vel.y -= 9.81 * dt;
+    this.angVel.multiplyScalar(Math.exp(-0.15 * dt));
+    this.pos.addScaledVector(this.vel, dt);
+    const a = this.angVel;
+    this._dq.set(a.x * dt * 0.5, a.y * dt * 0.5, a.z * dt * 0.5, 0).multiply(this.quat);
+    this.quat.x += this._dq.x; this.quat.y += this._dq.y; this.quat.z += this._dq.z; this.quat.w += this._dq.w; this.quat.normalize();
+    // Bodenkontakt an den Ecken
+    const n = this._t[0], p = this._t[1], r = this._t[2], pv = this._t[3], J = this._t[4], vt = this._t[5];
+    for (const c of this.corners) {
+      p.copy(c).applyQuaternion(this.quat).add(this.pos);
+      const h = world.sample(p.x, p.z, n, p.y);
+      const depth = h - p.y;
+      if (depth <= 0) continue;
+      this.pos.addScaledVector(n, depth * 0.5);
+      r.subVectors(p, this.pos);
+      pv.crossVectors(this.angVel, r).add(this.vel);
+      const vn = pv.dot(n);
+      if (vn >= 0) continue;
+      const k = this.effInv(r, n);
+      const jn = -(1 + 0.2) * vn / k;
+      J.copy(n).multiplyScalar(jn);
+      vt.copy(pv).addScaledVector(n, -vn);
+      const vl = vt.length();
+      if (vl > 1e-3) J.addScaledVector(vt, -Math.min(vl / k, 0.65 * jn) / vl);
+      this.impulse(J, p);
+    }
+    // Hauswände: Mittelpunkt aus Gebäuden herausschieben
+    const bs = world.buildingHash.at(this.pos.x, this.pos.z);
+    for (const b of bs) {
+      const x = this.pos.x, z = this.pos.z;
+      if (x <= b.x0 - 1 || x >= b.x1 + 1 || z <= b.z0 - 1 || z >= b.z1 + 1 || this.pos.y > b.top) continue;
+      const dl = x - (b.x0 - 1), dr = b.x1 + 1 - x, dn = z - (b.z0 - 1), ds = b.z1 + 1 - z, m = Math.min(dl, dr, dn, ds);
+      if (m === dl) { this.pos.x -= dl; this.vel.x = -Math.abs(this.vel.x) * 0.3; } else if (m === dr) { this.pos.x += dr; this.vel.x = Math.abs(this.vel.x) * 0.3; }
+      else if (m === dn) { this.pos.z -= dn; this.vel.z = -Math.abs(this.vel.z) * 0.3; } else { this.pos.z += ds; this.vel.z = Math.abs(this.vel.z) * 0.3; }
+    }
+    if (this.vel.lengthSq() < 0.04 && this.angVel.lengthSq() < 0.04) this.sleep += dt; else this.sleep = 0;
+  }
+}
+
+// ============================== Ton (Web Audio, alles synthetisch) ==============================
+/**
+ * E-Motor-Surren nach Drehzahl, Wechselrichter-Pfeifen, Reifenquietschen,
+ * Abroll- und Windgeräusch, Boost, Flugdüsen, Aufprall, Baum-Krachen.
+ * Startet erst nach der ersten Berührung (Browser-Vorgabe).
+ */
+class SoundFX {
+  constructor() { this.ctx = null; this.on = Settings.data.sound !== false; }
+  start() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = this.ctx = new AC();
+    this.master = ctx.createGain(); this.master.gain.value = this.on ? 0.8 : 0;
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+    this.master.connect(comp).connect(ctx.destination);
+    const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    this.noiseBuf = noiseBuf;
+    const gain = (v = 0) => { const g = ctx.createGain(); g.gain.value = v; g.connect(this.master); return g; };
+    const osc = (type, f, dest) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.connect(dest); o.start(); return o; };
+    const noise = (filterType, f, q, dest) => {
+      const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+      const fl = ctx.createBiquadFilter(); fl.type = filterType; fl.frequency.value = f; fl.Q.value = q;
+      s.connect(fl).connect(dest); s.start(); return fl;
+    };
+    // E-Motor: zwei Oszillatoren durch Tiefpass, dazu hohes Pfeifen
+    this.gEngine = gain(); this.lp = ctx.createBiquadFilter(); this.lp.type = 'lowpass'; this.lp.frequency.value = 900; this.lp.connect(this.gEngine);
+    this.o1 = osc('sawtooth', 80, this.lp); this.o2 = osc('triangle', 160, this.lp);
+    this.gWhine = gain(); this.o3 = osc('sine', 1200, this.gWhine);
+    this.gTire = gain(); this.fTire = noise('bandpass', 1300, 4, this.gTire);
+    this.gRoad = gain(); this.fRoad = noise('lowpass', 240, 0.7, this.gRoad);
+    this.gWind = gain(); this.fWind = noise('lowpass', 600, 0.5, this.gWind);
+    this.gBoost = gain(); this.fBoost = noise('bandpass', 700, 1.5, this.gBoost); this.o4 = osc('sawtooth', 110, this.gBoost);
+    this.gJet = gain(); this.fJet = noise('bandpass', 380, 0.8, this.gJet);
+  }
+  setOn(on) { this.on = on; if (this.master) this.master.gain.setTargetAtTime(on ? 0.8 : 0, this.ctx.currentTime, 0.05); }
+  set(param, v, tc = 0.06) { param.setTargetAtTime(v, this.ctx.currentTime, tc); }
+
+  update(v) {
+    if (!this.ctx || !this.on) return;
+    const rpmF = clamp(v.drivetrain.rpm / v.cfg.motor.redline, 0, 1.1), sp = v.speed;
+    const load = v.flying ? 0.3 : v.throttle;
+    const f = 55 + rpmF * 480;
+    this.set(this.o1.frequency, f); this.set(this.o2.frequency, f * 2.01);
+    this.set(this.lp.frequency, 500 + rpmF * 2200 + load * 900);
+    this.set(this.gEngine.gain, (0.025 + load * 0.09) * (0.35 + rpmF * 0.8));
+    this.set(this.o3.frequency, 700 + rpmF * 4200);
+    this.set(this.gWhine.gain, 0.006 + load * 0.018 * rpmF);
+    let slide = 0, asphalt = 0;
+    for (const w of v.wheels) if (w.grounded) { slide = Math.max(slide, w.slideAmount); if (w.grip >= 1) asphalt++; }
+    this.set(this.gTire.gain, asphalt > 1 ? clamp(slide, 0, 1) * clamp(sp / 8, 0, 1) * 0.22 : 0, 0.04);
+    this.set(this.fTire.frequency, 1000 + slide * 700);
+    const offroad = v.groundedCount > 0 && asphalt < 2;
+    this.set(this.gRoad.gain, v.groundedCount ? clamp(sp / 40, 0, 1) * (offroad ? 0.2 : 0.07) : 0);
+    this.set(this.fRoad.frequency, offroad ? 420 : 240);
+    this.set(this.gWind.gain, Math.min(0.32, (sp / 85) ** 2 * 0.28) + (v.flying ? 0.05 : 0));
+    this.set(this.fWind.frequency, 300 + sp * 9);
+    this.set(this.gBoost.gain, v.boosting ? 0.12 : 0, 0.08);
+    this.set(this.fBoost.frequency, v.boosting ? 900 + sp * 8 : 500);
+    this.set(this.o4.frequency, 90 + sp * 1.2);
+    this.set(this.gJet.gain, v.flying ? 0.1 + v.throttle * 0.06 : 0, 0.15);
+  }
+
+  /** Kurzer Knall/Rumms (Stärke ~ Aufprallgeschwindigkeit in m/s). */
+  impact(strength, kind = 'hit') {
+    if (!this.ctx || !this.on) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const s = ctx.createBufferSource(); s.buffer = this.noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = kind === 'tree' ? 'bandpass' : 'lowpass'; f.frequency.value = kind === 'tree' ? 900 : 380; f.Q.value = kind === 'tree' ? 2 : 0.8;
+    const g = ctx.createGain(); const peak = clamp(strength / 15, 0.08, 0.9);
+    g.gain.setValueAtTime(peak, t); g.gain.exponentialRampToValueAtTime(0.001, t + (kind === 'tree' ? 0.55 : 0.35));
+    s.connect(f).connect(g).connect(this.master); s.start(t, Math.random()); s.stop(t + 0.6);
+    // tiefer Schlag
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(kind === 'tree' ? 70 : 95, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.25);
+    const og = ctx.createGain(); og.gain.setValueAtTime(peak * 0.9, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    o.connect(og).connect(this.master); o.start(t); o.stop(t + 0.32);
+    if (kind === 'tree') {   // Ast-Knacken
+      for (let k = 0; k < 4; k++) {
+        const s2 = ctx.createBufferSource(); s2.buffer = this.noiseBuf;
+        const f2 = ctx.createBiquadFilter(); f2.type = 'highpass'; f2.frequency.value = 2500;
+        const g2 = ctx.createGain(); const tt = t + 0.08 + k * 0.09 + Math.random() * 0.05;
+        g2.gain.setValueAtTime(0.0001, t); g2.gain.setValueAtTime(peak * 0.5, tt); g2.gain.exponentialRampToValueAtTime(0.001, tt + 0.06);
+        s2.connect(f2).connect(g2).connect(this.master); s2.start(t, Math.random()); s2.stop(tt + 0.1);
+      }
+    }
+  }
+}
+
+// ============================== Welt: umfallende Bäume ==============================
+Object.assign(World.prototype, {
+  /**
+   * Bäume gegen Auto. Langsam: Stamm ist fest (wie eine Wand).
+   * Schnell: Baum knickt am Stamm um und fällt in Stoßrichtung; das Auto
+   * verliert je nach Wucht und Baumgröße Tempo, prallt aber nicht ab.
+   */
+  collideTrees(v, px, pz, fx, fz, rx, rz, HX, HZ, stamp) {
+    const T = this.trees;
+    if (!T || !this.treeHash) return;
+    this.treeHash.near(px, pz, 3.6, (i) => {
+      if (this.treeState[i] !== 0 || this.treeStamp[i] === stamp) return;
+      this.treeStamp[i] = stamp;
+      const s = T.s[i], tx = T.x[i], tz = T.z[i], ty = T.y[i];
+      if (v.pos.y - 0.45 > ty + 4.5 * s) return;               // drüber gesprungen/geflogen
+      const lx = (tx - px) * rx + (tz - pz) * rz, lz = -((tx - px) * fx + (tz - pz) * fz);
+      const cx = clamp(lx, -HX, HX), cz = clamp(lz, -HZ, HZ);
+      const dx = lx - cx, dz = lz - cz, d = Math.hypot(dx, dz);
+      const tr = (T.t[i] ? 0.36 : 0.3) * s;
+      if (d >= tr) return;
+      let nx, nz;
+      if (d > 1e-4) { const nlx = -dx / d, nlz = -dz / d; nx = rx * nlx - fx * nlz; nz = rz * nlx - fz * nlz; }
+      else { const sp = Math.hypot(v.vel.x, v.vel.z) || 1; nx = -v.vel.x / sp; nz = -v.vel.z / sp; }
+      const impact = -(v.vel.x * nx + v.vel.z * nz);
+      const breakAt = 3.5 + s * 2.5;
+      if (impact > breakAt) {
+        const sp = Math.hypot(v.vel.x, v.vel.z) || 1;
+        let ddx = -nx * 0.4 + (v.vel.x / sp) * 0.6, ddz = -nz * 0.4 + (v.vel.z / sp) * 0.6;
+        const dl = Math.hypot(ddx, ddz) || 1; ddx /= dl; ddz /= dl;
+        this.fellTree(i, ddx, ddz, impact);
+        const loss = clamp(0.16 + s * 0.1 + (T.t[i] ? 0.05 : 0), 0.14, 0.42);
+        v.vel.x += nx * impact * loss; v.vel.z += nz * impact * loss;
+        v.angVel.y += (Math.random() - 0.5) * 0.5;
+        v.lastImpact = Math.max(v.lastImpact, impact * 0.4);
+        this.fx.push({ type: 'tree', x: tx, y: ty + 1.2, z: tz, s: impact, vx: v.vel.x, vz: v.vel.z, scale: s });
+      } else {
+        const wx = px + rx * cx - fx * cz, wz = pz + rz * cx - fz * cz;
+        this.resolveContact(v, wx, wz, nx, nz, tr - d);
+      }
+    });
+  },
+
+  setupFallers() {
+    this.treeState = new Uint8Array(this.trees.count);
+    this.treeGrow = new Float32Array(this.trees.count);
+    this.treeStamp = new Uint32Array(this.trees.count);
+    this.regrow = [];
+    this.fallers = [];
+    for (let k = 0; k < 10; k++) {
+      const mat = this.treeMat.clone(); mat.transparent = true;
+      const mesh = new THREE.Mesh(this.treeNear[0].geometry, mat);
+      mesh.visible = false; mesh.castShadow = this.q.shadows; mesh.frustumCulled = false;
+      this.group.add(mesh);
+      this.fallers.push({ mesh, active: false, t: 0 });
+    }
+    this._fq = new THREE.Quaternion(); this._fy = new THREE.Quaternion(); this._fa = new THREE.Vector3();
+  },
+
+  fellTree(i, dx, dz, speed) {
+    const T = this.trees;
+    this.treeState[i] = 1; this.treesDirty = true;
+    let f = this.fallers.find((o) => !o.active);
+    if (!f) { f = this.fallers.reduce((a, b) => (a.t > b.t ? a : b)); }
+    f.active = true; f.i = i; f.t = 0; f.theta = 0; f.landed = false;
+    f.omega = 0.35 + speed * 0.035;
+    f.h = (T.t[i] ? 8.5 : 11) * T.s[i];
+    f.axis = new THREE.Vector3(dz, 0, -dx);
+    f.mesh.geometry = this.treeNear[T.t[i]].geometry;
+    f.mesh.material.opacity = 1; f.mesh.visible = true;
+    f.mesh.position.set(T.x[i], T.y[i], T.z[i]);
+    f.mesh.scale.setScalar(T.s[i]);
+    f.yaw = T.r[i];
+    this.regrow.push({ i, t: 45 + Math.random() * 30 });
+  },
+
+  updateFallers(dt) {
+    if (!this.fallers) return;
+    const maxT = Math.PI / 2 - 0.1;
+    for (const f of this.fallers) {
+      if (!f.active) continue;
+      f.t += dt;
+      // Kippen um den Stammfuß: Schwerkraft-Moment wächst mit dem Winkel
+      const alpha = (1.5 * 9.81 / f.h) * Math.sin(f.theta + 0.06);
+      f.omega += alpha * dt;
+      f.theta += f.omega * dt;
+      if (f.theta >= maxT) {
+        f.theta = maxT; f.omega = -Math.abs(f.omega) * 0.16;
+        if (!f.landed) { f.landed = true; const T = this.trees; this.fx.push({ type: 'treeLand', x: T.x[f.i] + f.axis.z * f.h * 0.6, y: T.y[f.i] + 0.5, z: T.z[f.i] - f.axis.x * f.h * 0.6 }); }
+      }
+      this._fy.setFromAxisAngle(this._fa.set(0, 1, 0), f.yaw);
+      this._fq.setFromAxisAngle(f.axis, f.theta).multiply(this._fy);
+      f.mesh.quaternion.copy(this._fq);
+      if (f.t > 4.5) f.mesh.material.opacity = Math.max(0, 1 - (f.t - 4.5) / 1.6);
+      if (f.t > 6.1) { f.active = false; f.mesh.visible = false; }
+    }
+    // Nachwachsen
+    for (let k = this.regrow.length - 1; k >= 0; k--) {
+      const r = this.regrow[k];
+      r.t -= dt;
+      if (r.t <= 0 && this.treeState[r.i] === 1) { this.treeState[r.i] = 2; this.treeGrow[r.i] = 0.05; this.treesDirty = true; }
+      if (this.treeState[r.i] === 2) {
+        this.treeGrow[r.i] = Math.min(1, this.treeGrow[r.i] + dt / 6);
+        this.treesDirty = true;
+        if (this.treeGrow[r.i] >= 1) { this.treeState[r.i] = 0; this.regrow.splice(k, 1); }
+      }
+    }
+  },
+});
 
 // ============================== Game ==============================
 class Game {
@@ -4023,6 +4717,11 @@ class Game {
     this.traffic = new TrafficSystem(this.world, this.scene, this.q.traffic);
     this.traffic.spawnAll(this.vehicle.pos);
     this.minimap = new Minimap(this.world);
+    this.particles = new Particles(this.scene, this.q.particles);
+    this.grass = new Grass(this.world, this.scene, this.q);
+    this.sound = new SoundFX();
+    const startSound = () => this.sound.start();
+    window.addEventListener('pointerdown', startSound); window.addEventListener('keydown', startSound);
     this.env.setupBloom();
     this.timeOfDay = null;
     this.applySettings();
@@ -4094,13 +4793,28 @@ class Game {
     if (Input.consume('KeyQ') || Input.consume('GearDown')) { if (d.manual && d.shift(-1)) Haptics.pulse(15); }
     if (Input.consume('KeyR')) this.resetCar();
     if (Input.consume('KeyC') || Input.consume('Camera')) this.nextCamera();
+    if (Input.consume('KeyV')) this.toggleEgo();
+    if (Input.consume('KeyF') || Input.consume('Fly')) {
+      const r = v.toggleFly();
+      if (r === 'up') { toast('Abheben – Joystick ↕ für die Höhe', 1600); Haptics.pulse(25); }
+      else if (r === 'land') toast('Landeanflug', 1000);
+      else toast('Flugenergie leer – lädt am Boden auf', 1500);
+    }
     if (Input.consume('KeyT')) { Settings.data.telemetry = !Settings.data.telemetry; Settings.save(); UI.sync(); }
     if (Input.consume('KeyM')) { Settings.data.transmission = d.manual ? 'auto' : 'manual'; Settings.save(); this.applySettings(); UI.sync(); }
     if (Input.consume('KeyN')) { Settings.data.timeOfDay = this.timeOfDay === 'night' ? 'day' : 'night'; Settings.save(); this.applySettings(); UI.sync(); }
   }
 
+  toggleEgo() {
+    const m = this.rig.toggleEgo();
+    toast(CameraRig.LABELS[m], 900);
+    document.getElementById('btnEgo').classList.toggle('on', m === 'cockpit');
+    Haptics.pulse(10);
+  }
+
   nextCamera() {
     const m = this.rig.next();
+    document.getElementById('btnEgo').classList.toggle('on', m === 'cockpit');
     toast(CameraRig.LABELS[m], 900);
     Haptics.pulse(10);
   }
@@ -4154,6 +4868,15 @@ class Game {
     this.world.update(dt, this.camera, this._ip);
     this.env.update(dt, this._ip, this.camera.position);
     this.minimap.draw(dt, v, this.traffic);
+    this.grass.update(dt, this.camera.position);
+    this.emitEffects(dt);
+    this.particles.setScale(this.renderer.domElement.height / (2 * Math.tan(this.camera.fov * Math.PI / 360)));
+    this.particles.update(dt);
+    this.sound.update(v);
+    // Boost: weiteres Sichtfeld, leichtes Wackeln
+    this.rig.fovExtra = damp(this.rig.fovExtra, v.boosting ? 15 : 0, v.boosting ? 5 : 2.5, dt);
+    if (v.boosting) this.rig.shake = Math.max(this.rig.shake, 0.12);
+    if (document.body.classList.contains('flying') !== v.flying) { document.body.classList.toggle('flying', v.flying); if (Input.stick.id === null) Input.placeStick(null); }
 
     if (v.lastImpact > 0) {
       Haptics.pulse(Math.min(60, v.lastImpact * 6));
@@ -4168,6 +4891,61 @@ class Game {
     if (this.fpsTime >= 0.5) { this.fps = Math.round(this.frames / this.fpsTime); this.frames = 0; this.fpsTime = 0; }
     HUD.update(v, this.fps);
     HUD.telemetry(v, this.stats);
+  }
+
+  /** Partikel und Geräusche aus dem Fahrzustand und aus Welt-Ereignissen. */
+  emitEffects(dt) {
+    const v = this.vehicle, P = this.particles, w = this.world, rnd = Math.random;
+    const k = clamp(dt * 60, 0.3, 3);          // bildratenunabhängig
+    for (const wh of v.wheels) {
+      if (!wh.grounded) continue;
+      const c = wh.contact;
+      if (wh.grip >= 1) {
+        if (wh.sliding && wh.slideAmount > 0.12 && v.speed > 3 && rnd() < wh.slideAmount * 0.8 * k) P.emit('smoke', c.x, c.y + 0.25, c.z, v.vel.x * 0.25, 0.8, v.vel.z * 0.25, 1, 1.2);
+      } else if (v.speed > 4 && rnd() < Math.min(1, v.speed / 22) * 0.45 * k) {
+        P.emit('dust', c.x, c.y + 0.2, c.z, v.vel.x * 0.2, 0.6, v.vel.z * 0.2, 1, 1.4);
+      }
+    }
+    if (v.boosting) {
+      const f = this._fxv || (this._fxv = new THREE.Vector3());
+      for (const n of this.car.flames) {
+        n.getWorldPosition(f);
+        const back = this._fxb || (this._fxb = new THREE.Vector3()); back.set(0, 0, 1).applyQuaternion(v.quat);
+        P.emit('plasma', f.x, f.y, f.z, v.vel.x + back.x * 18, v.vel.y + back.y * 18, v.vel.z + back.z * 18, 2, 0.5);
+      }
+    }
+    if (v.flying && v.altitude < 9) {
+      const g = w.sample(v.pos.x, v.pos.z), water = g < w.waterLevel;
+      const strength = 1 - v.altitude / 9;
+      for (let i = 0; i < 3 * k; i++) {
+        if (rnd() > strength) continue;
+        const a = rnd() * 6.28;
+        P.emit(water ? 'splash' : 'dust', v.pos.x + Math.cos(a) * 1.5, Math.max(g, w.waterLevel) + 0.2, v.pos.z + Math.sin(a) * 1.5, Math.cos(a) * 9, 0.6, Math.sin(a) * 9, 1, 0.6);
+      }
+    }
+    if (v.inWater > 0.1 && v.speed > 1.5 && rnd() < 0.8 * k) P.emit('splash', v.pos.x, w.waterLevel + 0.2, v.pos.z, v.vel.x * 0.3, 3 + v.speed * 0.2, v.vel.z * 0.3, 3, 1.5);
+    // Ereignisse aus der Welt (Aufprall, Baum, Kratzen)
+    for (const e of w.fx) {
+      if (e.type === 'spark') {
+        P.emit('spark', e.x, e.y, e.z, e.nx * 3, 2.5, e.nz * 3, Math.min(30, 6 + e.s * 2), 2.5);
+        this.sound.impact(e.s, 'hit');
+      } else if (e.type === 'scrape') {
+        P.emit('spark', e.x, e.y, e.z, 0, 1.5, 0, 3, 1.5);
+      } else if (e.type === 'tree') {
+        P.emit('leaf', e.x, e.y + 5 * e.scale, e.z, e.vx * 0.15, 1, e.vz * 0.15, 45, 5);
+        P.emit('chip', e.x, e.y, e.z, e.vx * 0.2, 3, e.vz * 0.2, 16, 2);
+        P.emit('dust', e.x, e.y - 0.8, e.z, 0, 0.5, 0, 6, 2);
+        this.sound.impact(e.s, 'tree');
+        this.rig.addShake(clamp(e.s * 0.03, 0.15, 0.6));
+        Haptics.pulse(35);
+      } else if (e.type === 'treeLand') {
+        P.emit('dust', e.x, e.y, e.z, 0, 0.8, 0, 14, 4);
+        P.emit('leaf', e.x, e.y + 1, e.z, 0, 2, 0, 20, 4);
+        this.sound.impact(5, 'hit');
+      }
+    }
+    w.fx.length = 0;
+    if (v.lastImpact > 3 && v.airTime === 0 && !v.flying) { /* Landung/Aufprall: etwas Staub */ P.emit('dust', v.pos.x, v.pos.y - 0.4, v.pos.z, 0, 0.5, 0, Math.min(12, v.lastImpact), 2); }
   }
 
   /** Messwerte zum Abstimmen: 0–100 km/h und Höchstgeschwindigkeit. */
@@ -4192,6 +4970,8 @@ const UI = {
     document.getElementById('btnClose').addEventListener('click', () => this.open(false));
     document.getElementById('btnReset').addEventListener('pointerdown', (e) => { e.preventDefault(); game.resetCar(); Haptics.pulse(20); });
     document.getElementById('btnCam').addEventListener('pointerdown', (e) => { e.preventDefault(); game.nextCamera(); });
+    document.getElementById('btnEgo').addEventListener('pointerdown', (e) => { e.preventDefault(); game.toggleEgo(); });
+    document.getElementById('btnEgo').classList.toggle('on', game.rig.mode === 'cockpit');
     panel.querySelectorAll('.seg').forEach((seg) => {
       seg.addEventListener('click', (e) => {
         const b = e.target.closest('button'); if (!b) return;
@@ -4209,6 +4989,7 @@ const UI = {
           return;
         }
         Settings.data[key] = val; Settings.save();
+        if (key === 'sound') game.sound.setOn(val);
         game.applySettings(); this.sync();
       });
     });

@@ -18,17 +18,19 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 
 | Aktion | Touch | Tastatur (zum Testen) |
 |---|---|---|
-| Lenken | Joystick links (erscheint unter dem Daumen) oder Neigen | A / D, ← / → |
+| Lenken | Schieber links: nur links/rechts, je weiter desto stärker (oder Neigen) | A / D, ← / → |
 | Gas | GAS | W / ↑ |
 | Bremse / Rückwärts | BREMSE (im Stand halten → R) | S / ↓ |
 | Handbremse | HAND-BREMSE | Leertaste |
 | Gang hoch/runter (Handschaltung) | ▲ ▼ | E / Q |
 | Kamera drehen / zoomen | auf freier Fläche wischen / zwei Finger | Maus ziehen / Mausrad |
-| Kamera wechseln (Verfolger, weit, Cockpit) | 🎥 | C |
+| Kamera wechseln (Verfolger, weit, Motorhaube, Cockpit) | 🎥 | C |
+| Ego-Perspektive an/aus | EGO | V |
+| Boost | BOOST | Shift |
+| Fliegen an / Landen | FLIEGEN (in der Luft: Joystick ↕ Höhe, ↔ Richtung) | F (Leertaste/X hoch/runter) |
 | Auto zurücksetzen (auf die nächste Straße) | ↺ | R |
 | Tag / Nacht | Einstellungen | N |
 
-Boost und Fliegen sind schon als Knöpfe da und funktionieren ab Phase 6.
 
 ## Fortschritt
 
@@ -36,8 +38,8 @@ Boost und Fliegen sind schon als Knöpfe da und funktionieren ab Phase 6.
 - [x] Phase 2 – Touch-Steuerung
 - [x] Phase 3 – Kameras
 - [x] Phase 4 – Offene Welt
-- [ ] Phase 5 – Kollisionen
-- [ ] Phase 6 – Boost und Fliegen
+- [x] Phase 5 – Kollisionen
+- [x] Phase 6 – Boost und Fliegen
 - [ ] Phase 7 – Polizei-Modus
 - [ ] Phase 8 – Missionen
 - [ ] Phase 9 – Garage und Upgrades
@@ -79,8 +81,17 @@ Boost und Fliegen sind schon als Knöpfe da und funktionieren ab Phase 6.
 - **Tag/Nacht:** Himmel mit Wolken; nachts Mond, Sterne, Scheinwerfer mit Lichtkegel, Laternen mit Lichthöfen und Lichtpfützen, die nächsten Laternen als echte Lichtquellen, beleuchtete Fenster, Ampeln. Auf „Hoch“ zusätzlich Bloom.
 - **Minimap** oben links (dreht mit), **Ladebildschirm** während die Welt entsteht.
 
+## Technik (Phase 5 und 6)
+
+- **Bäume:** Unter ~15–25 km/h (je nach Baumgröße) ist der Stamm fest. Darüber knickt der Baum am Stammfuß um und fällt in Stoßrichtung (Drehpunkt unten, Schwerkraft-Moment); das Auto verliert je nach Wucht 15–40 % Tempo. Umgefallene Bäume blenden nach ~5 s aus und wachsen nach 45–75 s wieder nach.
+- **Verkehr:** Nach einem Treffer wird das Auto ein echter Starrkörper (6 Freiheitsgrade, Reibung, Bodenkontakt an allen Ecken). Impuls nach Masse und Geschwindigkeit; bei harten Treffern hebelt die flache Front das Auto aus – ab ca. 100 km/h Seitenaufprall überschlägt es sich.
+- **Partikel:** Funken (Wände, Leitplanken, Autos), Reifenqualm beim Driften, Staub abseits der Straße, Blätter und Holzsplitter bei Bäumen, Wasserspritzer, Plasma beim Boost.
+- **Boost:** Schub im Schwerpunkt (auch in der Luft), Sichtfeld weitet sich, Plasma-Flammen mit Leuchten, Energie lädt nach kurzer Pause langsam wieder auf.
+- **Fliegen:** Räder klappen flach unter die Karosserie, vier Hubdüsen leuchten. Joystick ↕ regelt die Steigrate, Gas gibt Schub, Lenken dreht und neigt in die Kurve; die Lage wird automatisch stabilisiert. Flugenergie begrenzt; ist sie leer, setzt automatisch ein sanfter Landeanflug ein.
+- **Gras** wiegt im Wind rund um die Kamera, **Ton** komplett synthetisch (E-Motor nach Drehzahl, Wechselrichter-Pfeifen, Reifen, Wind, Abrollgeräusch, Boost, Düsen, Aufprall, Baum-Krachen).
+
 ## Code-Aufbau
 
 Bis Phase 9 steckt alles in `index.html`, in klar getrennten Abschnitten:
-`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
+`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Particles`, `Grass`, `RigidBox`, `SoundFX`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
 In Phase 10 wird der Code in einzelne Module aufgeteilt.
