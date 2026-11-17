@@ -30,6 +30,7 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 | Fliegen an / Landen | FLIEGEN (in der Luft: Joystick ↕ Höhe, ↔ Richtung) | F (Leertaste/X hoch/runter) |
 | Polizei-Verfolgung starten/abbrechen (Stufe in den Einstellungen) | 🚨 | P |
 | Missionen (Liste) – oder in eine gelbe Lichtsäule fahren | 🏁 | – |
+| Garage (Upgrades, Lack, Felgen, Innenraum) | 🔧 | G |
 | Auto zurücksetzen (auf die nächste Straße) | ↺ | R |
 | Tag / Nacht | Einstellungen | N |
 
@@ -44,7 +45,7 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 - [x] Phase 6 – Boost und Fliegen
 - [x] Phase 7 – Polizei-Modus
 - [x] Phase 8 – Missionen
-- [ ] Phase 9 – Garage und Upgrades
+- [x] Phase 9 – Garage und Upgrades
 - [ ] Phase 10 – Feinschliff und Veröffentlichung
 
 ## Technik (Phase 1)
@@ -110,8 +111,16 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 - **Realismus:** Bodentexturen (Gras, Waldboden, Fels, Sand) nach Gelände gemischt, in zwei Maßstäben gegen Kachelmuster; Kontaktschatten unter allen Fahrzeugen; Bäume wiegen im Wind; Gebäude unten abgedunkelt; leichte Vignette.
 - **Querformat erzwingen:** Bleibt die App im Hochformat (z. B. eingebettet), dreht sich das Spiel selbst um 90°.
 
+## Technik (Phase 9 – Garage)
+
+- **Ausstellungsraum** mit Drehteller (per Finger drehbar), Studio-Reflexionen, Lichtleisten, Schatten.
+- **9 Upgrades × 5 Stufen** ändern die Physik: Motor (+9 % Leistung/Stufe), Höchstgeschwindigkeit (−5 % cW·A, +600 U/min), Beschleunigung (+8 % Drehmoment, −2 % Gewicht), Grip (+4 % Haftung, straffere Stabis), Bremsen (+12 %), Boost-Stärke/-Dauer, Flugzeit, Flugsteuerung. Beispiel: alles auf Stufe 3 → 0–100 km/h 2,22 s → 1,96 s.
+- **Optik:** Lackfarbe (Farbwähler + Vorschläge), Glanz/Metallic/Matt, 4 Felgendesigns in 5 Farben, Unterbodenbeleuchtung (6 Farben), Spoiler (Lippe/Flügel – der Flügel erhöht den Abtrieb wirklich).
+- **Innenraum** (im Cockpit sichtbar): Sitzfarbe, Lenkrad rund/Yoke/Sport, Ambientelicht, Display-Design.
+- **Speicherstand** in localStorage: Geld, Upgrades, gekaufte Optik, Missionen, Einstellungen.
+
 ## Code-Aufbau
 
 Bis Phase 9 steckt alles in `index.html`, in klar getrennten Abschnitten:
-`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Particles`, `Grass`, `RigidBox`, `SoundFX`, `SaveData`, `PoliceSystem`, `View`, `MissionSystem`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
+`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Particles`, `Grass`, `RigidBox`, `SoundFX`, `SaveData`, `PoliceSystem`, `View`, `MissionSystem`, `Garage`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
 In Phase 10 wird der Code in einzelne Module aufgeteilt.
