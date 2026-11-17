@@ -3,16 +3,40 @@
 Open-World-Fahrspiel im Browser (HTML5 + Three.js), gebaut für iPhone und iPad im Querformat mit Touch-Steuerung.
 Der Spieler fährt den **Voltara Aero R**, einen elektrischen Hypercar-Roadster.
 
-## Starten
+## Starten (lokal)
 
-`index.html` über einen beliebigen Webserver öffnen, z. B.:
+Das Spiel besteht aus ES-Modulen und muss deshalb über einen Webserver geöffnet werden (nicht per Doppelklick):
 
 ```bash
 python3 -m http.server 8080
-# dann http://localhost:8080 (oder im WLAN: http://<IP-des-Rechners>:8080 auf dem iPad)
+# Rechner: http://localhost:8080
+# iPad/iPhone im selben WLAN: http://<IP-des-Rechners>:8080
 ```
 
-Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und keine externen Dateien.
+Alternativ als **eine einzige Datei**: `dist/roadster-escape.html` (per `python3 tools/bundle.py` aus den Modulen erzeugt) – die lässt sich auch direkt öffnen oder verschicken.
+
+Three.js (`0.160.0`) kommt per CDN. Es gibt keine Build-Tools; das Bündel-Skript ist optional.
+
+## Online stellen (als Web-App für den Home-Bildschirm)
+
+Jeder Anbieter für statische Webseiten funktioniert, es wird nur der Projektordner hochgeladen. Zwei einfache Wege:
+
+**GitHub Pages (kostenlos)**
+1. Repository auf GitHub öffnen → *Settings* → *Pages*.
+2. Bei *Build and deployment* „Deploy from a branch“ wählen, Branch `main` (bzw. den gewünschten) und Ordner `/ (root)`, speichern.
+3. Nach ca. einer Minute ist das Spiel unter `https://<benutzer>.github.io/<repo>/` erreichbar.
+
+**Netlify Drop (ohne Konto-Einrichtung)**
+1. <https://app.netlify.com/drop> öffnen.
+2. Den Projektordner (mit `index.html`, `css/`, `js/`, `icons/`, `manifest.webmanifest`, `sw.js`) ins Fenster ziehen.
+3. Netlify zeigt sofort eine Adresse an.
+
+**Auf dem iPhone/iPad installieren**
+1. Die Adresse in **Safari** öffnen.
+2. *Teilen* → **„Zum Home-Bildschirm“**.
+3. Das Spiel startet dann wie eine App: Vollbild, Querformat, eigenes Symbol. Nach dem ersten Start ist es dank Service Worker auch **offline** spielbar.
+
+Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit installierte Geräte die neue Fassung laden.
 
 ## Steuerung
 
@@ -46,7 +70,7 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 - [x] Phase 7 – Polizei-Modus
 - [x] Phase 8 – Missionen
 - [x] Phase 9 – Garage und Upgrades
-- [ ] Phase 10 – Feinschliff und Veröffentlichung
+- [x] Phase 10 – Feinschliff und Veröffentlichung
 
 ## Technik (Phase 1)
 
@@ -119,8 +143,39 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 - **Innenraum** (im Cockpit sichtbar): Sitzfarbe, Lenkrad rund/Yoke/Sport, Ambientelicht, Display-Design.
 - **Speicherstand** in localStorage: Geld, Upgrades, gekaufte Optik, Missionen, Einstellungen.
 
+## Technik (Phase 10 – Feinschliff)
+
+- **Hauptmenü** mit animiertem Logo über einer Kamerafahrt um das Auto: Freie Fahrt, Missionen, Polizei-Modus (Stufenwahl), Garage, Einstellungen. **Pause** über ⚙︎ (mit Rückkehr ins Hauptmenü).
+- **Tutorial** beim ersten Start: Gas, Lenken, Boost, Fliegen, Kameras – Schritt für Schritt mit leuchtender Markierung, überspringbar.
+- **Musik:** generierter Synthwave-Soundtrack (Flächen, Bass, Drums), abschaltbar.
+- **Dynamische Auflösung:** misst die Bildrate und regelt die Pixeldichte (55–100 %) nach, damit es auf iPad und iPhone flüssig bleibt.
+- **Web-App:** Manifest (Vollbild, Querformat, Symbole) und Service Worker (offline).
+- **Code-Aufteilung** in Module (siehe unten); `tools/bundle.py` erzeugt daraus wieder eine Einzeldatei.
+
 ## Code-Aufbau
 
-Bis Phase 9 steckt alles in `index.html`, in klar getrennten Abschnitten:
-`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Particles`, `Grass`, `RigidBox`, `SoundFX`, `SaveData`, `PoliceSystem`, `View`, `MissionSystem`, `Garage`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
-In Phase 10 wird der Code in einzelne Module aufgeteilt.
+```
+index.html            Markup der Oberfläche, Importmap (three.js per CDN)
+css/style.css         gesamtes Styling (HUD, Touch-Knöpfe, Menüs, Garage)
+js/main.js            Startpunkt: Ladebildschirm, Spiel erzeugen, Menü öffnen
+js/config.js          Fahrzeug-Abstimmung (CONFIG), Grafikstufen, Einstellungen
+js/input.js           Touch (Lenk-Schieber, Knöpfe, Multitouch), Neigen, Haptik, Querformat/Drehung
+js/camera.js          Verfolger-, Motorhauben- und Cockpit-Kamera, Wisch-/Zoom-Gesten
+js/hud.js             Tacho, Gang, Drehzahl, Boost/Flug-Leisten, Geld, Telemetrie
+js/vehicle/vehicle.js Raycast-Fahrphysik, E-Motor + Getriebe, Boost, Fliegen
+js/vehicle/carmodel.js 3D-Modell des Roadsters inkl. Innenraum, Düsen, Reifenspuren
+js/world/noise.js     Zufall und Rauschen (deterministisch)
+js/world/world.js     Gelände, Straßennetz, Stadt, Wald, See/Brücke, Kollisionen, umfallende Bäume
+js/world/traffic.js   Verkehrs-KI und Verkehrsautos (Starrkörper nach Zusammenstoß)
+js/environment.js     Tag/Nacht, Himmel, Licht, Nebel, Bloom; Minimap
+js/fx.js              Partikel, Gras, Starrkörper
+js/audio.js           Motor-/Reifen-/Wind-Ton, Sirenen mit Doppler, Musik
+js/police.js          Spielstand (Geld) und Polizei-KI mit Hubschrauber
+js/missions.js        14 Missionen mit Medaillen
+js/garage.js          Upgrades, Optik, Ausstellungsraum
+js/menu.js            Hauptmenü, Tutorial, dynamische Auflösung
+js/game.js            Spielschleife (feste 120-Hz-Physik), Zusammenspiel aller Teile
+js/ui.js              Einstellungen
+tools/bundle.py       baut dist/roadster-escape.html (alles in einer Datei)
+manifest.webmanifest, sw.js, icons/   Web-App (Home-Bildschirm, offline)
+```
