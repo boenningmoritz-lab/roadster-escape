@@ -14,25 +14,26 @@ python3 -m http.server 8080
 
 Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und keine externen Dateien.
 
-## Steuerung (Stand Phase 1)
+## Steuerung
 
 | Aktion | Touch | Tastatur (zum Testen) |
 |---|---|---|
+| Lenken | Joystick links (erscheint unter dem Daumen) oder Neigen | A / D, ← / → |
 | Gas | GAS | W / ↑ |
 | Bremse / Rückwärts | BREMSE (im Stand halten → R) | S / ↓ |
-| Lenken | ◀ ▶ | A / D, ← / → |
 | Handbremse | HAND-BREMSE | Leertaste |
-| Gang hoch/runter (manuell) | ▲ ▼ | E / Q |
+| Gang hoch/runter (Handschaltung) | ▲ ▼ | E / Q |
+| Kamera drehen / zoomen | auf freier Fläche wischen / zwei Finger | Maus ziehen / Mausrad |
+| Kamera wechseln (Verfolger, weit, Cockpit) | 🎥 | C |
 | Auto zurücksetzen | ↺ | R |
-| Telemetrie | Einstellungen | T |
 
-Die Touch-Knöpfe in Phase 1 sind vorläufig. In Phase 2 werden sie durch Joystick, Gyro-Lenkung usw. ersetzt.
+Boost und Fliegen sind schon als Knöpfe da und funktionieren ab Phase 6.
 
 ## Fortschritt
 
 - [x] **Phase 1 – Grundgerüst und Fahrphysik**
-- [ ] Phase 2 – Touch-Steuerung
-- [ ] Phase 3 – Kameras
+- [x] Phase 2 – Touch-Steuerung
+- [x] Phase 3 – Kameras
 - [ ] Phase 4 – Offene Welt
 - [ ] Phase 5 – Kollisionen
 - [ ] Phase 6 – Boost und Fliegen
@@ -56,8 +57,16 @@ Die Touch-Knöpfe in Phase 1 sind vorläufig. In Phase 2 werden sie durch Joysti
 - **Grafikstufen:** Niedrig, Mittel und Hoch (Pixeldichte, Schatten, Lackmaterial, Geometrie-Details).
 - **Testgelände:** Asphaltfläche mit Skidpad und Slalom, 1,9 km lange Startbahn, vier Rampen, Wellenpiste und Hügel rundherum. Unsichtbare Weltgrenzen.
 
+## Technik (Phase 2 und 3)
+
+- **Touch:** Pointer-Events, jeder Finger einzeln verfolgt (Joystick, Knöpfe und Kamera-Wischen gleichzeitig). Scrollen, Zoomen, Markieren und Long-Press-Menü sind unterdrückt. Die Bedienelemente skalieren mit der Bildschirmgröße.
+- **Neigen:** `DeviceOrientation` (auf iOS nach Erlaubnis per Tipp), kalibriert die aktuelle Haltung als „geradeaus“, Richtung umkehrbar.
+- **Haptik:** `navigator.vibrate` auf Android; auf dem iPhone (ab iOS 18) über einen versteckten Umschalter, der einen kurzen Haptik-Impuls auslöst.
+- **Querformat-Hinweis:** Prüft die echte Geräteausrichtung (`screen.orientation`), nicht das Seitenverhältnis des Fensters. So stimmt er auch, wenn das Spiel eingebettet läuft.
+- **Kameras:** Verfolger (weiche Nachführung, fährt nach 1,8 s ohne Berührung zurück hinter das Auto), Verfolger weit und Cockpit mit Innenraum (mitdrehendes Lenkrad, Fahrer- und Mittel-Display mit g-Meter, Sportsitze, Ambientelicht). Kamera wackelt bei Aufprall und harten Landungen.
+
 ## Code-Aufbau
 
 Bis Phase 9 steckt alles in `index.html`, in klar getrennten Abschnitten:
-`CONFIG`, `Settings`, `Input`, `World`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CameraRig`, `HUD`, `Game`, `UI`.
+`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
 In Phase 10 wird der Code in einzelne Module aufgeteilt.

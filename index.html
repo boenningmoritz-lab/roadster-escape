@@ -14,6 +14,7 @@
      kein Long-Press-Menü (iOS Safari).
      ============================================================ */
   :root {
+    --s: 1;                       /* Skalierung der Bedienelemente/HUD (per JS) */
     --hud: rgba(255,255,255,0.92);
     --hud-dim: rgba(255,255,255,0.55);
     --accent: #36e0ff;
@@ -35,14 +36,15 @@
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
   #fps { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left));
          font: 600 12px ui-monospace, Menlo, monospace; color: var(--hud-dim); }
-  #speedo { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
-            text-align: center; min-width: 210px; }
-  #speedVal { font: 800 64px/0.9 -apple-system, "SF Pro Display", Roboto, sans-serif; letter-spacing: -2px;
+  /* Tacho oben mittig: unten ist Platz für Daumen und Auto */
+  #speedo { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+            text-align: center; min-width: calc(210px * var(--s)); }
+  #speedVal { font: 800 calc(64px * var(--s))/0.9 -apple-system, "SF Pro Display", Roboto, sans-serif; letter-spacing: -2px;
               text-shadow: 0 2px 12px rgba(0,0,0,0.6); font-variant-numeric: tabular-nums; }
-  #speedUnit { font: 600 13px sans-serif; color: var(--hud-dim); letter-spacing: 2px; }
-  #gearBox { display: inline-flex; align-items: baseline; gap: 2px; margin-left: 10px; font: 800 30px sans-serif; color: var(--accent); }
-  #gearSub { font-size: 15px; color: var(--hud-dim); }
-  #rpmBar { width: 210px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); margin: 8px auto 0; overflow: hidden; }
+  #speedUnit { font: 600 calc(13px * var(--s)) sans-serif; color: var(--hud-dim); letter-spacing: 2px; }
+  #gearBox { display: inline-flex; align-items: baseline; gap: 2px; margin-left: 10px; font: 800 calc(30px * var(--s)) sans-serif; color: var(--accent); }
+  #gearSub { font-size: calc(15px * var(--s)); color: var(--hud-dim); }
+  #rpmBar { width: calc(210px * var(--s)); height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); margin: 8px auto 0; overflow: hidden; }
   #rpmFill { height: 100%; width: 0%; background: linear-gradient(90deg, #36e0ff, #7c5cff 70%, #ff3b4e); border-radius: 3px; }
   #telemetry { position: absolute; top: calc(28px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left));
                font: 11px/1.45 ui-monospace, Menlo, monospace; background: rgba(0,0,0,0.45); padding: 8px 10px;
@@ -55,22 +57,55 @@
   #btnSettings { right: calc(12px + env(safe-area-inset-right)); }
   #btnReset { right: calc(66px + env(safe-area-inset-right)); }
 
-  /* ---------- Vorläufige Touch-Steuerung (Phase 2 ersetzt sie durch Joystick) ---------- */
+  /* ---------- Touch-Steuerung ----------
+     --s skaliert alle Bedienelemente passend zur Bildschirmgröße (per JS gesetzt). */
   #touch { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+  #stickZone { position: absolute; left: 0; bottom: 0; width: 42%; height: 74%; pointer-events: auto; }
+  #stick { position: absolute; left: 0; top: 0; width: calc(150px * var(--s)); height: calc(150px * var(--s));
+           margin: calc(-75px * var(--s)) 0 0 calc(-75px * var(--s)); border-radius: 50%;
+           border: 2px solid rgba(255,255,255,0.28);
+           background: radial-gradient(circle, rgba(255,255,255,0.10), rgba(255,255,255,0.03) 70%);
+           pointer-events: none; opacity: 0.5; transition: opacity .15s; }
+  #stick.active { opacity: 1; }
+  #stickKnob { position: absolute; left: 50%; top: 50%; width: calc(64px * var(--s)); height: calc(64px * var(--s));
+               margin: calc(-32px * var(--s)) 0 0 calc(-32px * var(--s)); border-radius: 50%;
+               background: rgba(255,255,255,0.32); border: 2px solid rgba(255,255,255,0.7); }
+  #stick.active #stickKnob { background: rgba(54,224,255,0.45); border-color: var(--accent); }
+  #stickLabel { position: absolute; left: 0; right: 0; top: 104%; text-align: center; font: 700 calc(11px * var(--s)) sans-serif;
+                letter-spacing: 1px; color: var(--hud-dim); }
+  body.tilt #stick { opacity: 0.25; }
   .tbtn { position: absolute; pointer-events: auto; border-radius: 50%;
-          background: rgba(255,255,255,0.13); border: 2px solid rgba(255,255,255,0.35);
-          color: rgba(255,255,255,0.9); font: 700 15px sans-serif;
-          display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
-  .tbtn.on { background: rgba(54,224,255,0.35); border-color: rgba(54,224,255,0.9); }
-  #tLeft  { left: calc(24px + env(safe-area-inset-left));  bottom: calc(28px + env(safe-area-inset-bottom)); width: 92px; height: 92px; font-size: 34px; }
-  #tRight { left: calc(130px + env(safe-area-inset-left)); bottom: calc(28px + env(safe-area-inset-bottom)); width: 92px; height: 92px; font-size: 34px; }
-  #tGas   { right: calc(24px + env(safe-area-inset-right)); bottom: calc(28px + env(safe-area-inset-bottom)); width: 110px; height: 110px; }
-  #tBrake { right: calc(146px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); width: 86px; height: 86px; }
-  #tHand  { right: calc(150px + env(safe-area-inset-right)); bottom: calc(124px + env(safe-area-inset-bottom)); width: 64px; height: 64px; font-size: 12px; }
-  #tUp    { right: calc(40px + env(safe-area-inset-right)); bottom: calc(160px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 22px; }
-  #tDown  { right: calc(40px + env(safe-area-inset-right)); bottom: calc(232px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 22px; }
+          width: calc(var(--d) * var(--s)); height: calc(var(--d) * var(--s));
+          right: calc(var(--r) * var(--s) + env(safe-area-inset-right)); bottom: calc(var(--b) * var(--s) + env(safe-area-inset-bottom));
+          background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.34);
+          color: rgba(255,255,255,0.92); font: 800 calc(14px * var(--s)) sans-serif; letter-spacing: .5px; text-align: center;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); transition: transform .06s; }
+  .tbtn small { font-size: .62em; font-weight: 600; opacity: .7; margin-top: 2px; }
+  .tbtn.on { background: rgba(54,224,255,0.36); border-color: rgba(54,224,255,0.95); transform: scale(0.94); }
+  .tbtn.soon { opacity: 0.38; }
+  #tGas   { --d: 124px; --r: 22px;  --b: 22px; }
+  #tBrake { --d: 100px; --r: 160px; --b: 16px; }
+  #tBoost { --d: 86px;  --r: 34px;  --b: 162px; }
+  #tFly   { --d: 80px;  --r: 146px; --b: 132px; }
+  #tHand  { --d: 68px;  --r: 276px; --b: 22px; font-size: calc(11px * var(--s)); }
+  #tDown  { --d: 58px;  --r: 264px; --b: 112px; font-size: calc(20px * var(--s)); }
+  #tUp    { --d: 58px;  --r: 264px; --b: 180px; font-size: calc(20px * var(--s)); }
+  #tBoost.on { background: rgba(255,140,40,0.4); border-color: #ffa040; }
   .manualOnly { display: none !important; }
   body.manual .manualOnly { display: flex !important; }
+  #btnCam { right: calc(120px + env(safe-area-inset-right)); font-size: 19px; }
+
+  /* ---------- Hinweise ---------- */
+  #hint { position: fixed; top: calc(108px * var(--s) + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 6;
+          background: rgba(8,12,20,0.78); border: 1px solid rgba(255,255,255,0.16); border-radius: 22px;
+          padding: 9px 16px; font: 600 13px sans-serif; display: none; align-items: center; gap: 12px; max-width: 70vw; }
+  #hint.show { display: flex; }
+  #hint button { background: var(--accent); color: #031018; border: none; border-radius: 14px; padding: 6px 12px; font: 700 12px sans-serif; }
+  #toast { position: fixed; top: 34%; left: 50%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none;
+           background: rgba(8,12,20,0.85); border-radius: 14px; padding: 12px 18px; font: 600 14px sans-serif;
+           opacity: 0; transition: opacity .25s; text-align: center; max-width: 80vw; }
+  #toast.show { opacity: 1; }
 
   /* ---------- Einstellungen ---------- */
   #settings { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center;
@@ -88,12 +123,17 @@
   .closeBtn { margin-top: 14px; width: 100%; padding: 12px; border-radius: 12px; border: none; background: var(--accent); color: #031018; font: 700 15px sans-serif; }
   .help { font-size: 12px; color: var(--hud-dim); margin-top: 10px; line-height: 1.5; }
 
-  /* ---------- Hochformat-Hinweis ---------- */
+  /* ---------- Hochformat-Hinweis ----------
+     Wird per JavaScript nach der echten Geräteausrichtung gesetzt (body.portrait).
+     Eine reine CSS-Abfrage würde in einem eingebetteten Rahmen (iframe) dessen
+     Seitenverhältnis prüfen und das Gerät fälschlich für „hochkant“ halten. */
   #rotate { position: fixed; inset: 0; z-index: 20; background: #05070c; display: none; flex-direction: column;
-            align-items: center; justify-content: center; text-align: center; padding: 24px; }
+            align-items: center; justify-content: center; text-align: center; padding: 24px; gap: 8px; }
+  body.portrait #rotate { display: flex; }
   #rotate .icon { font-size: 54px; animation: rot 2s ease-in-out infinite; }
+  #rotate button { margin-top: 10px; background: none; color: var(--hud-dim); border: 1px solid rgba(255,255,255,0.25);
+                   border-radius: 12px; padding: 9px 16px; font: 600 13px sans-serif; }
   @keyframes rot { 0%,20% { transform: rotate(0deg); } 60%,100% { transform: rotate(90deg); } }
-  @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" } }
@@ -114,20 +154,34 @@
 
 <button class="topbtn" id="btnSettings" aria-label="Einstellungen">⚙︎</button>
 <button class="topbtn" id="btnReset" aria-label="Auto zurücksetzen">↺</button>
+<button class="topbtn" id="btnCam" aria-label="Kamera wechseln">🎥</button>
 
 <div id="touch">
-  <div class="tbtn" id="tLeft">◀</div>
-  <div class="tbtn" id="tRight">▶</div>
+  <div id="stickZone"></div>
+  <div id="stick"><div id="stickKnob"></div><div id="stickLabel">LENKEN</div></div>
   <div class="tbtn" id="tGas">GAS</div>
-  <div class="tbtn" id="tBrake">BREMSE</div>
+  <div class="tbtn" id="tBrake">BREMSE<small>halten = R</small></div>
   <div class="tbtn" id="tHand">HAND-<br>BREMSE</div>
+  <div class="tbtn soon" id="tBoost">BOOST<small>bald</small></div>
+  <div class="tbtn soon" id="tFly">FLIEGEN<small>bald</small></div>
   <div class="tbtn manualOnly" id="tUp">▲</div>
   <div class="tbtn manualOnly" id="tDown">▼</div>
 </div>
 
+<div id="hint"><span id="hintText"></span><button id="hintBtn" hidden>Vollbild</button></div>
+<div id="toast"></div>
+
 <div id="settings">
   <div class="panel">
     <h2>EINSTELLUNGEN</h2>
+    <div class="row"><div>Lenkung<small>Neigen: Gerät wie ein Lenkrad drehen</small></div>
+      <div class="seg" data-key="steering"><button data-v="stick">Joystick</button><button data-v="tilt">Neigen</button></div></div>
+    <div class="row"><div>Lenk-Empfindlichkeit</div>
+      <div class="seg" data-key="steerSens"><button data-v="low">Niedrig</button><button data-v="mid">Mittel</button><button data-v="high">Hoch</button></div></div>
+    <div class="row"><div>Neigung umkehren<small>Falls das Auto beim Neigen in die falsche Richtung lenkt</small></div>
+      <div class="seg" data-key="tiltInvert"><button data-v="false">Aus</button><button data-v="true">An</button></div></div>
+    <div class="row"><div>Vibration<small>Haptisches Feedback, wo das Gerät es unterstützt</small></div>
+      <div class="seg" data-key="haptics"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <div class="row"><div>Getriebe<small>Handschaltung: Gänge selbst wechseln</small></div>
       <div class="seg" data-key="transmission"><button data-v="auto">Automatik</button><button data-v="manual">Manuell</button></div></div>
     <div class="row"><div>Fahrhilfen<small>Traktions- &amp; Stabilitätskontrolle. Aus = mehr Driften</small></div>
@@ -138,28 +192,32 @@
       <div class="seg" data-key="telemetry"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <button class="closeBtn" id="btnClose">Weiterfahren</button>
     <div class="help">Tastatur (zum Testen am Rechner): W/↑ Gas · S/↓ Bremse/Rückwärts · A/D ←/→ Lenken ·
-      Leertaste Handbremse · E/Q Gang hoch/runter · R Zurücksetzen · T Telemetrie · M Getriebe umschalten</div>
+      Leertaste Handbremse · E/Q Gang hoch/runter · C Kamera · R Zurücksetzen · T Telemetrie · M Getriebe umschalten.<br>
+      Touch: links Joystick zum Lenken, rechts Gas/Bremse. Auf freier Fläche wischen dreht die Kamera, zwei Finger zoomen.</div>
   </div>
 </div>
 
-<div id="rotate"><div class="icon">📱</div><p>Bitte das Gerät ins <b>Querformat</b> drehen.</p></div>
+<div id="rotate"><div class="icon">📱</div><p>Bitte das Gerät ins <b>Querformat</b> drehen.</p><button id="btnRotateDismiss">Trotzdem spielen</button></div>
 
 <script type="module">
 import * as THREE from 'three';
 
 /* =====================================================================
-   ROADSTER ESCAPE – Phase 1: Grundgerüst & Fahrphysik
+   ROADSTER ESCAPE – Phasen 1–3: Fahrphysik, Touch-Steuerung, Kameras
    ---------------------------------------------------------------------
    Module (in dieser Datei als Abschnitte, ab Phase 10 eigene Dateien):
      CONFIG      – alle Abstimmungswerte an einem Ort
      Settings    – Einstellungen + localStorage
-     Input       – Tastatur + (vorläufige) Touch-Knöpfe
+     Haptics     – Vibration (Android) bzw. iOS-Haptik-Trick
+     Input       – Tastatur, Joystick, Neigen, Touch-Knöpfe (Multitouch)
+     Orientation – Querformat-Hinweis, Vollbild-Tipp
      World       – Gelände als Höhenfunktion (Kollision) + Darstellung
      Drivetrain  – E-Motor-Kennlinie, Getriebe (Automatik/Manuell)
      Vehicle     – Raycast-Fahrzeugphysik (Federung, Reifen, Aero)
      CarModel    – 3D-Modell des Roadsters „Voltara Aero R“
      SkidMarks   – Reifenspuren
-     CameraRig   – Verfolger-Kamera (Phase 3 erweitert sie)
+     CamInput    – Wischen/Zoomen auf freier Fläche
+     CameraRig   – Verfolger-, Weit- und Cockpit-Kamera, Wackeln
      HUD         – Tacho, Gang, Drehzahl, Telemetrie
      Game        – Spielschleife mit fester Physik-Schrittweite
    Koordinaten: Y nach oben, Fahrzeug-Vorderseite = lokale −Z, rechts = +X.
@@ -174,6 +232,7 @@ const CONFIG = {
     mass: 1650,                   // kg
     inertiaBox: { w: 1.9, h: 1.0, l: 4.3 },
     cgHeight: 0.45,               // Schwerpunkt über Boden (Ruhelage, für Modell-Offset)
+    cockpitEyeY: 1.05,             // Augenhöhe des Fahrers über Boden
     wheelRadius: 0.34,
     wheelWidth: 0.28,
     wheels: [                     // Aufhängungspunkte relativ zum Schwerpunkt
@@ -233,7 +292,8 @@ const approach = (v, t, step) => (v < t ? Math.min(v + step, t) : Math.max(v - s
 // ============================== Settings ==============================
 const Settings = {
   KEY: 'roadsterEscape.settings.v1',
-  data: { transmission: 'auto', tractionControl: true, quality: 'auto', telemetry: false },
+  data: { transmission: 'auto', tractionControl: true, quality: 'auto', telemetry: false,
+          steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.KEY) || '{}')); } catch (e) { /* privat-Modus */ }
     if (this.data.quality === 'auto') {
@@ -252,13 +312,51 @@ const QUALITY = {
   high:   { pixelRatio: 2.0,  shadows: true,  shadowSize: 2048, terrainSegs: 240, antialias: true,  physicalPaint: true,  headlights: true,  bevelSegs: 3 },
 };
 
+// ============================== Haptics ==============================
+/**
+ * Haptisches Feedback. Android: navigator.vibrate. iOS Safari (ab iOS 18)
+ * kennt kein vibrate, löst aber beim Umschalten eines <input switch> einen
+ * kurzen Haptik-Impuls aus – das nutzen wir über ein unsichtbares Label.
+ */
+const Haptics = {
+  last: 0, label: null,
+  init() {
+    if (navigator.vibrate) return;
+    const label = document.createElement('label');
+    label.setAttribute('aria-hidden', 'true');
+    label.style.cssText = 'position:fixed;left:-200px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+    const inp = document.createElement('input'); inp.type = 'checkbox'; inp.setAttribute('switch', ''); inp.tabIndex = -1;
+    label.appendChild(inp); document.body.appendChild(label);
+    this.label = label;
+  },
+  pulse(ms = 10) {
+    if (!Settings.data.haptics) return;
+    const now = performance.now();
+    if (now - this.last < 60) return;
+    this.last = now;
+    try {
+      if (navigator.vibrate) navigator.vibrate(ms);
+      else this.label?.click();
+    } catch (e) { /* nicht unterstützt */ }
+  },
+};
+
 // ============================== Input ==============================
-/** Sammelt Eingaben aus Tastatur und Touch-Knöpfen in einem Zustand. */
+/**
+ * Sammelt alle Eingaben in einem Zustand:
+ *  - Tastatur (Testen am Rechner)
+ *  - schwebender Joystick links (erscheint dort, wo der Daumen aufsetzt)
+ *  - Neigungssteuerung (DeviceOrientation, in den Einstellungen wählbar)
+ *  - Knöpfe rechts; jeder Finger ist ein eigener Pointer → echtes Multitouch
+ */
 const Input = {
   keys: new Set(),
-  touch: { left: false, right: false, gas: false, brake: false, hand: false },
   pressed: new Set(),           // einmalige Ereignisse (Gangwechsel …)
-  state: { throttle: 0, brake: 0, steer: 0, handbrake: false },
+  btn: { gas: false, brake: false, hand: false, boost: false, fly: false },
+  stick: { id: null, x: 0, y: 0, cx: 0, cy: 0, radius: 58 },
+  tilt: { listening: false, raw: 0, zero: null, last: 0 },
+  scale: 1,
+  state: { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, fly: false, stickX: 0, stickY: 0 },
 
   init() {
     window.addEventListener('keydown', (e) => {
@@ -267,45 +365,235 @@ const Input = {
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => { this.keys.clear(); for (const k in this.touch) this.touch[k] = false; });
+    window.addEventListener('blur', () => this.releaseAll());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.releaseAll(); });
 
-    // Multitouch-fähige Knöpfe über Pointer-Events (jeder Finger eigener Pointer)
     const bind = (id, key, onPress) => {
       const el = document.getElementById(id);
       const active = new Set();
-      const set = () => { this.touch[key] = active.size > 0; el.classList.toggle('on', active.size > 0); };
+      const set = () => { this.btn[key] = active.size > 0; el.classList.toggle('on', active.size > 0); };
       el.addEventListener('pointerdown', (e) => {
         e.preventDefault(); active.add(e.pointerId);
         try { el.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
-        set();
-        if (onPress) onPress(); haptic(8);
+        set(); if (onPress) onPress(); Haptics.pulse(8);
       });
       const up = (e) => { active.delete(e.pointerId); set(); };
       el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+      this._buttons = this._buttons || [];
+      this._buttons.push(() => { active.clear(); set(); });
     };
-    bind('tLeft', 'left'); bind('tRight', 'right'); bind('tGas', 'gas'); bind('tBrake', 'brake'); bind('tHand', 'hand');
+    bind('tGas', 'gas'); bind('tBrake', 'brake'); bind('tHand', 'hand');
+    bind('tBoost', 'boost'); bind('tFly', 'fly', () => this.pressed.add('Fly'));
     bind('tUp', 'up', () => this.pressed.add('GearUp'));
     bind('tDown', 'down', () => this.pressed.add('GearDown'));
-    // Kontextmenü / Doppeltipp-Zoom / Pinch auf iOS unterbinden
-    document.addEventListener('contextmenu', (e) => e.preventDefault());
-    document.addEventListener('gesturestart', (e) => e.preventDefault());
-    document.addEventListener('dblclick', (e) => e.preventDefault());
+    this.bindStick();
+
+    // Browser-Gesten unterbinden: Scrollen, Pinch-Zoom, Doppeltipp, Kontextmenü, Markieren
+    const stop = (e) => e.preventDefault();
+    document.addEventListener('touchmove', stop, { passive: false });
+    document.addEventListener('touchstart', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    document.addEventListener('contextmenu', stop);
+    document.addEventListener('gesturestart', stop);
+    document.addEventListener('gesturechange', stop);
+    document.addEventListener('dblclick', stop);
+    document.addEventListener('selectstart', stop);
+    this.layout();
+  },
+
+  releaseAll() {
+    this.keys.clear();
+    this._buttons?.forEach((f) => f());
+    this.endStick();
+  },
+
+  /** Skalierung und Ruheposition des Joysticks an Bildschirmgröße anpassen. */
+  layout() {
+    const w = window.innerWidth, h = window.innerHeight;
+    this.scale = clamp(Math.min(h / 760, w / 1180), 0.62, 1.2);
+    document.documentElement.style.setProperty('--s', this.scale.toFixed(3));
+    this.stick.radius = 58 * this.scale;
+    if (this.stick.id === null) this.placeStick(null);
+  },
+
+  placeStick(x, y) {
+    const el = document.getElementById('stick');
+    if (x === null) {   // Ruheposition unten links
+      x = 30 + 105 * this.scale;
+      y = window.innerHeight - 30 - 105 * this.scale;
+    }
+    this.stick.cx = x; this.stick.cy = y;
+    el.style.transform = `translate(${x}px, ${y}px)`;
+  },
+
+  bindStick() {
+    const zone = document.getElementById('stickZone');
+    const el = document.getElementById('stick');
+    zone.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (this.stick.id !== null) return;
+      this.stick.id = e.pointerId;
+      try { zone.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
+      // Joystick erscheint unter dem Daumen (nicht zu nah am Rand)
+      const r = this.stick.radius;
+      this.placeStick(clamp(e.clientX, r + 10, window.innerWidth * 0.42), clamp(e.clientY, r + 10, window.innerHeight - r - 10));
+      el.classList.add('active');
+      this.moveStick(e);
+    });
+    zone.addEventListener('pointermove', (e) => { if (e.pointerId === this.stick.id) this.moveStick(e); });
+    const up = (e) => { if (e.pointerId === this.stick.id) this.endStick(); };
+    zone.addEventListener('pointerup', up); zone.addEventListener('pointercancel', up); zone.addEventListener('lostpointercapture', up);
+  },
+
+  moveStick(e) {
+    const r = this.stick.radius;
+    let dx = e.clientX - this.stick.cx, dy = e.clientY - this.stick.cy;
+    const len = Math.hypot(dx, dy);
+    if (len > r) { dx *= r / len; dy *= r / len; }
+    this.stick.x = dx / r; this.stick.y = -dy / r;
+    document.getElementById('stickKnob').style.transform = `translate(${dx}px, ${dy}px)`;
+  },
+
+  endStick() {
+    this.stick.id = null; this.stick.x = 0; this.stick.y = 0;
+    document.getElementById('stickKnob').style.transform = '';
+    document.getElementById('stick').classList.remove('active');
+    this.placeStick(null);
+  },
+
+  /** Joystick-Ausschlag → Lenkwert (Totzone + Kurve für feines Lenken um die Mitte). */
+  shapeSteer(x) {
+    const dz = 0.07;
+    const a = Math.abs(x);
+    if (a < dz) return 0;
+    const sens = { low: 0.8, mid: 1.0, high: 1.3 }[Settings.data.steerSens] || 1;
+    return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.35) * sens, 0, 1);
+  },
+
+  // ---------- Neigungssteuerung ----------
+  /** Muss direkt aus einem Tipp heraus aufgerufen werden (iOS fragt nach Erlaubnis). */
+  enableTilt() {
+    const start = () => new Promise((resolve, reject) => {
+      if (!this.tilt.listening) {
+        window.addEventListener('deviceorientation', (e) => this.onOrientation(e));
+        this.tilt.listening = true;
+      }
+      this.tilt.zero = null;
+      const t0 = performance.now();
+      const check = () => {
+        if (this.tilt.last > t0) resolve();
+        else if (performance.now() - t0 > 1500) reject(new Error('keine Sensordaten'));
+        else setTimeout(check, 100);
+      };
+      check();
+    });
+    const DOE = window.DeviceOrientationEvent;
+    if (!DOE) return Promise.reject(new Error('nicht unterstützt'));
+    if (typeof DOE.requestPermission === 'function') {
+      return DOE.requestPermission().then((res) => (res === 'granted' ? start() : Promise.reject(new Error('abgelehnt'))));
+    }
+    return start();
+  },
+
+  onOrientation(e) {
+    if (e.beta == null || e.gamma == null) return;
+    const ang = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+      : (typeof window.orientation === 'number' ? window.orientation : 0);
+    // Im Querformat entspricht das „Lenkrad-Drehen“ der beta-Achse, im Hochformat gamma
+    let roll;
+    if (ang === 90) roll = -e.beta;
+    else if (ang === -90 || ang === 270) roll = e.beta;
+    else roll = ang === 180 ? -e.gamma : e.gamma;
+    this.tilt.raw = roll;
+    if (this.tilt.zero === null) this.tilt.zero = roll;    // Kalibrierung: aktuelle Haltung = geradeaus
+    this.tilt.last = performance.now();
+  },
+
+  tiltSteer() {
+    let d = this.tilt.raw - (this.tilt.zero ?? this.tilt.raw);
+    if (d > 180) d -= 360; if (d < -180) d += 360;
+    const sens = { low: 30, mid: 22, high: 15 }[Settings.data.steerSens] || 22;   // Grad bis Volleinschlag
+    const dz = 1.5;
+    if (Math.abs(d) < dz) return 0;
+    let v = clamp((Math.abs(d) - dz) / sens, 0, 1) * Math.sign(d);
+    if (Settings.data.tiltInvert) v = -v;
+    return v;    // +1 = links
   },
 
   update() {
-    const k = this.keys, t = this.touch;
-    this.state.throttle = (k.has('KeyW') || k.has('ArrowUp') || t.gas) ? 1 : 0;
-    this.state.brake = (k.has('KeyS') || k.has('ArrowDown') || t.brake) ? 1 : 0;
-    const left = k.has('KeyA') || k.has('ArrowLeft') || t.left;
-    const right = k.has('KeyD') || k.has('ArrowRight') || t.right;
-    this.state.steer = (left ? 1 : 0) - (right ? 1 : 0);      // +1 = links
-    this.state.handbrake = k.has('Space') || t.hand;
+    const k = this.keys, b = this.btn, st = this.state;
+    st.throttle = (k.has('KeyW') || k.has('ArrowUp') || b.gas) ? 1 : 0;
+    st.brake = (k.has('KeyS') || k.has('ArrowDown') || b.brake) ? 1 : 0;
+    const left = k.has('KeyA') || k.has('ArrowLeft');
+    const right = k.has('KeyD') || k.has('ArrowRight');
+    let steer = (left ? 1 : 0) - (right ? 1 : 0);      // +1 = links
+    if (steer === 0) {
+      const tiltOn = Settings.data.steering === 'tilt' && performance.now() - this.tilt.last < 1000;
+      steer = tiltOn ? this.tiltSteer() : -this.shapeSteer(this.stick.x);
+    }
+    st.steer = steer;
+    st.stickX = this.stick.x; st.stickY = this.stick.y;
+    st.handbrake = k.has('Space') || b.hand;
+    st.boost = k.has('ShiftLeft') || k.has('ShiftRight') || b.boost;
+    st.fly = b.fly;
   },
   consume(code) { const had = this.pressed.has(code); this.pressed.delete(code); return had; },
   endFrame() { this.pressed.clear(); },
 };
 
-function haptic(ms) { try { navigator.vibrate?.(ms); } catch (e) { /* iOS: nicht verfügbar */ } }
+// ============================== Orientation ==============================
+/** Querformat-Hinweis anhand der echten Geräteausrichtung + Vollbild-Tipp. */
+const Orientation = {
+  dismissed: false,
+  init() {
+    const upd = () => this.update();
+    window.addEventListener('resize', upd);
+    window.addEventListener('orientationchange', () => setTimeout(upd, 150));
+    screen.orientation?.addEventListener?.('change', upd);
+    document.getElementById('btnRotateDismiss').addEventListener('click', () => { this.dismissed = true; upd(); });
+    upd();
+    this.showHint();
+  },
+  isTouchDevice() { return matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1; },
+  isPortrait() {
+    if (!this.isTouchDevice()) return false;
+    // Ist das Fenster selbst klar breiter als hoch, ist es sicher Querformat
+    if (window.innerWidth > window.innerHeight * 1.1) return false;
+    // Sonst entscheidet die echte Geräteausrichtung (im iframe kann das Fenster hochkant sein,
+    // obwohl das Gerät quer gehalten wird – genau daran scheiterte die reine CSS-Abfrage)
+    if (typeof window.orientation === 'number') return window.orientation % 180 === 0;
+    const t = screen.orientation?.type;
+    if (t) return t.startsWith('portrait');
+    return window.innerHeight > window.innerWidth * 1.15;
+  },
+  update() { document.body.classList.toggle('portrait', !this.dismissed && this.isPortrait()); },
+  showHint() {
+    const hint = document.getElementById('hint'), text = document.getElementById('hintText'), btn = document.getElementById('hintBtn');
+    const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (standalone) return;
+    if (document.fullscreenEnabled && !ios) {
+      text.textContent = 'Für das beste Erlebnis:';
+      btn.hidden = false;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.documentElement.requestFullscreen?.().catch(() => {});
+        try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (err) { /* optional */ }
+        hint.classList.remove('show');
+      });
+    } else if (ios) {
+      text.textContent = 'Tipp: Teilen → „Zum Home-Bildschirm“ startet das Spiel im Vollbild.';
+    } else return;
+    hint.classList.add('show');
+    hint.addEventListener('pointerdown', () => hint.classList.remove('show'));
+    setTimeout(() => hint.classList.remove('show'), 9000);
+  },
+};
+
+function toast(msg, ms = 2200) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), ms);
+}
 
 // ============================== World ==============================
 /**
@@ -1023,7 +1311,11 @@ class Vehicle {
       const level = v[5].crossVectors(up, v[6].set(0, 1, 0));
       this.torque.addScaledVector(level, 2600);
       this.torque.addScaledVector(this.angVel, -300);
-    } else this.airTime = 0;
+    } else {
+      // Harte Landung → Kamera wackelt, Haptik
+      if (this.airTime > 0.3) this.lastImpact = Math.max(this.lastImpact, Math.abs(this.vel.y) * 0.8 + this.airTime);
+      this.airTime = 0;
+    }
     this.groundedCount = grounded;
 
     // ---------- Integration (semi-implizit) ----------
@@ -1239,7 +1531,7 @@ class CarModel {
     cg.translate(0, 0, -0.59); cg.rotateY(-Math.PI / 2);
     const canopyMesh = new THREE.Mesh(cg, glass); canopyMesh.renderOrder = 2; body.add(canopyMesh);
     // Dachrahmen (A-Säulen-Optik)
-    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.025, 6, 24, Math.PI), black);
+    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.016, 6, 32, Math.PI), black);
     frame.rotation.y = Math.PI / 2; frame.position.set(0, 0.8, 0.04); frame.scale.set(1, 0.48, 1.25);
     body.add(frame);
 
@@ -1295,29 +1587,66 @@ class CarModel {
       }
     }
 
-    // ---------- Innenraum ----------
+    // ---------- Innenraum (im Cockpit-Modus sichtbar) ----------
+    const leather = new THREE.MeshStandardMaterial({ color: 0x232327, roughness: 0.85 });
+    const alu = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.9, roughness: 0.3 });
+    this.ambientMat = new THREE.MeshBasicMaterial({ color: 0x36e0ff });          // Ambientelicht (Phase 9: Farbe wählbar)
     add(new THREE.BoxGeometry(1.15, 0.03, 1.35), interior, 0, 0.5, 0.05);           // Boden
-    add(new THREE.BoxGeometry(1.2, 0.2, 0.3), interior, 0, 0.75, -0.55, 0.15);      // Armaturenbrett
-    add(new THREE.BoxGeometry(0.16, 0.22, 0.9), interior, 0, 0.6, 0.0);             // Mittelkonsole
-    for (const sx of [-0.33, 0.33]) {
-      add(new THREE.BoxGeometry(0.44, 0.09, 0.48), seatMat, sx, 0.55, 0.2);
-      add(new THREE.BoxGeometry(0.44, 0.42, 0.09), seatMat, sx, 0.76, 0.47, -0.25);
-      add(new THREE.BoxGeometry(0.24, 0.12, 0.07), seatAccent, sx, 1.0, 0.53, -0.25);   // Kopfstütze
+    // Armaturenbrett: Unterteil, gepolsterte Oberseite, Hutze über dem Fahrer-Display
+    add(new THREE.BoxGeometry(1.22, 0.16, 0.34), interior, 0, 0.74, -0.6);
+    add(new THREE.BoxGeometry(1.24, 0.045, 0.4), leather, 0, 0.835, -0.62, 0.08);
+    add(new THREE.BoxGeometry(0.36, 0.05, 0.13), leather, -0.33, 0.95, -0.62, -0.15);
+    add(new THREE.BoxGeometry(1.1, 0.012, 0.012), this.ambientMat, 0, 0.8, -0.425).castShadow = false;
+    // Mittelkonsole mit Wählhebel
+    add(new THREE.BoxGeometry(0.18, 0.2, 0.95), interior, 0, 0.6, -0.02);
+    add(new THREE.BoxGeometry(0.16, 0.012, 0.8), alu, 0, 0.705, -0.02);
+    add(new THREE.CylinderGeometry(0.014, 0.018, 0.05, 12), alu, 0, 0.73, -0.12);
+    // Türverkleidungen mit Ambientelicht-Leiste
+    for (const sx of [-1, 1]) {
+      add(new THREE.BoxGeometry(0.05, 0.26, 1.25), leather, sx * 0.6, 0.66, 0.0);
+      add(new THREE.BoxGeometry(0.012, 0.012, 1.1), this.ambientMat, sx * 0.574, 0.76, 0.0).castShadow = false;
+      add(new THREE.BoxGeometry(0.05, 0.03, 0.3), alu, sx * 0.574, 0.7, -0.15);     // Türöffner
     }
-    // Lenkrad (dreht sich mit)
+    // Sportsitze: Sitzfläche, Lehne, Seitenwangen, Kopfstütze
+    for (const sx of [-0.33, 0.33]) {
+      add(new THREE.BoxGeometry(0.4, 0.08, 0.46), seatMat, sx, 0.55, 0.2);
+      add(new THREE.BoxGeometry(0.4, 0.44, 0.08), seatMat, sx, 0.78, 0.47, -0.25);
+      for (const b of [-1, 1]) {
+        add(new THREE.BoxGeometry(0.06, 0.1, 0.44), seatAccent, sx + b * 0.21, 0.6, 0.2);
+        add(new THREE.BoxGeometry(0.06, 0.38, 0.1), seatAccent, sx + b * 0.21, 0.78, 0.44, -0.25);
+      }
+      add(new THREE.BoxGeometry(0.24, 0.12, 0.07), seatAccent, sx, 1.0, 0.53, -0.25);  // Kopfstütze
+    }
+    // Lenkrad (dreht sich mit) + Lenksäule
+    add(new THREE.CylinderGeometry(0.025, 0.03, 0.32, 10), interior, -0.33, 0.8, -0.46, Math.PI / 2 - 0.35);
     this.steeringWheel = new THREE.Group();
     this.steeringWheel.position.set(-0.33, 0.83, -0.32);
     this.steeringWheel.rotation.x = -0.35;
-    const swRim = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.02, 8, 24), black);
-    const swHub = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.04, 12).rotateX(Math.PI / 2), carbon);
-    const swSpoke = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.025, 0.02), carbon);
-    const swMark = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.025, 0.025), new THREE.MeshBasicMaterial({ color: 0x36e0ff }));
+    const swRim = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.021, 10, 32), leather);
+    const swHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16).rotateX(Math.PI / 2), carbon);
+    const swSpoke = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.028, 0.02), carbon);
+    const swSpokeB = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.15, 0.02), carbon); swSpokeB.position.y = -0.08;
+    const swMark = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.03, 0.03), new THREE.MeshBasicMaterial({ color: 0x36e0ff }));
     swMark.position.y = 0.16;
-    this.steeringWheel.add(swRim, swHub, swSpoke, swMark);
+    const swLogo = new THREE.Mesh(new THREE.CircleGeometry(0.025, 16), new THREE.MeshBasicMaterial({ color: 0x36e0ff }));
+    swLogo.position.z = 0.021;
+    this.steeringWheel.add(swRim, swHub, swSpoke, swSpokeB, swMark, swLogo);
     body.add(this.steeringWheel);
-    // Display in der Mitte
-    const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.18), new THREE.MeshBasicMaterial({ color: 0x0d3a52 }));
-    disp.position.set(0, 0.92, -0.5); disp.rotation.x = -0.5; body.add(disp);
+
+    // Displays als Canvas-Texturen (werden nur im Cockpit-Modus aktualisiert)
+    const makeScreen = (w, h, pw, ph) => {
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+      return { cv, ctx: cv.getContext('2d'), tex, mesh };
+    };
+    this.cluster = makeScreen(256, 96, 0.26, 0.0975);
+    this.cluster.mesh.position.set(-0.33, 0.905, -0.575); this.cluster.mesh.rotation.x = -0.25;
+    body.add(this.cluster.mesh);
+    this.center = makeScreen(256, 160, 0.27, 0.169);
+    this.center.mesh.position.set(0, 0.9, -0.47); this.center.mesh.rotation.x = -0.55;
+    body.add(this.center.mesh);
+    this.screenStyle = { accent: '#36e0ff', bg: '#04111a' };   // Phase 9: Display-Design wählbar
 
     body.position.y = -cfg.cgHeight;
 
@@ -1378,6 +1707,41 @@ class CarModel {
   }
 
   setHeadlights(on, intensity = 60) { for (const l of this.headLights) l.intensity = on ? intensity : 0; }
+
+  /** Fahrer-Display (Tempo, Gang, Leistung) und Mittel-Display (g-Meter). */
+  updateScreens(vehicle) {
+    const st = this.screenStyle;
+    // Fahrer-Display
+    let c = this.cluster.ctx, W = 256, H = 96;
+    c.fillStyle = st.bg; c.fillRect(0, 0, W, H);
+    const kmh = Math.round(Math.abs(vehicle.forwardSpeed) * 3.6);
+    c.fillStyle = '#fff'; c.font = 'bold 46px -apple-system, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(String(kmh), W / 2, 42);
+    c.font = '600 12px sans-serif'; c.fillStyle = 'rgba(255,255,255,0.55)'; c.fillText('KM/H', W / 2, 74);
+    const [g, sub] = vehicle.drivetrain.label();
+    c.font = 'bold 30px sans-serif'; c.fillStyle = st.accent; c.fillText(g + sub, 32, 46);
+    // Leistungsbalken
+    const pw = clamp(vehicle.throttle * (0.4 + vehicle.drivetrain.rpm / vehicle.cfg.motor.redline), 0, 1);
+    c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(196, 20, 12, 56);
+    c.fillStyle = vehicle.braking ? '#ff3b4e' : st.accent; c.fillRect(196, 76 - 56 * pw, 12, 56 * pw);
+    c.fillStyle = 'rgba(255,255,255,0.6)'; c.font = '600 10px sans-serif'; c.fillText('kW', 226, 50);
+    this.cluster.tex.needsUpdate = true;
+    // Mittel-Display: g-Meter + Fahrmodus
+    c = this.center.ctx; W = 256; H = 160;
+    c.fillStyle = st.bg; c.fillRect(0, 0, W, H);
+    c.strokeStyle = 'rgba(255,255,255,0.22)'; c.lineWidth = 1.5;
+    for (const r of [22, 44, 66]) { c.beginPath(); c.arc(84, 80, r, 0, Math.PI * 2); c.stroke(); }
+    c.beginPath(); c.moveTo(18, 80); c.lineTo(150, 80); c.moveTo(84, 14); c.lineTo(84, 146); c.stroke();
+    const gx = 84 + clamp(vehicle.latAccel, -1.5, 1.5) * 44, gy = 80 - clamp(vehicle.longAccel, -1.5, 1.5) * 44;
+    c.fillStyle = st.accent; c.beginPath(); c.arc(gx, gy, 7, 0, Math.PI * 2); c.fill();
+    c.textAlign = 'left'; c.fillStyle = '#fff'; c.font = 'bold 15px sans-serif'; c.fillText('VOLTARA', 160, 30);
+    c.font = '600 11px sans-serif'; c.fillStyle = 'rgba(255,255,255,0.6)';
+    c.fillText(vehicle.tractionControl ? 'Fahrhilfen AN' : 'Fahrhilfen AUS', 160, 58);
+    c.fillText('g ' + Math.hypot(vehicle.latAccel, vehicle.longAccel).toFixed(2), 160, 80);
+    c.fillText('Akku 87 %', 160, 102);
+    c.fillStyle = st.accent; c.fillRect(160, 112, 70, 6);
+    this.center.tex.needsUpdate = true;
+  }
 }
 
 // ============================== SkidMarks ==============================
@@ -1435,42 +1799,159 @@ class SkidMarks {
   }
 }
 
+// ============================== CamInput ==============================
+/**
+ * Kamera-Gesten auf der freien Fläche (alles, was kein Knopf/Joystick ist):
+ * ein Finger wischt = Kamera drehen, zwei Finger = zoomen. Maus: ziehen + Mausrad.
+ */
+const CamInput = {
+  pointers: new Map(), yaw: 0, pitch: 0, zoom: 1, lastTouch: -1e9, pinch: 0,
+  init(el) {
+    this.zoom = clamp(Number(Settings.data.camZoom) || 1, 0.55, 2.4);
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.pinch = this.pointers.size === 2 ? this.dist() : 0;
+      this.lastTouch = performance.now();
+    });
+    el.addEventListener('pointermove', (e) => {
+      const p = this.pointers.get(e.pointerId); if (!p) return;
+      if (this.pointers.size === 1) {
+        this.yaw -= (e.clientX - p.x) * 0.0065;
+        this.pitch = clamp(this.pitch + (e.clientY - p.y) * 0.0045, -0.3, 1.15);
+      }
+      p.x = e.clientX; p.y = e.clientY;
+      if (this.pointers.size === 2) {
+        const d = this.dist();
+        if (this.pinch > 0) this.zoom = clamp(this.zoom * this.pinch / d, 0.55, 2.4);
+        this.pinch = d;
+      }
+      this.lastTouch = performance.now();
+    });
+    const up = (e) => {
+      if (!this.pointers.delete(e.pointerId)) return;
+      this.pinch = this.pointers.size === 2 ? this.dist() : 0;
+      Settings.data.camZoom = Number(this.zoom.toFixed(2)); Settings.save();
+    };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      this.zoom = clamp(this.zoom * Math.exp(e.deltaY * 0.001), 0.55, 2.4);
+      Settings.data.camZoom = Number(this.zoom.toFixed(2)); Settings.save();
+    }, { passive: false });
+  },
+  dist() { const [a, b] = [...this.pointers.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; },
+  /** Keine Berührung seit kurzer Zeit → Kamera darf zurückfahren. */
+  idle() { return this.pointers.size === 0 && performance.now() - this.lastTouch > 1800; },
+};
+
 // ============================== CameraRig ==============================
-/** Verfolger-Kamera mit weicher Nachführung (Phase 3: Wischen/Zoom/Cockpit). */
+/**
+ * Kamera-Modi:
+ *  chase   – Verfolger mit weicher Nachführung (Drift bleibt sichtbar)
+ *  far     – weiter hinten/höher, mehr Übersicht
+ *  cockpit – Ego-Perspektive vom Fahrersitz
+ * Wackeln über addShake() (Kollisionen, harte Landungen, später Boost).
+ */
 class CameraRig {
   constructor(camera, world) {
     this.cam = camera; this.world = world;
-    this.distance = 6.2; this.height = 1.9;
+    this.mode = CameraRig.MODES.includes(Settings.data.camMode) ? Settings.data.camMode : 'chase';
     this.pos = new THREE.Vector3(); this.look = new THREE.Vector3();
     this.heading = new THREE.Vector3(0, 0, -1);
-    this._t = new THREE.Vector3(); this._f = new THREE.Vector3();
+    this._t = new THREE.Vector3(); this._f = new THREE.Vector3(); this._h = new THREE.Vector3();
+    this._e = new THREE.Euler(0, 0, 0, 'YXZ'); this._q = new THREE.Quaternion();
     this.initialized = false;
+    this.shake = 0; this.time = 0;
+    this.fovExtra = 0;              // Phase 6: Boost weitet das Sichtfeld
   }
 
+  static MODES = ['chase', 'far', 'cockpit'];
+  static LABELS = { chase: 'Verfolger', far: 'Verfolger weit', cockpit: 'Cockpit' };
+
+  next() {
+    const i = CameraRig.MODES.indexOf(this.mode);
+    this.mode = CameraRig.MODES[(i + 1) % CameraRig.MODES.length];
+    Settings.data.camMode = this.mode; Settings.save();
+    CamInput.yaw = 0; CamInput.pitch = 0;
+    this.initialized = false;
+    return this.mode;
+  }
+
+  addShake(a) { this.shake = Math.min(1.4, this.shake + a); }
+
   update(dt, carPos, carQuat, vehicle) {
+    this.time += dt;
+    // Nach kurzer Pause fährt die Kamera von selbst zurück hinter das Auto
+    if (CamInput.idle()) {
+      CamInput.yaw = damp(CamInput.yaw, 0, 2.6, dt);
+      CamInput.pitch = damp(CamInput.pitch, 0, 2.6, dt);
+    }
+    CamInput.yaw = Math.atan2(Math.sin(CamInput.yaw), Math.cos(CamInput.yaw));
+    this.shake *= Math.exp(-dt * 5.5);
+
+    const near = this.mode === 'cockpit' ? 0.05 : 0.1;
+    if (this.cam.near !== near) { this.cam.near = near; this.cam.updateProjectionMatrix(); }
+
+    if (this.mode === 'cockpit') this.updateCockpit(dt, carPos, carQuat, vehicle);
+    else this.updateChase(dt, carPos, carQuat, vehicle);
+
+    // Wackeln (zwei überlagerte Sinus-„Rauschen“)
+    if (this.shake > 0.002) {
+      const t = this.time, a = this.shake;
+      this.cam.rotateX((Math.sin(t * 43.1) + Math.sin(t * 27.3 + 1.7)) * 0.012 * a);
+      this.cam.rotateY((Math.sin(t * 38.7 + 0.5) + Math.sin(t * 21.9)) * 0.012 * a);
+      this.cam.rotateZ(Math.sin(t * 31.3 + 2.1) * 0.01 * a);
+    }
+
+    const speed = vehicle.speed;
+    const baseFov = this.mode === 'cockpit' ? 70 + clamp(speed * 0.07, 0, 9) : 60 + clamp(speed * 0.13, 0, 16);
+    const fov = baseFov + this.fovExtra;
+    if (Math.abs(fov - this.cam.fov) > 0.05) { this.cam.fov = damp(this.cam.fov, fov, 3, dt); this.cam.updateProjectionMatrix(); }
+  }
+
+  updateChase(dt, carPos, carQuat, vehicle) {
+    const far = this.mode === 'far';
     const f = this._f.set(0, 0, -1).applyQuaternion(carQuat); f.y = 0;
     if (f.lengthSq() < 1e-4) f.copy(this.heading); f.normalize();
-    // Richtung folgt der Fahrzeugnase, aber etwas träge (Drift sichtbar)
+    // Richtung folgt der Fahrzeugnase, aber etwas träge (Drift bleibt sichtbar)
     this.heading.lerp(f, 1 - Math.exp(-dt * 4.5)).normalize();
+    // Wischen: Kamera um das Auto drehen
+    const a = CamInput.yaw, c = Math.cos(a), sn = Math.sin(a);
+    const h = this._h.set(this.heading.x * c + this.heading.z * sn, 0, -this.heading.x * sn + this.heading.z * c);
     const speed = vehicle.speed;
-    const dist = this.distance + clamp(speed * 0.018, 0, 1.6);
-    const target = this._t.copy(carPos).addScaledVector(this.heading, -dist);
-    target.y = carPos.y + this.height + clamp(speed * 0.004, 0, 0.4);
+    const zoom = CamInput.zoom;
+    const dist = ((far ? 10 : 6.2) + clamp(speed * 0.018, 0, 1.6)) * zoom;
+    const height = (far ? 3.4 : 1.9) * Math.sqrt(zoom) + clamp(speed * 0.004, 0, 0.4);
+    const pitch = CamInput.pitch;
+    const target = this._t.copy(carPos).addScaledVector(h, -dist * Math.cos(pitch));
+    target.y = carPos.y + height + dist * Math.sin(pitch);
     // nicht unter das Gelände
     const gh = this.world.sample(target.x, target.z) + 0.6;
     if (target.y < gh) target.y = gh;
     if (!this.initialized) { this.pos.copy(target); this.initialized = true; }
-    this.pos.x = damp(this.pos.x, target.x, 9, dt);
-    this.pos.z = damp(this.pos.z, target.z, 9, dt);
-    this.pos.y = damp(this.pos.y, target.y, 5, dt);
-    const lookTarget = this._t.copy(carPos).addScaledVector(this.heading, 2.2);
-    lookTarget.y += 0.75;
-    this.look.copy(lookTarget);
+    const k = CamInput.idle() ? 9 : 22;          // beim Wischen direkt dem Finger folgen
+    this.pos.x = damp(this.pos.x, target.x, k, dt);
+    this.pos.z = damp(this.pos.z, target.z, k, dt);
+    this.pos.y = damp(this.pos.y, target.y, CamInput.idle() ? 5 : 22, dt);
+    this.look.copy(carPos).addScaledVector(h, far ? 3 : 2.2);
+    this.look.y += far ? 0.5 : 0.75;
     this.cam.position.copy(this.pos);
     this.cam.lookAt(this.look);
-    // Sichtfeld wird mit Tempo etwas weiter
-    const fov = 60 + clamp(speed * 0.13, 0, 16);
-    if (Math.abs(fov - this.cam.fov) > 0.05) { this.cam.fov = damp(this.cam.fov, fov, 3, dt); this.cam.updateProjectionMatrix(); }
+  }
+
+  updateCockpit(dt, carPos, carQuat, vehicle) {
+    // Kopf auf dem Fahrersitz; leichtes Mitschwingen mit den g-Kräften
+    const head = this._t.set(
+      -0.33 - clamp(vehicle.latAccel, -1.5, 1.5) * 0.014,
+      CONFIG.car.cockpitEyeY - CONFIG.car.cgHeight,
+      0.42 + clamp(vehicle.longAccel, -1.5, 1.5) * 0.02);
+    head.applyQuaternion(carQuat).add(carPos);
+    this.cam.position.copy(head);
+    this._e.set(-0.07 - CamInput.pitch * 0.6, CamInput.yaw * 1.2, 0, 'YXZ');
+    this.cam.quaternion.copy(carQuat).multiply(this._q.setFromEuler(this._e));
+    this.initialized = false;      // beim Zurückwechseln Verfolger neu ansetzen
   }
 }
 
@@ -1536,6 +2017,8 @@ class Game {
     this.car.setHeadlights(true, 25);
     this.skid = new SkidMarks(this.scene);
     this.rig = new CameraRig(this.camera, this.world);
+    this.screenTimer = 0;
+    CamInput.init(canvas);
 
     this.applySettings();
     this.resize();
@@ -1597,6 +2080,7 @@ class Game {
     if (!this.vehicle.drivetrain.manual && this.vehicle.drivetrain.gear === 0) this.vehicle.drivetrain.gear = 1;
     this.vehicle.tractionControl = !!s.tractionControl;
     document.body.classList.toggle('manual', this.vehicle.drivetrain.manual);
+    document.body.classList.toggle('tilt', s.steering === 'tilt');
     this.renderer.shadowMap.enabled = this.q.shadows;
     this.sun.castShadow = this.q.shadows;
     if (this.q.shadows && this.sun.shadow.mapSize.x !== this.q.shadowSize) {
@@ -1609,6 +2093,7 @@ class Game {
 
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
+    Input.layout();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.q.pixelRatio));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
@@ -1617,11 +2102,18 @@ class Game {
   /** Einmalige Eingaben (Gangwechsel, Reset …) */
   handleActions() {
     const v = this.vehicle, d = v.drivetrain;
-    if (Input.consume('KeyE') || Input.consume('GearUp')) { if (d.manual && d.shift(1)) haptic(15); }
-    if (Input.consume('KeyQ') || Input.consume('GearDown')) { if (d.manual && d.shift(-1)) haptic(15); }
+    if (Input.consume('KeyE') || Input.consume('GearUp')) { if (d.manual && d.shift(1)) Haptics.pulse(15); }
+    if (Input.consume('KeyQ') || Input.consume('GearDown')) { if (d.manual && d.shift(-1)) Haptics.pulse(15); }
     if (Input.consume('KeyR')) this.resetCar();
+    if (Input.consume('KeyC') || Input.consume('Camera')) this.nextCamera();
     if (Input.consume('KeyT')) { Settings.data.telemetry = !Settings.data.telemetry; Settings.save(); UI.sync(); }
     if (Input.consume('KeyM')) { Settings.data.transmission = d.manual ? 'auto' : 'manual'; Settings.save(); this.applySettings(); UI.sync(); }
+  }
+
+  nextCamera() {
+    const m = this.rig.next();
+    toast(CameraRig.LABELS[m], 900);
+    Haptics.pulse(10);
   }
 
   resetCar() {
@@ -1661,13 +2153,19 @@ class Game {
     for (let i = 0; i < 4; i++) this.skid.track(i, v.wheels[i], v, this.world);
     this.skid.flush();
     this.rig.update(dt, this._ip, this._iq, v);
+    // Displays im Innenraum nur im Cockpit und ~8× pro Sekunde neu zeichnen
+    if (this.rig.mode === 'cockpit' && (this.screenTimer += dt) > 0.12) { this.screenTimer = 0; this.car.updateScreens(v); }
 
     // Sonne + Schattenkamera folgen dem Auto
     this.sun.target.position.copy(this._ip);
     this.sun.position.copy(this._ip).addScaledVector(this.sunDir, 120);
     this.sky.position.copy(this.camera.position);
 
-    if (v.lastImpact > 0) { haptic(Math.min(60, v.lastImpact * 6)); v.lastImpact = 0; }
+    if (v.lastImpact > 0) {
+      Haptics.pulse(Math.min(60, v.lastImpact * 6));
+      this.rig.addShake(clamp(v.lastImpact * 0.07, 0, 1));
+      v.lastImpact = 0;
+    }
 
     this.renderer.render(this.scene, this.camera);
 
@@ -1698,19 +2196,36 @@ const UI = {
     const panel = document.getElementById('settings');
     document.getElementById('btnSettings').addEventListener('pointerdown', (e) => { e.preventDefault(); this.open(true); });
     document.getElementById('btnClose').addEventListener('click', () => this.open(false));
-    document.getElementById('btnReset').addEventListener('pointerdown', (e) => { e.preventDefault(); game.resetCar(); haptic(20); });
+    document.getElementById('btnReset').addEventListener('pointerdown', (e) => { e.preventDefault(); game.resetCar(); Haptics.pulse(20); });
+    document.getElementById('btnCam').addEventListener('pointerdown', (e) => { e.preventDefault(); game.nextCamera(); });
     panel.querySelectorAll('.seg').forEach((seg) => {
       seg.addEventListener('click', (e) => {
         const b = e.target.closest('button'); if (!b) return;
         const key = seg.dataset.key; let val = b.dataset.v;
         if (val === 'true') val = true; else if (val === 'false') val = false;
+        if (key === 'steering' && val === 'tilt') {
+          // Neigungssensor braucht auf iOS eine Erlaubnis – direkt aus dem Tipp heraus anfragen
+          Input.enableTilt().then(() => {
+            Settings.data.steering = 'tilt'; Settings.save(); game.applySettings(); this.sync();
+            toast('Neigen aktiv: Halte das Gerät in Fahrhaltung, das ist „geradeaus“.', 3000);
+          }).catch(() => {
+            Settings.data.steering = 'stick'; Settings.save(); game.applySettings(); this.sync();
+            toast('Neigungssensor ist hier nicht verfügbar. Lenkung bleibt beim Joystick.', 3200);
+          });
+          return;
+        }
         Settings.data[key] = val; Settings.save();
         game.applySettings(); this.sync();
       });
     });
     this.sync();
   },
-  open(on) { document.getElementById('settings').classList.toggle('open', on); this.game.paused = on; },
+  open(on) {
+    document.getElementById('settings').classList.toggle('open', on);
+    this.game.paused = on;
+    if (on) Input.releaseAll();
+    else Input.tilt.zero = null;     // beim Weiterfahren Neigung neu kalibrieren
+  },
   sync() {
     document.querySelectorAll('#settings .seg').forEach((seg) => {
       const val = String(Settings.data[seg.dataset.key]);
@@ -1720,11 +2235,20 @@ const UI = {
 };
 
 // ============================== Start ==============================
+Haptics.init();
 Input.init();
+Orientation.init();
 HUD.init();
 const game = new Game();
 UI.init(game);
 window.__game = game;          // für Tests/Debugging
+Object.assign(window, { Input, CamInput, Settings });
+// Neigungssteuerung nach dem Neuladen: iOS verlangt die Erlaubnis bei einem Tipp
+if (Settings.data.steering === 'tilt') {
+  window.addEventListener('pointerdown', () => Input.enableTilt().catch(() => {
+    Settings.data.steering = 'stick'; Settings.save(); game.applySettings(); UI.sync();
+  }), { once: true });
+}
 </script>
 </body>
 </html>
