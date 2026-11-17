@@ -25,7 +25,8 @@ Three.js wird per CDN geladen (`three@0.160.0`). Es gibt keine Build-Tools und k
 | Gang hoch/runter (Handschaltung) | ▲ ▼ | E / Q |
 | Kamera drehen / zoomen | auf freier Fläche wischen / zwei Finger | Maus ziehen / Mausrad |
 | Kamera wechseln (Verfolger, weit, Cockpit) | 🎥 | C |
-| Auto zurücksetzen | ↺ | R |
+| Auto zurücksetzen (auf die nächste Straße) | ↺ | R |
+| Tag / Nacht | Einstellungen | N |
 
 Boost und Fliegen sind schon als Knöpfe da und funktionieren ab Phase 6.
 
@@ -34,7 +35,7 @@ Boost und Fliegen sind schon als Knöpfe da und funktionieren ab Phase 6.
 - [x] **Phase 1 – Grundgerüst und Fahrphysik**
 - [x] Phase 2 – Touch-Steuerung
 - [x] Phase 3 – Kameras
-- [ ] Phase 4 – Offene Welt
+- [x] Phase 4 – Offene Welt
 - [ ] Phase 5 – Kollisionen
 - [ ] Phase 6 – Boost und Fliegen
 - [ ] Phase 7 – Polizei-Modus
@@ -65,8 +66,21 @@ Boost und Fliegen sind schon als Knöpfe da und funktionieren ab Phase 6.
 - **Querformat-Hinweis:** Prüft die echte Geräteausrichtung (`screen.orientation`), nicht das Seitenverhältnis des Fensters. So stimmt er auch, wenn das Spiel eingebettet läuft.
 - **Kameras:** Verfolger (weiche Nachführung, fährt nach 1,8 s ohne Berührung zurück hinter das Auto), Verfolger weit und Cockpit mit Innenraum (mitdrehendes Lenkrad, Fahrer- und Mittel-Display mit g-Meter, Sportsitze, Ambientelicht). Kamera wackelt bei Aufprall und harten Landungen.
 
+## Technik (Phase 4 – offene Welt)
+
+- **Welt:** 4 × 4 km, bei jedem Start gleich (fester Zufallswert). Höhenfeld im 4-m-Raster aus Rauschen: Hügel, Bergkämme, Randgebirge als natürliche Grenze, See-Becken.
+- **Straßennetz als Graph:** Autobahnring (4 Spuren, Mittelleitplanke, Laternen) mit rund 600 m langer Seebrücke, sechs Landstraßen, Stadtraster 8 × 8. Jede Straße bekommt einen geglätteten Höhenverlauf mit begrenzter Steigung und wird ins Gelände geprägt – Einschnitte und Dämme entstehen automatisch.
+- **Untergrund:** Asphalt, Gras, Waldboden, Sand und Fels haben eigenen Grip und Rollwiderstand.
+- **Stadt:** rund 120 Gebäude mit Fassaden-Shader (Fenster passen zu jeder Gebäudegröße, nachts teils beleuchtet), Parks, Gehwege, Ampeln mit echten Phasen, Zebrastreifen, Straßenlaternen.
+- **Wald:** je nach Grafikstufe ca. 6 000 / 15 000 / 25 000 Bäume (Laub- und Nadelbäume) per InstancedMesh, zwei Detailstufen, Kachel-Culling; nahe Bäume mit Blatt- und Nadeltexturen (Alpha-Test).
+- **Gelände-Detailstufen:** 10 × 10 Kacheln mit 4-, 8- und 16-m-Auflösung, Ränder mit „Schürzen“ gegen Lücken.
+- **Kollisionen:** Gelände, Brückendeck, Dächer (von oben), Hauswände, Leitplanken (überspringbar), Verkehr. Wasser bremst stark; nach kurzer Zeit wird das Auto auf die Straße zurückgesetzt.
+- **Verkehr:** Limousinen, Kleinwagen, SUVs und Lkw folgen den Spuren, halten Abstand, stoppen an roten Ampeln, gewähren an Einmündungen Vorfahrt und bremsen bzw. weichen dem Spieler aus. Angefahren rutschen sie physikalisch weg.
+- **Tag/Nacht:** Himmel mit Wolken; nachts Mond, Sterne, Scheinwerfer mit Lichtkegel, Laternen mit Lichthöfen und Lichtpfützen, die nächsten Laternen als echte Lichtquellen, beleuchtete Fenster, Ampeln. Auf „Hoch“ zusätzlich Bloom.
+- **Minimap** oben links (dreht mit), **Ladebildschirm** während die Welt entsteht.
+
 ## Code-Aufbau
 
 Bis Phase 9 steckt alles in `index.html`, in klar getrennten Abschnitten:
-`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
+`CONFIG`, `Settings`, `Haptics`, `Input`, `Orientation`, `World` (+ Aufbau), `TrafficSystem`, `Environment`, `Minimap`, `Drivetrain`, `Vehicle`, `CarModel`, `SkidMarks`, `CamInput`, `CameraRig`, `HUD`, `Game`, `UI`.
 In Phase 10 wird der Code in einzelne Module aufgeteilt.
