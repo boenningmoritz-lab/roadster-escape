@@ -678,7 +678,7 @@ class World {
     const i = clamp(Math.round((x + half) / cell), 0, n - 1), j = clamp(Math.round((z + half) / cell), 0, n - 1);
     return this.surf[j * n + i];
   }
-  grip(x, z) { return SURF_GRIP[this.surfaceAt(x, z)]; }
+  grip(x, z) { const s = this.surfaceAt(x, z); return SURF_GRIP[s] * (1 - (this.wet || 0) * (s === 1 ? 0.22 : 0.12)); }
   roll(x, z) { return SURF_ROLL[this.surfaceAt(x, z)]; }
   isWater(x, z) { return this.sample(x, z) < this.waterLevel - 0.05; }
 
@@ -1222,7 +1222,8 @@ Object.assign(World.prototype, {
   },
 
   buildRoads() {
-    const roadMat = (tex) => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    this.wetMats = this.wetMats || [];
+    const roadMat = (tex) => { const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }); this.wetMats.push(m); return m; };
     const byCls = (c) => this.edges.filter((e) => e.cls === c);
     this.roadTex = { highway: makeRoadTexture('highway'), country: makeRoadTexture('country'), city: makeRoadTexture('city'), runway: makeRoadTexture('runway'), plain: makeRoadTexture('plain') };
     const add = (geo, tex) => { const m = new THREE.Mesh(geo, roadMat(tex)); m.receiveShadow = true; this.group.add(m); return m; };
@@ -1370,6 +1371,7 @@ Object.assign(World.prototype, {
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(C.x1 - C.x0 + 28, C.z1 - C.z0 + 28),
       new THREE.MeshStandardMaterial({ map: plain, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(C.cx, C.h + 0.03, C.cz); ground.receiveShadow = true;
+    this.wetMats.push(ground.material);
     this.group.add(ground);
     const slabTex = makeNoiseTexture(128, [150, 150, 146], 22); slabTex.repeat.set(20, 20);
     const slab = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: slabTex, roughness: 0.9 }), this.blocks.length);
@@ -1392,17 +1394,24 @@ Object.assign(World.prototype, {
       const glow = this.windowGlow;
       mat.onBeforeCompile = (sh) => {
         sh.uniforms.uGlow = glow;
-        sh.vertexShader = 'varying vec2 vFac; varying float vRoof; varying float vAO;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        sh.vertexShader = 'varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
           mat4 fm = modelMatrix * instanceMatrix;
           vec4 fwp = fm * vec4(position, 1.0);
           vec3 fwn = normalize(mat3(fm) * normal);
           float fseed = fract(sin(dot(fm[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
           vFac = (abs(fwn.x) > 0.5 ? vec2(fwp.z, fwp.y) : vec2(fwp.x, fwp.y)) / 28.0 + vec2(floor(fseed * 8.0) / 8.0, floor(fract(fseed * 13.0) * 8.0) / 8.0);
           vRoof = fwn.y;
-          vAO = 0.55 + 0.45 * smoothstep(0.0, 4.5, fwp.y - fm[3].y);`);
-        sh.fragmentShader = 'uniform float uGlow; varying vec2 vFac; varying float vRoof; varying float vAO;\n' + sh.fragmentShader
-          .replace('#include <map_fragment>', 'vec4 facCol = texture2D(map, vFac); if (vRoof > 0.5) facCol = vec4(vec3(0.3, 0.3, 0.31), 1.0); diffuseColor *= facCol; diffuseColor.rgb *= vAO;')
-          .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance *= texture2D(emissiveMap, vFac).rgb * uGlow * (1.0 - step(0.5, vRoof));');
+          vAO = 0.55 + 0.45 * smoothstep(0.0, 4.5, fwp.y - fm[3].y);
+          vHA = fwp.y - fm[3].y; vSeed = fseed;`);
+        sh.fragmentShader = 'uniform float uGlow; varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed;\n' + sh.fragmentShader
+          .replace('#include <map_fragment>', 'vec4 facCol = texture2D(map, vFac); if (vRoof > 0.5) facCol = vec4(vec3(0.3, 0.3, 0.31), 1.0); diffuseColor *= facCol;' +
+            // Erdgeschoss: Ladenzeile mit großen Schaufenstern und farbigem Schild
+            ' float shop = (1.0 - step(0.5, vRoof)) * (1.0 - step(4.2, vHA)); float bay = fract(vFac.x * 7.0);' +
+            ' float glassZ = step(0.35, vHA) * step(vHA, 3.05) * step(0.07, bay) * step(bay, 0.93); float signZ = step(3.3, vHA) * step(vHA, 3.95) * step(0.03, bay) * step(bay, 0.97);' +
+            ' vec3 signCol = vec3(fract(vSeed * 7.13), fract(vSeed * 3.71), fract(vSeed * 5.37)) * 0.75 + 0.15;' +
+            ' if (shop > 0.5) { diffuseColor.rgb = mix(vec3(0.42, 0.4, 0.38), vec3(0.05, 0.065, 0.08), glassZ); diffuseColor.rgb = mix(diffuseColor.rgb, signCol, signZ); }' +
+            ' diffuseColor.rgb *= vAO;')
+          .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance *= texture2D(emissiveMap, vFac).rgb * uGlow * (1.0 - step(0.5, vRoof)); float shopLit = step(0.45, fract(sin(floor(vFac.x * 7.0) * 12.9898 + vSeed * 78.233) * 43758.5453)); if (shop > 0.5) totalEmissiveRadiance = (glassZ * shopLit * vec3(1.0, 0.8, 0.55) * 0.45 + signZ * signCol * 1.1) * uGlow;');
       };
       return mat;
     };
@@ -1688,6 +1697,13 @@ Object.assign(World.prototype, {
       const b = cand[i];
       if (b) { l.position.set(b[0], b[1] - 0.4, b[2]); l.intensity = 55; } else l.intensity = 0;
     });
+  },
+
+  /** Nasse Fahrbahn: dunkler und glatter → spiegelt Himmel und Lichter. */
+  setWet(w) {
+    this.wet = w;
+    for (const m of this.wetMats || []) { m.roughness = lerp(0.82, 0.22, w); m.color.setScalar(lerp(1, 0.6, w)); m.envMapIntensity = 1 + w * 0.6; }
+    if (this.terrainMat) this.terrainMat.color.setScalar(lerp(1, 0.82, w));
   },
 
   setNight(on) {

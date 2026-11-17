@@ -72,7 +72,7 @@ const approach = (v, t, step) => (v < t ? Math.min(v + step, t) : Math.max(v - s
 const Settings = {
   KEY: 'roadsterEscape.settings.v1',
   data: { transmission: 'auto', tractionControl: true, quality: 'auto', telemetry: false,
-          timeOfDay: 'day', sound: true, music: true, dynres: true, policeLevel: 'normal', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
+          timeOfDay: 'day', weather: 'clear', sound: true, music: true, dynres: true, policeLevel: 'normal', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.KEY) || '{}')); } catch (e) { /* privat-Modus */ }
     if (this.data.quality === 'auto') {
@@ -87,11 +87,11 @@ Settings.load();
 
 const QUALITY = {
   low:    { pixelRatio: 1.0, shadows: false, shadowSize: 0,    antialias: false, physicalPaint: false, headlights: false, bevelSegs: 1,
-            treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, grass: 0,    grassRadius: 0,  particles: 500, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
+            treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, rainDrops: 1500, scenery: 500, sceneryRadius: 110, grass: 0,    grassRadius: 0,  particles: 500, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
   medium: { pixelRatio: 1.5, shadows: true,  shadowSize: 1024, antialias: true,  physicalPaint: false, headlights: true,  bevelSegs: 2,
-            treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, grass: 3500, grassRadius: 38, particles: 1200, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },
+            treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, rainDrops: 3200, scenery: 1300, sceneryRadius: 160, grass: 3500, grassRadius: 38, particles: 1200, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },
   high:   { pixelRatio: 2.0, shadows: true,  shadowSize: 2048, antialias: true,  physicalPaint: true,  headlights: true,  bevelSegs: 3,
-            treeDensity: 0.62, treeNear: 230, treeFar: 1100, traffic: 34, grass: 7500, grassRadius: 55, particles: 2000, lampLights: 5, bloom: true,  clouds: true,  fogFar: 2200, terrainNear: 340 },
+            treeDensity: 0.62, treeNear: 230, treeFar: 1100, traffic: 34, rainDrops: 6000, scenery: 2400, sceneryRadius: 220, grass: 7500, grassRadius: 55, particles: 2000, lampLights: 5, bloom: true,  clouds: true,  fogFar: 2200, terrainNear: 340 },
 };
 
 export { CONFIG, clamp, lerp, smoothstep, damp, approach, Settings, QUALITY };

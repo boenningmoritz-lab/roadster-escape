@@ -16,6 +16,7 @@ import { MissionSystem } from './missions.js';
 import { buildCarConfig, Garage } from './garage.js';
 import { Tutorial, DynRes } from './menu.js';
 import { UI } from './ui.js';
+import { Weather, makeMountainRing, Scenery, buildRoadFurniture, makeSunFlare } from './weather.js';
 import { game } from './main.js';
 
 // ============================== Game ==============================
@@ -58,6 +59,13 @@ class Game {
     this.blob.scale.set(2.35, 1, 4.95); this.blob.renderOrder = 1;
     this.scene.add(this.blob);
     this.grass = new Grass(this.world, this.scene, this.q);
+    // Mehr Realismus: Bergkulisse, Felsen/Büsche, Straßenausstattung, Sonnenreflex, Wetter
+    this.mountains = makeMountainRing(); this.scene.add(this.mountains);
+    this.scenery = new Scenery(this.world, this.scene, this.q);
+    this.furniture = buildRoadFurniture(this.world, this.scene);
+    this.flare = this.q.clouds ? makeSunFlare() : null;
+    if (this.flare) this.scene.add(this.flare);
+    this.weather = new Weather(this);
     this.sound = new SoundFX();
     this.music = new Music(this.sound);
     this.police = new PoliceSystem(this.world, this.scene, this.q, this.sound);
@@ -109,7 +117,7 @@ class Game {
       this.env.sun.shadow.mapSize.set(this.q.shadowSize, this.q.shadowSize);
       this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null;
     }
-    if (s.timeOfDay !== this.timeOfDay) this.setTimeOfDay(s.timeOfDay);
+    if (s.timeOfDay !== this.timeOfDay || s.weather !== this.weather.type) this.setTimeOfDay(s.timeOfDay);
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
     this.resize();
   }
@@ -121,6 +129,9 @@ class Game {
     this.world.setNight(night);
     this.traffic.setNight(night);
     this.car.setHeadlights(true, night ? (this.q.headlights ? 320 : 480) : 0);
+    this.furniture.setNight(night);
+    this.mountains.material.color.setScalar(night ? 0.09 : 1);
+    this.weather.apply(Settings.data.weather || 'clear');   // nach der Tageszeit, da es Licht/Nebel/Himmel anpasst
   }
 
   resize() {
@@ -281,6 +292,12 @@ class Game {
     this.env.update(dt, this._ip, this.camera.position);
     this.minimap.draw(dt, v, this.traffic);
     this.grass.update(dt, this.camera.position);
+    this.scenery.update(this.camera.position);
+    this.weather.update(dt, this.camera.position, v);
+    if (this.flare) {
+      this.flare.visible = this.timeOfDay !== 'night' && this.weather.W.cover < 1.8 && this.rig.mode !== 'cockpit';
+      this.flare.position.copy(this.camera.position).addScaledVector(this.env.sunDir, 2400);
+    }
     this.emitEffects(dt);
     this.particles.setScale(this.renderer.domElement.height / (2 * Math.tan(this.camera.fov * Math.PI / 360)));
     this.particles.update(dt);

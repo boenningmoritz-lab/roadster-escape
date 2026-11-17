@@ -308,7 +308,11 @@ class MissionSystem {
         this.ui.prompt.hidden = !near;
         if (near) this.ui.prompt.innerHTML = `<b>${near.name}</b><small>${near.desc}</small><span>STARTEN</span>`;
       }
-      for (const mk of this.markers) mk.grp.children[1].rotation.y += dt;
+      const cam = g.camera.position;
+      for (const mk of this.markers) {
+        mk.grp.children[1].rotation.y += dt;
+        mk.grp.children[0].visible = Math.hypot(cam.x - mk.p.x, cam.z - mk.p.z) > 30;   // Lichtsäule nur aus der Ferne (sonst füllt sie das Bild)
+      }
       this.markerMat.opacity = 0.28 + Math.sin(performance.now() / 300) * 0.08;
       return;
     }

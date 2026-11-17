@@ -152,6 +152,15 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Web-App:** Manifest (Vollbild, Querformat, Symbole) und Service Worker (offline).
 - **Code-Aufteilung** in Module (siehe unten); `tools/bundle.py` erzeugt daraus wieder eine Einzeldatei.
 
+## Technik (Realismus-Paket)
+
+- **Wetter** (Einstellungen): Sonnig, Bewölkt, Regen, Nebel. Regen: Tropfen-Streifen um die Kamera (auf der Grafikkarte animiert), nasse, spiegelnde Fahrbahn, 22 % weniger Grip auf Asphalt, Gischt hinter den Reifen, Regenrauschen, Blitz und Donner (mit Laufzeitverzögerung).
+- **Bergkulisse** am Horizont mit Luftperspektive und Schneekuppen.
+- **Felsen und Büsche** rund um die Kamera, je nach Untergrund (Hänge, Waldboden, Wiese).
+- **Straßenausstattung:** Leitpfosten mit Reflektoren (nachts leuchtend) an Landstraßen, Tempo-Schilder, gelbe Ortsschilder „Voltstadt“, blaue Autobahn-Wegweiser.
+- **Ladenzeilen** im Erdgeschoss der Stadthäuser mit Schaufenstern und farbigen Schildern, nachts teils beleuchtet.
+- **Sonnenreflex** (Lens Flare) beim Blick in die Sonne.
+
 ## Code-Aufbau
 
 ```
@@ -174,6 +183,7 @@ js/police.js          Spielstand (Geld) und Polizei-KI mit Hubschrauber
 js/missions.js        14 Missionen mit Medaillen
 js/garage.js          Upgrades, Optik, Ausstellungsraum
 js/menu.js            Hauptmenü, Tutorial, dynamische Auflösung
+js/weather.js         Wetter, Bergkulisse, Felsen/Büsche, Schilder/Leitpfosten, Sonnenreflex
 js/game.js            Spielschleife (feste 120-Hz-Physik), Zusammenspiel aller Teile
 js/ui.js              Einstellungen
 tools/bundle.py       baut dist/roadster-escape.html (alles in einer Datei)

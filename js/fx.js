@@ -15,6 +15,7 @@ const PARTICLE_KINDS = {
   dust:   { add: false, life: 1.7, size: [1.0, 4.2], col: [[0.6, 0.53, 0.4], [0.62, 0.56, 0.45]], alpha: [0.42, 0], g: -0.2, drag: 1.8 },
   leaf:   { add: false, life: 3.2, size: [0.28, 0.24], col: [[0.25, 0.45, 0.12], [0.35, 0.42, 0.12]], alpha: [1, 0.9], g: 1.3, drag: 2.6, flutter: true },
   chip:   { add: false, life: 1.4, size: [0.2, 0.18], col: [[0.55, 0.4, 0.25], [0.5, 0.36, 0.22]], alpha: [1, 1], g: 9.8, drag: 0.4 },
+  spray:  { add: false, life: 0.9, size: [0.7, 3.2], col: [[0.8, 0.83, 0.86], [0.75, 0.78, 0.8]], alpha: [0.22, 0], g: -0.3, drag: 2.2 },
   splash: { add: false, life: 1.0, size: [0.5, 1.8], col: [[0.85, 0.92, 0.98], [0.75, 0.85, 0.95]], alpha: [0.7, 0], g: 9.8, drag: 0.8 },
 };
 

@@ -27,12 +27,12 @@ class Environment {
 
     this.uniforms = {
       uTop: { value: new THREE.Color(0x2f6fd0) }, uHorizon: { value: new THREE.Color(0xbcd6ea) },
-      uSunDir: { value: this.sunDir.clone() }, uNight: { value: 0 }, uTime: { value: 0 }, uClouds: { value: this.q.clouds ? 1 : 0 },
+      uSunDir: { value: this.sunDir.clone() }, uNight: { value: 0 }, uTime: { value: 0 }, uClouds: { value: this.q.clouds ? 1 : 0 }, uCover: { value: 1 },
     };
     const mat = new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false, uniforms: this.uniforms,
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w; }`,
-      fragmentShader: `uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform float uNight; uniform float uTime; uniform float uClouds;
+      fragmentShader: `uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform float uNight; uniform float uTime; uniform float uClouds; uniform float uCover;
         varying vec3 vDir;
         float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -54,9 +54,11 @@ class Environment {
           }
           if (uClouds > 0.0 && d.y > 0.0) {
             vec2 cp = d.xz / (d.y + 0.1) * 1.4 + vec2(uTime * 0.004, uTime * 0.0016);
-            float c = smoothstep(0.5, 0.82, fbm(cp));
+            float cv = uCover - 1.0;
+            float c = smoothstep(0.5 - 0.3 * cv, 0.82 - 0.12 * cv, fbm(cp));
             vec3 cc = uNight > 0.5 ? vec3(0.025, 0.03, 0.045) : mix(vec3(1.02), vec3(0.66, 0.7, 0.76), smoothstep(0.55, 0.95, fbm(cp * 1.8 + 3.0)));
             cc += (uNight > 0.5 ? 0.0 : 1.0) * vec3(0.25, 0.2, 0.1) * pow(sd, 6.0);
+            cc *= 1.0 - 0.42 * clamp(cv, 0.0, 1.0);
             col = mix(col, cc, c * smoothstep(0.0, 0.16, d.y) * 0.92);
           }
           gl_FragColor = vec4(col, 1.0);
