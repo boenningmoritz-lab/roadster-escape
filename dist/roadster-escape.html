@@ -183,8 +183,6 @@
   #boostFill { background: linear-gradient(90deg, #3aa8ff, #9ff0ff); }
   #flyFill { background: linear-gradient(90deg, #41d67f, #c5ffd6); }
   #altInfo { font: 700 calc(12px * var(--s)) sans-serif; color: #c5ffd6; margin-top: 3px; min-height: 1em; }
-  .manualOnly { display: none !important; }
-  body.manual .manualOnly { display: flex !important; }
   #btnCam { --i: 2; font-size: 19px; }
 
   /* ---------- Hinweise ---------- */
@@ -237,9 +235,10 @@
   #mmMoney { font: 900 calc(18px * var(--m)) sans-serif; color: #ffe08a; }
   body.inMenu #hint { display: none; }
   /* ---------- Tutorial ---------- */
-  #coach { position: fixed; left: 50%; top: calc(150px * var(--s)); transform: translateX(-50%); z-index: 7; max-width: 60%;
-           background: rgba(8,12,20,0.9); border: 1px solid var(--accent); border-radius: 14px; padding: 10px 14px; font: 600 14px sans-serif; text-align: center; }
-  #coach[hidden] { display: none; }
+  /* unten mittig zwischen Lenk-Schieber und Pedalen: verdeckt weder Tacho noch Fahndungssterne */
+  #coach { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 100px * var(--s)); transform: translateX(-50%); z-index: 7; width: 30%; max-width: 360px;
+           background: rgba(8,12,20,0.82); border: 1px solid var(--accent); border-radius: 14px; padding: 8px 12px; font: 600 calc(12.5px * var(--s)) sans-serif; text-align: center; }
+  #coach[hidden], body.inGarage #coach, body.inMenu #coach { display: none; }
   #coach span { color: var(--accent); font-weight: 900; margin-right: 6px; }
   #coach button { margin-left: 8px; background: none; border: 1px solid rgba(255,255,255,0.3); color: var(--hud-dim); border-radius: 8px; padding: 3px 8px; font-size: 11px; }
   .coachTarget { animation: coachPulse 1s ease-in-out infinite; }
@@ -307,8 +306,6 @@
   <div class="tbtn" id="tHand">HAND-<br>BREMSE</div>
   <div class="tbtn" id="tBoost">BOOST</div>
   <div class="tbtn" id="tFly">FLIEGEN<small id="flyLbl">abheben</small></div>
-  <div class="tbtn manualOnly" id="tUp">▲</div>
-  <div class="tbtn manualOnly" id="tDown">▼</div>
 </div>
 
 <button id="mAbort" class="topbtn" aria-label="Mission abbrechen">✕</button>
@@ -365,8 +362,6 @@
       <div class="seg" data-key="sound"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <div class="row"><div>Vibration<small>Haptisches Feedback, wo das Gerät es unterstützt</small></div>
       <div class="seg" data-key="haptics"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
-    <div class="row"><div>Getriebe<small>Handschaltung: Gänge selbst wechseln</small></div>
-      <div class="seg" data-key="transmission"><button data-v="auto">Automatik</button><button data-v="manual">Manuell</button></div></div>
     <div class="row"><div>Fahrhilfen<small>Traktions- &amp; Stabilitätskontrolle. Aus = mehr Driften</small></div>
       <div class="seg" data-key="tractionControl"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <div class="row"><div>Grafik<small>Baumzahl, Verkehr und Kantenglättung ändern sich nach dem Neuladen</small></div>
@@ -375,7 +370,7 @@
       <div class="seg" data-key="telemetry"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
     <button class="closeBtn" id="btnClose">Weiterfahren</button>
     <div class="help">Tastatur (zum Testen am Rechner): W/↑ Gas · S/↓ Bremse/Rückwärts · A/D ←/→ Lenken ·
-      Leertaste Handbremse · E/Q Gang hoch/runter · C Kamera · V Ego · Shift Boost · F Fliegen (Leertaste/X: hoch/runter) · N Tag/Nacht · R Zurücksetzen · T Telemetrie · M Getriebe umschalten.<br>
+      Leertaste Handbremse · C Kamera · V Ego · Shift Boost · F Fliegen (Leertaste/X: hoch/runter) · N Tag/Nacht · R Zurücksetzen · T Telemetrie.<br>
       Touch: links der Schieber zum Lenken (je weiter, desto stärker), rechts Gas/Bremse/Boost/Fliegen. Auf freier Fläche wischen dreht die Kamera, zwei Finger zoomen.</div>
   </div>
 </div>
@@ -421,7 +416,7 @@ const CONFIG = {
       forceApplyLift: 0.18,       // Querkraft etwas über Aufstandspunkt (weniger Wanken)
     },
     tire: {
-      mu: 1.32,                   // Haftbeiwert (Hypercar-Semislicks)
+      mu: 1.75,                   // Haftbeiwert (Hypercar-Semislicks, warm)
       B: 10.5, C: 1.38, E: 0.15,  // vereinfachte Pacejka-Formel
       rollResist: 0.011,
       loadCapFactor: 2.6,         // Max. Radlast (×statisch) für Grip
@@ -429,8 +424,8 @@ const CONFIG = {
       loadSensitivity: 0.14,      // Grip wächst unterproportional mit Radlast
       rearGrip: 1.10,             // breitere Hinterreifen → stabiler
     },
-    steer: { max: 0.6, speedFalloff: 0.06, rate: 3.8, returnRate: 5.5, wheelToSteeringWheel: 8 },
-    aero: { rho: 1.225, CdA: 0.62, ClA: 1.0, frontDownforceShare: 0.42 },
+    steer: { max: 0.66, speedFalloff: 0.035, rate: 6.5, returnRate: 8, wheelToSteeringWheel: 8 },
+    aero: { rho: 1.225, CdA: 0.62, ClA: 2.4, frontDownforceShare: 0.42 },
     brake: { maxForce: 28000, frontBias: 0.62, handbrakeForce: 9000 },
     motor: {
       maxTorque: 1000,            // Nm – voller Antritt ab 0 U/min
@@ -450,7 +445,7 @@ const CONFIG = {
     tractionControlSlack: 0.97,
     boost: { force: 12500, drain: 1 / 3.4, recharge: 1 / 10, delay: 1.2 },
     flight: { thrust: 9500, climb: 10, landRate: 4.5, yawRate: 1.25, drain: 1 / 28, recharge: 1 / 16, ceiling: 380 },
-    stabilityAssist: 5200,        // Nm pro rad/s Gierraten-Abweichung (Fahrhilfe)
+    stabilityAssist: 14000,       // Nm pro rad/s Gierraten-Abweichung (Fahrhilfe)
   },
 };
 
@@ -560,8 +555,6 @@ const Input = {
     };
     bind('tGas', 'gas'); bind('tBrake', 'brake'); bind('tHand', 'hand');
     bind('tBoost', 'boost'); bind('tFly', 'fly', () => this.pressed.add('Fly'));
-    bind('tUp', 'up', () => this.pressed.add('GearUp'));
-    bind('tDown', 'down', () => this.pressed.add('GearDown'));
     this.bindStick();
 
     // Browser-Gesten unterbinden: Scrollen, Pinch-Zoom, Doppeltipp, Kontextmenü, Markieren
@@ -634,7 +627,7 @@ const Input = {
       this.stick.x = dx / r; this.stick.y = -dy / r;
     } else {
       // Fahren: nur links/rechts; je weiter, desto stärker
-      const range = 115 * this.scale;
+      const range = 85 * this.scale;
       dx = clamp(dx, -range, range); dy = 0;
       this.stick.x = dx / range; this.stick.y = 0;
     }
@@ -653,7 +646,7 @@ const Input = {
     const dz = 0.04;
     const a = Math.abs(x);
     if (a < dz) return 0;
-    const sens = { low: 0.9, mid: 1.15, high: 1.4 }[Settings.data.steerSens] || 1;
+    const sens = { low: 1.1, mid: 1.35, high: 1.7 }[Settings.data.steerSens] || 1;
     // nahezu linear: halber Ausschlag ≈ halber Lenkeinschlag
     return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.0) * sens, 0, 1);
   },
@@ -2089,6 +2082,16 @@ function makeFoliageAtlas() {
   return t;
 }
 
+/** Feine Asphalt-Körnung als Bump-Map (Glanzpunkte auf dem Splitt im Streiflicht). */
+function makeGrainTexture() {
+  const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(N, N), d = img.data, rng = mulberry32(31337);
+  for (let i = 0; i < d.length; i += 4) { const v = 128 + (rng() - 0.5) * 90 + (rng() < 0.05 ? 70 : 0); d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return t;
+}
+
 /** Fahrbahn-Textur mit Markierungen (u = quer, v = längs). Alles per Canvas, keine Dateien. */
 function makeRoadTexture(kind) {
   const spec = {
@@ -2099,16 +2102,34 @@ function makeRoadTexture(kind) {
   const ctx = cv.getContext('2d');
   const pxm = W / spec.w, pyl = Hh / spec.len;
   // Asphalt: Grundton, Körnung, Flecken
-  ctx.fillStyle = kind === 'runway' ? '#3c3d40' : '#38393c'; ctx.fillRect(0, 0, W, Hh);
+  // realistischer, leicht warmgrauer, ausgeblichener Asphalt (nicht schwarz-blau)
+  ctx.fillStyle = kind === 'runway' ? '#55555a' : kind === 'highway' ? '#52504e' : '#5a5854'; ctx.fillRect(0, 0, W, Hh);
   const rng = mulberry32(kind.length * 977);
-  for (let i = 0; i < 70; i++) {
-    const g = ctx.createRadialGradient(rng() * W, rng() * Hh, 0, rng() * W, rng() * Hh, 20 + rng() * 80);
-    const dark = rng() < 0.5;
-    g.addColorStop(0, dark ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  for (let i = 0; i < 90; i++) {
+    const x = rng() * W, y = rng() * Hh, g = ctx.createRadialGradient(x, y, 0, x, y, 20 + rng() * 90);
+    const dark = rng() < 0.55;
+    g.addColorStop(0, dark ? 'rgba(10,8,6,0.14)' : 'rgba(255,250,240,0.06)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, Hh);
   }
+  // Flickstellen (dunkler, rechteckig) und Risse mit Bitumen-Vergussmasse
+  for (let i = 0; i < (kind === 'runway' ? 3 : 6); i++) {
+    ctx.fillStyle = `rgba(20,20,22,${0.12 + rng() * 0.14})`;
+    ctx.fillRect(rng() * W, rng() * Hh, 20 + rng() * 90, 14 + rng() * 60);
+  }
+  ctx.strokeStyle = 'rgba(14,13,12,0.38)'; ctx.lineCap = 'round';
+  for (let i = 0; i < 9; i++) {
+    let x = rng() * W, y = rng() * Hh; ctx.lineWidth = 1 + rng() * 2.2; ctx.beginPath(); ctx.moveTo(x, y);
+    const dir = rng() < 0.6 ? 0 : 1;
+    for (let k = 0; k < 8; k++) { x += dir ? (rng() - 0.5) * 30 : (rng() - 0.5) * 70; y += dir ? 8 + rng() * 22 : (rng() - 0.5) * 22; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  // Körnung: Splitt (helle Steinchen) + Feinrauschen
   const img = ctx.getImageData(0, 0, W, Hh), d = img.data;
-  for (let i = 0; i < d.length; i += 4) { const nn = (rng() - 0.5) * 26; d[i] += nn; d[i + 1] += nn; d[i + 2] += nn; }
+  for (let i = 0; i < d.length; i += 4) {
+    let nn = (rng() - 0.5) * 22;
+    const r = rng(); if (r < 0.035) nn += 30 + rng() * 25; else if (r < 0.07) nn -= 22;
+    d[i] += nn; d[i + 1] += nn * 0.98; d[i + 2] += nn * 0.95;
+  }
   ctx.putImageData(img, 0, 0);
   const band = (x0m, wm, color, dashOn, dashLen) => {
     ctx.fillStyle = color;
@@ -2116,10 +2137,17 @@ function makeRoadTexture(kind) {
     if (!dashOn) { ctx.fillRect(x, 0, w, Hh); return; }
     for (let v = 0; v < spec.len; v += dashLen) ctx.fillRect(x, v * pyl, w, dashOn * pyl);
   };
-  const tracks = (centerM) => {   // Reifenspuren: leicht dunklere Bänder
-    for (const o of [-0.85, 0.85]) { ctx.fillStyle = 'rgba(0,0,0,0.09)'; ctx.fillRect((centerM + o - 0.3) * pxm, 0, 0.6 * pxm, Hh); }
+  const tracks = (centerM) => {   // Reifenspuren: glattgefahrene, dunklere Bänder + Ölspur in der Spurmitte
+    for (const o of [-0.85, 0.85]) {
+      const g = ctx.createLinearGradient((centerM + o - 0.45) * pxm, 0, (centerM + o + 0.45) * pxm, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,0.13)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect((centerM + o - 0.45) * pxm, 0, 0.9 * pxm, Hh);
+    }
+    const g = ctx.createLinearGradient((centerM - 0.35) * pxm, 0, (centerM + 0.35) * pxm, 0);
+    g.addColorStop(0, 'rgba(20,16,10,0)'); g.addColorStop(0.5, 'rgba(20,16,10,0.12)'); g.addColorStop(1, 'rgba(20,16,10,0)');
+    ctx.fillStyle = g; ctx.fillRect((centerM - 0.35) * pxm, 0, 0.7 * pxm, Hh);
   };
-  const white = 'rgba(236,236,230,0.92)';
+  const white = 'rgba(232,232,224,0.86)';
   if (kind === 'highway') {
     const c = 11;
     for (const s of [-1, 1]) {
@@ -2145,6 +2173,10 @@ function makeRoadTexture(kind) {
     band(1.5, 1, white); band(57.5, 1, white);
     band(29.5, 1, white, 30, 50);
   }
+  // abgefahrene Markierung: Fehlstellen in der Farbe
+  ctx.globalCompositeOperation = 'source-atop';
+  for (let i = 0; i < 260; i++) { ctx.fillStyle = `rgba(70,68,64,${0.25 + rng() * 0.4})`; ctx.fillRect(rng() * W, rng() * Hh, 2 + rng() * 6, 2 + rng() * 6); }
+  ctx.globalCompositeOperation = 'source-over';
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = kind === 'plain' ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
@@ -2380,7 +2412,12 @@ Object.assign(World.prototype, {
 
   buildRoads() {
     this.wetMats = this.wetMats || [];
-    const roadMat = (tex) => { const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }); this.wetMats.push(m); return m; };
+    const grain = makeGrainTexture();
+    const roadMat = (tex) => {
+      const bump = grain.clone(); bump.repeat.set(tex.userData.w / 3, tex.userData.len / 3); bump.needsUpdate = true;
+      const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, bumpMap: bump, bumpScale: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+      this.wetMats.push(m); return m;
+    };
     const byCls = (c) => this.edges.filter((e) => e.cls === c);
     this.roadTex = { highway: makeRoadTexture('highway'), country: makeRoadTexture('country'), city: makeRoadTexture('city'), runway: makeRoadTexture('runway'), plain: makeRoadTexture('plain') };
     const add = (geo, tex) => { const m = new THREE.Mesh(geo, roadMat(tex)); m.receiveShadow = true; this.group.add(m); return m; };
@@ -2546,7 +2583,7 @@ Object.assign(World.prototype, {
       const t = makeFacadeTextures(kind);
       const mat = new THREE.MeshStandardMaterial({
         map: t.map, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: 1,
-        roughness: kind === 0 ? 0.32 : 0.85, metalness: kind === 0 ? 0.35 : 0.0,
+        roughness: kind === 0 ? 0.55 : 0.88, metalness: 0.0, envMapIntensity: kind === 0 ? 1.7 : 1.2,
       });
       const glow = this.windowGlow;
       mat.onBeforeCompile = (sh) => {
@@ -2567,7 +2604,12 @@ Object.assign(World.prototype, {
             ' float glassZ = step(0.35, vHA) * step(vHA, 3.05) * step(0.07, bay) * step(bay, 0.93); float signZ = step(3.3, vHA) * step(vHA, 3.95) * step(0.03, bay) * step(bay, 0.97);' +
             ' vec3 signCol = vec3(fract(vSeed * 7.13), fract(vSeed * 3.71), fract(vSeed * 5.37)) * 0.75 + 0.15;' +
             ' if (shop > 0.5) { diffuseColor.rgb = mix(vec3(0.42, 0.4, 0.38), vec3(0.05, 0.065, 0.08), glassZ); diffuseColor.rgb = mix(diffuseColor.rgb, signCol, signZ); }' +
-            ' diffuseColor.rgb *= vAO;')
+            ' diffuseColor.rgb *= vAO;' +
+            // Fensterflächen: glatt (spiegeln Himmel und Nachbarhäuser, v. a. im flachen Winkel)
+            ' float winMask = (1.0 - smoothstep(0.06, 0.2, dot(facCol.rgb, vec3(0.299, 0.587, 0.114)))) * (1.0 - step(0.5, vRoof));' +
+            ' if (shop > 0.5) winMask = glassZ;')
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.04, winMask);')
+          .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor = mix(metalnessFactor, 0.0, winMask);')
           .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance *= texture2D(emissiveMap, vFac).rgb * uGlow * (1.0 - step(0.5, vRoof)); float shopLit = step(0.45, fract(sin(floor(vFac.x * 7.0) * 12.9898 + vSeed * 78.233) * 43758.5453)); if (shop > 0.5) totalEmissiveRadiance = (glassZ * shopLit * vec3(1.0, 0.8, 0.55) * 0.45 + signZ * signCol * 1.1) * uGlow;');
       };
       return mat;
@@ -2589,6 +2631,13 @@ Object.assign(World.prototype, {
       im.castShadow = true; im.receiveShadow = true;
       this.group.add(im);
     }
+    // Attika (Dachrand) und Gesims: ein Kranz knapp über/unter der Dachkante
+    const cm = new THREE.InstancedMesh(unit, new THREE.MeshStandardMaterial({ color: 0x9a9894, roughness: 0.8 }), this.buildings.length * 2);
+    this.buildings.forEach((b, i) => {
+      m.makeScale(b.x1 - b.x0 + 0.5, 0.9, b.z1 - b.z0 + 0.5).setPosition((b.x0 + b.x1) / 2, b.top - 0.2, (b.z0 + b.z1) / 2); cm.setMatrixAt(i * 2, m);
+      m.makeScale(b.x1 - b.x0 + 0.3, 0.35, b.z1 - b.z0 + 0.3).setPosition((b.x0 + b.x1) / 2, b.y0 + 4.2, (b.z0 + b.z1) / 2); cm.setMatrixAt(i * 2 + 1, m);
+    });
+    cm.castShadow = true; cm.receiveShadow = true; this.group.add(cm);
     // Dachaufbauten (Lüftung, Technik)
     const rng = mulberry32(77), units = [];
     for (const b of this.buildings) {
@@ -4071,11 +4120,11 @@ class Vehicle {
     if (this.tractionControl && grounded >= 3 && this.speed > 3 && !this.handbrake) {
       const L = 2.62;
       // Wunsch-Gierrate aus Lenkwinkel, aber begrenzt auf das, was der Grip hergibt (a_quer = v·ω ≤ μ·g)
-      const gripLimit = (cfg.tire.mu * 9.81 * 0.95) / Math.max(Math.abs(this.forwardSpeed), 1);
+      const gripLimit = (cfg.tire.mu * 9.81 * 1.0) / Math.max(Math.abs(this.forwardSpeed), 1);
       const desired = clamp(this.forwardSpeed * Math.tan(this.steerAngle) / L, -gripLimit, gripLimit);
       const yawRate = this.angVel.dot(up);
       const err = yawRate - desired;
-      const dead = 0.08;
+      const dead = 0.03;
       if (Math.abs(err) > dead) this.torque.addScaledVector(up, -(err - Math.sign(err) * dead) * cfg.stabilityAssist);
     }
 
@@ -6017,26 +6066,68 @@ function makeTrafficVariant(type) {
     parts.push({ geo: new THREE.BoxGeometry(W + 0.04, 2.9, L - cabL - 0.25).translate(0, 0.75 + 1.45, L / 2 - (L - cabL - 0.25) / 2), color: [0.85, 0.86, 0.87] });
     parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.35, L - 0.4).translate(0, 0.55, 0), color: DARK });
     for (const z of [-L / 2 + 1.3, L / 2 - 2.4, L / 2 - 1.2]) for (const x of [-1, 1]) wheel(x * (W / 2 - 0.25), z, s.wr);
+    parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.62, -L / 2 - 0.03), color: [0.9, 0.9, 0.86] });
+    parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.62, L / 2 + 0.03), color: [0.9, 0.9, 0.86] });
+    parts[0].paint = true; parts[2].paint = true;
     for (const x of [-1, 1]) {
       lights.push({ geo: new THREE.BoxGeometry(0.4, 0.18, 0.04).translate(x * (W / 2 - 0.35), 0.95, -L / 2 - 0.02), color: [1, 0.96, 0.88] });
       lights.push({ geo: new THREE.BoxGeometry(0.3, 0.2, 0.04).translate(x * (W / 2 - 0.25), 0.9, L / 2 + 0.02), color: [0.9, 0.04, 0.04] });
     }
   } else {
-    const lo = [[-L / 2, 0.3], [-L / 2 - 0.02, 0.66], [-L / 2 + 0.3, 0.8], [L / 2 - 0.25, 0.86], [L / 2, 0.76], [L / 2, 0.3]];
-    parts.push({ geo: extrude(lo, W, 0.07), color: BODY });
-    const gh = [[-L / 2 + s.hood, 0.8], [-L / 2 + s.hood + 0.85, Hh], [L / 2 - s.trunk - 0.55, Hh], [L / 2 - s.trunk, 0.84]];
-    parts.push({ geo: extrude(gh, W - 0.16, 0.04), color: GLASS });
-    parts.push({ geo: new THREE.BoxGeometry(W - 0.2, 0.05, (L / 2 - s.trunk - 0.6) - (-L / 2 + s.hood + 0.9)).translate(0, Hh + 0.02, ((L / 2 - s.trunk - 0.6) + (-L / 2 + s.hood + 0.9)) / 2), color: BODY });
-    parts.push({ geo: new THREE.BoxGeometry(W - 0.12, 0.42, 0.1).translate(0, Hh - 0.3, (-L / 2 + s.hood + 0.85 + L / 2 - s.trunk - 0.55) / 2), color: BODY });   // B-Säule
-    parts.push({ geo: new THREE.BoxGeometry(W + 0.02, 0.2, 0.14).translate(0, 0.38, -L / 2 - 0.02), color: DARK });
-    parts.push({ geo: new THREE.BoxGeometry(W + 0.02, 0.2, 0.14).translate(0, 0.4, L / 2 + 0.02), color: DARK });
-    for (const z of [-L / 2 + 0.9, L / 2 - 0.85]) for (const x of [-1, 1]) wheel(x * (W / 2 - 0.17), z, s.wr);
+    // Seitenprofil mit ausgeschnittenen Radhäusern (z vorn = −L/2)
+    const zf = -L / 2 + 0.9, zr = L / 2 - 0.85, R = s.wr + 0.07, yb = 0.3;
+    const arch = (zc, from, to) => { const pts = []; for (let i = 0; i <= 8; i++) { const a = from + (to - from) * i / 8; pts.push([zc + R * Math.cos(a), s.wr + R * Math.sin(a)]); } return pts; };
+    const lo = [[-L / 2 + 0.08, yb], [-L / 2 - 0.02, 0.46], [-L / 2 + 0.01, 0.62], [-L / 2 + 0.14, 0.74], [-L / 2 + 0.55, 0.81], [-L / 2 + s.hood, 0.86],
+      [L / 2 - s.trunk, 0.9], [L / 2 - 0.1, 0.88], [L / 2 + 0.01, 0.78], [L / 2 + 0.02, 0.5], [L / 2 - 0.06, yb],
+      [zr + R, yb], ...arch(zr, 0, Math.PI), [zr - R, yb], [zf + R, yb], ...arch(zf, 0, Math.PI), [zf - R, yb]];
+    const body = extrude(lo, W, 0.09);
+    const gh = [[-L / 2 + s.hood, 0.84], [-L / 2 + s.hood + 0.8, Hh - 0.02], [-L / 2 + s.hood + 1.0, Hh], [L / 2 - s.trunk - 0.7, Hh], [L / 2 - s.trunk - 0.5, Hh - 0.03], [L / 2 - s.trunk, 0.88]];
+    const glass = extrude(gh, W - 0.14, 0.05);
+    // Dach eingezogen (Tumblehome) und Ecken in der Draufsicht gerundet
+    const shape = (g) => {
+      const a = g.attributes.position;
+      for (let i = 0; i < a.count; i++) {
+        const y = a.getY(i), z = a.getZ(i);
+        const t = clamp((y - 0.72) / (Hh - 0.72), 0, 1), e = Math.pow(Math.abs(z) / (L / 2), 4);
+        a.setX(i, a.getX(i) * (1 - t * 0.16) * (1 - e * 0.08));
+      }
+      g.computeVertexNormals(); return g;
+    };
+    parts.push({ geo: shape(body), color: BODY, paint: true });
+    parts.push({ geo: shape(glass), color: GLASS });
+    const r0 = -L / 2 + s.hood + 1.0, r1 = L / 2 - s.trunk - 0.7;
+    parts.push({ geo: shape(new THREE.BoxGeometry(W - 0.42, 0.05, r1 - r0).translate(0, Hh + 0.015, (r0 + r1) / 2)), color: BODY, paint: true });   // Dach
+    parts.push({ geo: shape(new THREE.BoxGeometry(W - 0.2, 0.36, 0.09).translate(0, Hh - 0.24, (r0 + r1) / 2 + 0.1)), color: DARK });                // B-Säule
+    parts.push({ geo: shape(new THREE.BoxGeometry(W + 0.005, 0.035, L * 0.5).translate(0, 0.86, -0.1)), color: DARK });                           // Fensterleiste
+    // Radhausschalen (verhindern Durchblick), Stoßfänger, Grill, Kennzeichen, Spiegel
+    for (const z of [zf, zr]) parts.push({ geo: new THREE.BoxGeometry(W - 0.5, R * 1.1, R * 2).translate(0, s.wr + R * 0.45, z), color: DARK });
+    parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.16, 0.1).translate(0, 0.36, -L / 2 + 0.01), color: DARK });
+    parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.16, 0.1).translate(0, 0.38, L / 2 - 0.02), color: DARK });
+    parts.push({ geo: new THREE.BoxGeometry(W * 0.46, 0.15, 0.06).translate(0, 0.6, -L / 2 - 0.01), color: [0.03, 0.03, 0.035] });
+    parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.42, -L / 2 - 0.06), color: [0.9, 0.9, 0.86] });
+    parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.56, L / 2 + 0.04), color: [0.9, 0.9, 0.86] });
     for (const x of [-1, 1]) {
-      lights.push({ geo: new THREE.BoxGeometry(0.38, 0.1, 0.05).translate(x * (W / 2 - 0.3), 0.66, -L / 2 - 0.03), color: [1, 0.96, 0.88] });
-      lights.push({ geo: new THREE.BoxGeometry(0.42, 0.11, 0.05).translate(x * (W / 2 - 0.27), 0.74, L / 2 + 0.01), color: [0.9, 0.04, 0.04] });
+      parts.push({ geo: new THREE.BoxGeometry(0.2, 0.12, 0.1).translate(x * (W / 2 + 0.02), 0.98, -L / 2 + s.hood + 0.25), color: BODY, paint: true });
+      parts.push({ geo: new THREE.BoxGeometry(0.06, 0.1, 0.06).translate(x * (W / 2 - 0.12), 0.93, -L / 2 + s.hood + 0.25), color: DARK });
+    }
+    for (const z of [zf, zr]) for (const x of [-1, 1]) {
+      const wx = x * (W / 2 - 0.16), r = s.wr;
+      parts.push({ geo: new THREE.CylinderGeometry(r, r, 0.24, 18).rotateZ(Math.PI / 2).translate(wx, r, z), color: DARK });
+      parts.push({ geo: new THREE.CylinderGeometry(r * 0.66, r * 0.66, 0.02, 14).rotateZ(Math.PI / 2).translate(wx + x * 0.121, r, z), color: RIM });
+      parts.push({ geo: new THREE.CylinderGeometry(r * 0.5, r * 0.5, 0.02, 10).rotateZ(Math.PI / 2).translate(wx + x * 0.125, r, z), color: [0.16, 0.16, 0.17] });
+      for (let k = 0; k < 5; k++) parts.push({ geo: new THREE.BoxGeometry(0.02, r * 0.95, 0.06).rotateX(k * Math.PI * 2 / 5).translate(wx + x * 0.135, r, z), color: RIM });
+    }
+    for (const x of [-1, 1]) {
+      lights.push({ geo: new THREE.BoxGeometry(0.42, 0.09, 0.08).translate(x * (W / 2 - 0.32), 0.68, -L / 2 + 0.03), color: [1, 0.96, 0.88] });
+      lights.push({ geo: new THREE.BoxGeometry(0.46, 0.1, 0.06).translate(x * (W / 2 - 0.3), 0.76, L / 2 + 0.0), color: [0.9, 0.04, 0.04] });
     }
   }
-  return { type, ...s, body: mergeParts(parts), lights: mergeParts(lights), inertia: s.mass * (L * L + W * W) / 12 };
+  // Lack-Maske: nur Karosserieteile nehmen die Instanzfarbe an (Glas, Reifen, Kennzeichen nicht)
+  const merged = mergeParts(parts), mask = new Float32Array(merged.attributes.position.count);
+  let o = 0;
+  for (const p of parts) { const n = p.geo.index ? p.geo.index.count : p.geo.attributes.position.count; if (p.paint) mask.fill(1, o, o + n); o += n; }
+  merged.setAttribute('paint', new THREE.BufferAttribute(mask, 1));
+  return { type, ...s, body: merged, lights: mergeParts(lights), inertia: s.mass * (L * L + W * W) / 12 };
 }
 
 /**
@@ -6048,7 +6139,11 @@ function makeTrafficVariant(type) {
 class TrafficSystem {
   constructor(world, scene, count, parked = 0) {
     this.w = world; this.rng = mulberry32(4242); this.cars = [];
-    this.bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.35 });
+    this.bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.36, metalness: 0.3 });
+    this.bodyMat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float paint;')
+        .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix(vec3(1.0), instanceColor.xyz, paint);'));
+    };
     this.lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
     const types = Object.keys(TRAFFIC_TYPES);
     this.variants = types.map((t) => makeTrafficVariant(t));
@@ -7017,10 +7112,10 @@ class Game {
     const s = Settings.data;
     this.q = QUALITY[s.quality] || QUALITY.medium;
     if (!this.vehicle) return;
-    this.vehicle.drivetrain.manual = s.transmission === 'manual';
-    if (!this.vehicle.drivetrain.manual && this.vehicle.drivetrain.gear === 0) this.vehicle.drivetrain.gear = 1;
+    // nur Automatik (E-Hypercar)
+    this.vehicle.drivetrain.manual = false;
+    if (this.vehicle.drivetrain.gear === 0) this.vehicle.drivetrain.gear = 1;
     this.vehicle.tractionControl = !!s.tractionControl;
-    document.body.classList.toggle('manual', this.vehicle.drivetrain.manual);
     document.body.classList.toggle('tilt', s.steering === 'tilt');
     this.renderer.shadowMap.enabled = this.q.shadows;
     this.env.sun.castShadow = this.q.shadows;
@@ -7059,8 +7154,6 @@ class Game {
   /** Einmalige Eingaben (Gangwechsel, Reset …) */
   handleActions() {
     const v = this.vehicle, d = v.drivetrain;
-    if (Input.consume('KeyE') || Input.consume('GearUp')) { if (d.manual && d.shift(1)) Haptics.pulse(15); }
-    if (Input.consume('KeyQ') || Input.consume('GearDown')) { if (d.manual && d.shift(-1)) Haptics.pulse(15); }
     if (Input.consume('KeyR')) this.resetCar();
     if (Input.consume('KeyC') || Input.consume('Camera')) this.nextCamera();
     if (Input.consume('KeyV')) this.toggleEgo();
@@ -7072,7 +7165,6 @@ class Game {
       else toast('Flugenergie leer – lädt am Boden auf', 1500);
     }
     if (Input.consume('KeyT')) { Settings.data.telemetry = !Settings.data.telemetry; Settings.save(); UI.sync(); }
-    if (Input.consume('KeyM')) { Settings.data.transmission = d.manual ? 'auto' : 'manual'; Settings.save(); this.applySettings(); UI.sync(); }
     if (Input.consume('KeyG')) this.openGarage();
     if (Input.consume('KeyN')) { Settings.data.timeOfDay = this.timeOfDay === 'night' ? 'day' : 'night'; Settings.save(); this.applySettings(); UI.sync(); }
   }

@@ -932,6 +932,16 @@ function makeFoliageAtlas() {
   return t;
 }
 
+/** Feine Asphalt-Körnung als Bump-Map (Glanzpunkte auf dem Splitt im Streiflicht). */
+function makeGrainTexture() {
+  const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(N, N), d = img.data, rng = mulberry32(31337);
+  for (let i = 0; i < d.length; i += 4) { const v = 128 + (rng() - 0.5) * 90 + (rng() < 0.05 ? 70 : 0); d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return t;
+}
+
 /** Fahrbahn-Textur mit Markierungen (u = quer, v = längs). Alles per Canvas, keine Dateien. */
 function makeRoadTexture(kind) {
   const spec = {
@@ -942,16 +952,34 @@ function makeRoadTexture(kind) {
   const ctx = cv.getContext('2d');
   const pxm = W / spec.w, pyl = Hh / spec.len;
   // Asphalt: Grundton, Körnung, Flecken
-  ctx.fillStyle = kind === 'runway' ? '#3c3d40' : '#38393c'; ctx.fillRect(0, 0, W, Hh);
+  // realistischer, leicht warmgrauer, ausgeblichener Asphalt (nicht schwarz-blau)
+  ctx.fillStyle = kind === 'runway' ? '#55555a' : kind === 'highway' ? '#52504e' : '#5a5854'; ctx.fillRect(0, 0, W, Hh);
   const rng = mulberry32(kind.length * 977);
-  for (let i = 0; i < 70; i++) {
-    const g = ctx.createRadialGradient(rng() * W, rng() * Hh, 0, rng() * W, rng() * Hh, 20 + rng() * 80);
-    const dark = rng() < 0.5;
-    g.addColorStop(0, dark ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  for (let i = 0; i < 90; i++) {
+    const x = rng() * W, y = rng() * Hh, g = ctx.createRadialGradient(x, y, 0, x, y, 20 + rng() * 90);
+    const dark = rng() < 0.55;
+    g.addColorStop(0, dark ? 'rgba(10,8,6,0.14)' : 'rgba(255,250,240,0.06)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, Hh);
   }
+  // Flickstellen (dunkler, rechteckig) und Risse mit Bitumen-Vergussmasse
+  for (let i = 0; i < (kind === 'runway' ? 3 : 6); i++) {
+    ctx.fillStyle = `rgba(20,20,22,${0.12 + rng() * 0.14})`;
+    ctx.fillRect(rng() * W, rng() * Hh, 20 + rng() * 90, 14 + rng() * 60);
+  }
+  ctx.strokeStyle = 'rgba(14,13,12,0.38)'; ctx.lineCap = 'round';
+  for (let i = 0; i < 9; i++) {
+    let x = rng() * W, y = rng() * Hh; ctx.lineWidth = 1 + rng() * 2.2; ctx.beginPath(); ctx.moveTo(x, y);
+    const dir = rng() < 0.6 ? 0 : 1;
+    for (let k = 0; k < 8; k++) { x += dir ? (rng() - 0.5) * 30 : (rng() - 0.5) * 70; y += dir ? 8 + rng() * 22 : (rng() - 0.5) * 22; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  // Körnung: Splitt (helle Steinchen) + Feinrauschen
   const img = ctx.getImageData(0, 0, W, Hh), d = img.data;
-  for (let i = 0; i < d.length; i += 4) { const nn = (rng() - 0.5) * 26; d[i] += nn; d[i + 1] += nn; d[i + 2] += nn; }
+  for (let i = 0; i < d.length; i += 4) {
+    let nn = (rng() - 0.5) * 22;
+    const r = rng(); if (r < 0.035) nn += 30 + rng() * 25; else if (r < 0.07) nn -= 22;
+    d[i] += nn; d[i + 1] += nn * 0.98; d[i + 2] += nn * 0.95;
+  }
   ctx.putImageData(img, 0, 0);
   const band = (x0m, wm, color, dashOn, dashLen) => {
     ctx.fillStyle = color;
@@ -959,10 +987,17 @@ function makeRoadTexture(kind) {
     if (!dashOn) { ctx.fillRect(x, 0, w, Hh); return; }
     for (let v = 0; v < spec.len; v += dashLen) ctx.fillRect(x, v * pyl, w, dashOn * pyl);
   };
-  const tracks = (centerM) => {   // Reifenspuren: leicht dunklere Bänder
-    for (const o of [-0.85, 0.85]) { ctx.fillStyle = 'rgba(0,0,0,0.09)'; ctx.fillRect((centerM + o - 0.3) * pxm, 0, 0.6 * pxm, Hh); }
+  const tracks = (centerM) => {   // Reifenspuren: glattgefahrene, dunklere Bänder + Ölspur in der Spurmitte
+    for (const o of [-0.85, 0.85]) {
+      const g = ctx.createLinearGradient((centerM + o - 0.45) * pxm, 0, (centerM + o + 0.45) * pxm, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,0.13)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect((centerM + o - 0.45) * pxm, 0, 0.9 * pxm, Hh);
+    }
+    const g = ctx.createLinearGradient((centerM - 0.35) * pxm, 0, (centerM + 0.35) * pxm, 0);
+    g.addColorStop(0, 'rgba(20,16,10,0)'); g.addColorStop(0.5, 'rgba(20,16,10,0.12)'); g.addColorStop(1, 'rgba(20,16,10,0)');
+    ctx.fillStyle = g; ctx.fillRect((centerM - 0.35) * pxm, 0, 0.7 * pxm, Hh);
   };
-  const white = 'rgba(236,236,230,0.92)';
+  const white = 'rgba(232,232,224,0.86)';
   if (kind === 'highway') {
     const c = 11;
     for (const s of [-1, 1]) {
@@ -988,6 +1023,10 @@ function makeRoadTexture(kind) {
     band(1.5, 1, white); band(57.5, 1, white);
     band(29.5, 1, white, 30, 50);
   }
+  // abgefahrene Markierung: Fehlstellen in der Farbe
+  ctx.globalCompositeOperation = 'source-atop';
+  for (let i = 0; i < 260; i++) { ctx.fillStyle = `rgba(70,68,64,${0.25 + rng() * 0.4})`; ctx.fillRect(rng() * W, rng() * Hh, 2 + rng() * 6, 2 + rng() * 6); }
+  ctx.globalCompositeOperation = 'source-over';
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = kind === 'plain' ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
@@ -1223,7 +1262,12 @@ Object.assign(World.prototype, {
 
   buildRoads() {
     this.wetMats = this.wetMats || [];
-    const roadMat = (tex) => { const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }); this.wetMats.push(m); return m; };
+    const grain = makeGrainTexture();
+    const roadMat = (tex) => {
+      const bump = grain.clone(); bump.repeat.set(tex.userData.w / 3, tex.userData.len / 3); bump.needsUpdate = true;
+      const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, bumpMap: bump, bumpScale: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+      this.wetMats.push(m); return m;
+    };
     const byCls = (c) => this.edges.filter((e) => e.cls === c);
     this.roadTex = { highway: makeRoadTexture('highway'), country: makeRoadTexture('country'), city: makeRoadTexture('city'), runway: makeRoadTexture('runway'), plain: makeRoadTexture('plain') };
     const add = (geo, tex) => { const m = new THREE.Mesh(geo, roadMat(tex)); m.receiveShadow = true; this.group.add(m); return m; };
@@ -1389,7 +1433,7 @@ Object.assign(World.prototype, {
       const t = makeFacadeTextures(kind);
       const mat = new THREE.MeshStandardMaterial({
         map: t.map, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: 1,
-        roughness: kind === 0 ? 0.32 : 0.85, metalness: kind === 0 ? 0.35 : 0.0,
+        roughness: kind === 0 ? 0.55 : 0.88, metalness: 0.0, envMapIntensity: kind === 0 ? 1.7 : 1.2,
       });
       const glow = this.windowGlow;
       mat.onBeforeCompile = (sh) => {
@@ -1410,7 +1454,12 @@ Object.assign(World.prototype, {
             ' float glassZ = step(0.35, vHA) * step(vHA, 3.05) * step(0.07, bay) * step(bay, 0.93); float signZ = step(3.3, vHA) * step(vHA, 3.95) * step(0.03, bay) * step(bay, 0.97);' +
             ' vec3 signCol = vec3(fract(vSeed * 7.13), fract(vSeed * 3.71), fract(vSeed * 5.37)) * 0.75 + 0.15;' +
             ' if (shop > 0.5) { diffuseColor.rgb = mix(vec3(0.42, 0.4, 0.38), vec3(0.05, 0.065, 0.08), glassZ); diffuseColor.rgb = mix(diffuseColor.rgb, signCol, signZ); }' +
-            ' diffuseColor.rgb *= vAO;')
+            ' diffuseColor.rgb *= vAO;' +
+            // Fensterflächen: glatt (spiegeln Himmel und Nachbarhäuser, v. a. im flachen Winkel)
+            ' float winMask = (1.0 - smoothstep(0.06, 0.2, dot(facCol.rgb, vec3(0.299, 0.587, 0.114)))) * (1.0 - step(0.5, vRoof));' +
+            ' if (shop > 0.5) winMask = glassZ;')
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.04, winMask);')
+          .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor = mix(metalnessFactor, 0.0, winMask);')
           .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance *= texture2D(emissiveMap, vFac).rgb * uGlow * (1.0 - step(0.5, vRoof)); float shopLit = step(0.45, fract(sin(floor(vFac.x * 7.0) * 12.9898 + vSeed * 78.233) * 43758.5453)); if (shop > 0.5) totalEmissiveRadiance = (glassZ * shopLit * vec3(1.0, 0.8, 0.55) * 0.45 + signZ * signCol * 1.1) * uGlow;');
       };
       return mat;
@@ -1432,6 +1481,13 @@ Object.assign(World.prototype, {
       im.castShadow = true; im.receiveShadow = true;
       this.group.add(im);
     }
+    // Attika (Dachrand) und Gesims: ein Kranz knapp über/unter der Dachkante
+    const cm = new THREE.InstancedMesh(unit, new THREE.MeshStandardMaterial({ color: 0x9a9894, roughness: 0.8 }), this.buildings.length * 2);
+    this.buildings.forEach((b, i) => {
+      m.makeScale(b.x1 - b.x0 + 0.5, 0.9, b.z1 - b.z0 + 0.5).setPosition((b.x0 + b.x1) / 2, b.top - 0.2, (b.z0 + b.z1) / 2); cm.setMatrixAt(i * 2, m);
+      m.makeScale(b.x1 - b.x0 + 0.3, 0.35, b.z1 - b.z0 + 0.3).setPosition((b.x0 + b.x1) / 2, b.y0 + 4.2, (b.z0 + b.z1) / 2); cm.setMatrixAt(i * 2 + 1, m);
+    });
+    cm.castShadow = true; cm.receiveShadow = true; this.group.add(cm);
     // Dachaufbauten (Lüftung, Technik)
     const rng = mulberry32(77), units = [];
     for (const b of this.buildings) {

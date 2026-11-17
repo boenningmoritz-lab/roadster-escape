@@ -46,7 +46,6 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 | Gas | GAS | W / ↑ |
 | Bremse / Rückwärts | BREMSE (im Stand halten → R) | S / ↓ |
 | Handbremse | HAND-BREMSE | Leertaste |
-| Gang hoch/runter (Handschaltung) | ▲ ▼ | E / Q |
 | Kamera drehen / zoomen | auf freier Fläche wischen / zwei Finger | Maus ziehen / Mausrad |
 | Kamera wechseln (Verfolger, weit, Motorhaube, Cockpit) | 🎥 | C |
 | Ego-Perspektive an/aus | EGO | V |
@@ -82,7 +81,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
   - Luftwiderstand (cW·A) und Abtrieb
   - E-Motor: volles Drehmoment ab 0 U/min, darüber konstante Leistung; Rekuperation beim Gaswegnehmen
   - Allradantrieb (38 % vorne / 62 % hinten), ABS, abschaltbare Fahrhilfen (Traktions- und Stabilitätskontrolle)
-- **Getriebe:** Automatik als Standard (inklusive Rückwärtsgang durch Halten der Bremse). Handschaltung mit 6 Gängen, R und N, Überdrehschutz.
+- **Getriebe:** nur Automatik mit 6 Gängen (Rückwärtsgang durch Halten der Bremse).
 - **Messwerte:** 0–100 km/h in ≈ 2,2 s, Spitze ≈ 340 km/h auf der Startbahn, ≈ 1,25 g Querbeschleunigung.
 - **Grafikstufen:** Niedrig, Mittel und Hoch (Pixeldichte, Schatten, Lackmaterial, Geometrie-Details).
 - **Testgelände:** Asphaltfläche mit Skidpad und Slalom, 1,9 km lange Startbahn, vier Rampen, Wellenpiste und Hügel rundherum. Unsichtbare Weltgrenzen.
@@ -168,6 +167,14 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Scheinwerferkegel:** sichtbare Lichtkegel und Leuchtpunkte, bei Regen/Nebel stärker (Lichtstreuung).
 - **Geparkte Autos** am Straßenrand der Stadt (anfahrbar, kehren danach an ihren Platz zurück).
 - **Lichthöfe** an Scheinwerfern und Rücklichtern des Verkehrs bei Nacht.
+
+## Technik (Realismus-Paket 3)
+- **Lenkung deutlich stärker:** warme Semislicks (μ 1,75) plus echter Hypercar-Abtrieb (ClA 2,4) → bis 1,6 g Querbeschleunigung, 9 m Wendekreis bei 40 km/h. Kürzerer Lenk-Schieberweg, schnellere Lenkung, kräftigere Eindreh-Hilfe (ESP führt das Heck nach).
+- **Nur noch Automatik:** Handschaltung, Schalt-Tasten und Einstellung entfernt.
+- **Verkehrsautos neu modelliert:** ausgeschnittene Radhäuser, sichtbare Reifen mit 5-Speichen-Felgen, eingezogene Dachlinie, Spiegel, Grill, Kennzeichen; Lack nur auf der Karosserie (Glas/Reifen bleiben dunkel).
+- **Asphalt:** heller, warmgrau, Splitt-Körnung als Bump-Map, Flickstellen, Risse, Ölspur, abgefahrene Markierungen.
+- **Gebäude:** Fensterscheiben spiegeln Himmel und Umgebung (Fresnel), Attika und Gesims an jedem Haus.
+- **Fehler behoben:** Tutorial-Hinweis verdeckte Fahndungssterne und lag über der Garage.
 
 ## Code-Aufbau
 

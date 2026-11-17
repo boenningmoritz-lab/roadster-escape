@@ -172,8 +172,6 @@
   #boostFill { background: linear-gradient(90deg, #3aa8ff, #9ff0ff); }
   #flyFill { background: linear-gradient(90deg, #41d67f, #c5ffd6); }
   #altInfo { font: 700 calc(12px * var(--s)) sans-serif; color: #c5ffd6; margin-top: 3px; min-height: 1em; }
-  .manualOnly { display: none !important; }
-  body.manual .manualOnly { display: flex !important; }
   #btnCam { --i: 2; font-size: 19px; }
 
   /* ---------- Hinweise ---------- */
@@ -226,9 +224,10 @@
   #mmMoney { font: 900 calc(18px * var(--m)) sans-serif; color: #ffe08a; }
   body.inMenu #hint { display: none; }
   /* ---------- Tutorial ---------- */
-  #coach { position: fixed; left: 50%; top: calc(150px * var(--s)); transform: translateX(-50%); z-index: 7; max-width: 60%;
-           background: rgba(8,12,20,0.9); border: 1px solid var(--accent); border-radius: 14px; padding: 10px 14px; font: 600 14px sans-serif; text-align: center; }
-  #coach[hidden] { display: none; }
+  /* unten mittig zwischen Lenk-Schieber und Pedalen: verdeckt weder Tacho noch Fahndungssterne */
+  #coach { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 100px * var(--s)); transform: translateX(-50%); z-index: 7; width: 30%; max-width: 360px;
+           background: rgba(8,12,20,0.82); border: 1px solid var(--accent); border-radius: 14px; padding: 8px 12px; font: 600 calc(12.5px * var(--s)) sans-serif; text-align: center; }
+  #coach[hidden], body.inGarage #coach, body.inMenu #coach { display: none; }
   #coach span { color: var(--accent); font-weight: 900; margin-right: 6px; }
   #coach button { margin-left: 8px; background: none; border: 1px solid rgba(255,255,255,0.3); color: var(--hud-dim); border-radius: 8px; padding: 3px 8px; font-size: 11px; }
   .coachTarget { animation: coachPulse 1s ease-in-out infinite; }

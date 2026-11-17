@@ -72,8 +72,6 @@ const Input = {
     };
     bind('tGas', 'gas'); bind('tBrake', 'brake'); bind('tHand', 'hand');
     bind('tBoost', 'boost'); bind('tFly', 'fly', () => this.pressed.add('Fly'));
-    bind('tUp', 'up', () => this.pressed.add('GearUp'));
-    bind('tDown', 'down', () => this.pressed.add('GearDown'));
     this.bindStick();
 
     // Browser-Gesten unterbinden: Scrollen, Pinch-Zoom, Doppeltipp, Kontextmenü, Markieren
@@ -146,7 +144,7 @@ const Input = {
       this.stick.x = dx / r; this.stick.y = -dy / r;
     } else {
       // Fahren: nur links/rechts; je weiter, desto stärker
-      const range = 115 * this.scale;
+      const range = 85 * this.scale;
       dx = clamp(dx, -range, range); dy = 0;
       this.stick.x = dx / range; this.stick.y = 0;
     }
@@ -165,7 +163,7 @@ const Input = {
     const dz = 0.04;
     const a = Math.abs(x);
     if (a < dz) return 0;
-    const sens = { low: 0.9, mid: 1.15, high: 1.4 }[Settings.data.steerSens] || 1;
+    const sens = { low: 1.1, mid: 1.35, high: 1.7 }[Settings.data.steerSens] || 1;
     // nahezu linear: halber Ausschlag ≈ halber Lenkeinschlag
     return Math.sign(x) * clamp(Math.pow((a - dz) / (1 - dz), 1.0) * sens, 0, 1);
   },

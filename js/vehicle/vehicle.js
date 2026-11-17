@@ -436,11 +436,11 @@ class Vehicle {
     if (this.tractionControl && grounded >= 3 && this.speed > 3 && !this.handbrake) {
       const L = 2.62;
       // Wunsch-Gierrate aus Lenkwinkel, aber begrenzt auf das, was der Grip hergibt (a_quer = v·ω ≤ μ·g)
-      const gripLimit = (cfg.tire.mu * 9.81 * 0.95) / Math.max(Math.abs(this.forwardSpeed), 1);
+      const gripLimit = (cfg.tire.mu * 9.81 * 1.0) / Math.max(Math.abs(this.forwardSpeed), 1);
       const desired = clamp(this.forwardSpeed * Math.tan(this.steerAngle) / L, -gripLimit, gripLimit);
       const yawRate = this.angVel.dot(up);
       const err = yawRate - desired;
-      const dead = 0.08;
+      const dead = 0.03;
       if (Math.abs(err) > dead) this.torque.addScaledVector(up, -(err - Math.sign(err) * dead) * cfg.stabilityAssist);
     }
 

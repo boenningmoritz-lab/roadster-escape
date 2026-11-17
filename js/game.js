@@ -106,10 +106,10 @@ class Game {
     const s = Settings.data;
     this.q = QUALITY[s.quality] || QUALITY.medium;
     if (!this.vehicle) return;
-    this.vehicle.drivetrain.manual = s.transmission === 'manual';
-    if (!this.vehicle.drivetrain.manual && this.vehicle.drivetrain.gear === 0) this.vehicle.drivetrain.gear = 1;
+    // nur Automatik (E-Hypercar)
+    this.vehicle.drivetrain.manual = false;
+    if (this.vehicle.drivetrain.gear === 0) this.vehicle.drivetrain.gear = 1;
     this.vehicle.tractionControl = !!s.tractionControl;
-    document.body.classList.toggle('manual', this.vehicle.drivetrain.manual);
     document.body.classList.toggle('tilt', s.steering === 'tilt');
     this.renderer.shadowMap.enabled = this.q.shadows;
     this.env.sun.castShadow = this.q.shadows;
@@ -148,8 +148,6 @@ class Game {
   /** Einmalige Eingaben (Gangwechsel, Reset …) */
   handleActions() {
     const v = this.vehicle, d = v.drivetrain;
-    if (Input.consume('KeyE') || Input.consume('GearUp')) { if (d.manual && d.shift(1)) Haptics.pulse(15); }
-    if (Input.consume('KeyQ') || Input.consume('GearDown')) { if (d.manual && d.shift(-1)) Haptics.pulse(15); }
     if (Input.consume('KeyR')) this.resetCar();
     if (Input.consume('KeyC') || Input.consume('Camera')) this.nextCamera();
     if (Input.consume('KeyV')) this.toggleEgo();
@@ -161,7 +159,6 @@ class Game {
       else toast('Flugenergie leer – lädt am Boden auf', 1500);
     }
     if (Input.consume('KeyT')) { Settings.data.telemetry = !Settings.data.telemetry; Settings.save(); UI.sync(); }
-    if (Input.consume('KeyM')) { Settings.data.transmission = d.manual ? 'auto' : 'manual'; Settings.save(); this.applySettings(); UI.sync(); }
     if (Input.consume('KeyG')) this.openGarage();
     if (Input.consume('KeyN')) { Settings.data.timeOfDay = this.timeOfDay === 'night' ? 'day' : 'night'; Settings.save(); this.applySettings(); UI.sync(); }
   }

@@ -28,7 +28,7 @@ const CONFIG = {
       forceApplyLift: 0.18,       // Querkraft etwas über Aufstandspunkt (weniger Wanken)
     },
     tire: {
-      mu: 1.32,                   // Haftbeiwert (Hypercar-Semislicks)
+      mu: 1.75,                   // Haftbeiwert (Hypercar-Semislicks, warm)
       B: 10.5, C: 1.38, E: 0.15,  // vereinfachte Pacejka-Formel
       rollResist: 0.011,
       loadCapFactor: 2.6,         // Max. Radlast (×statisch) für Grip
@@ -36,8 +36,8 @@ const CONFIG = {
       loadSensitivity: 0.14,      // Grip wächst unterproportional mit Radlast
       rearGrip: 1.10,             // breitere Hinterreifen → stabiler
     },
-    steer: { max: 0.6, speedFalloff: 0.06, rate: 3.8, returnRate: 5.5, wheelToSteeringWheel: 8 },
-    aero: { rho: 1.225, CdA: 0.62, ClA: 1.0, frontDownforceShare: 0.42 },
+    steer: { max: 0.66, speedFalloff: 0.035, rate: 6.5, returnRate: 8, wheelToSteeringWheel: 8 },
+    aero: { rho: 1.225, CdA: 0.62, ClA: 2.4, frontDownforceShare: 0.42 },
     brake: { maxForce: 28000, frontBias: 0.62, handbrakeForce: 9000 },
     motor: {
       maxTorque: 1000,            // Nm – voller Antritt ab 0 U/min
@@ -57,7 +57,7 @@ const CONFIG = {
     tractionControlSlack: 0.97,
     boost: { force: 12500, drain: 1 / 3.4, recharge: 1 / 10, delay: 1.2 },
     flight: { thrust: 9500, climb: 10, landRate: 4.5, yawRate: 1.25, drain: 1 / 28, recharge: 1 / 16, ceiling: 380 },
-    stabilityAssist: 5200,        // Nm pro rad/s Gierraten-Abweichung (Fahrhilfe)
+    stabilityAssist: 14000,       // Nm pro rad/s Gierraten-Abweichung (Fahrhilfe)
   },
 };
 
