@@ -10,6 +10,7 @@ const UI = {
     const panel = document.getElementById('settings');
     document.getElementById('btnSettings').addEventListener('pointerdown', (e) => { e.preventDefault(); this.open(true); });
     document.getElementById('btnClose').addEventListener('click', () => this.open(false));
+    document.getElementById('btnBench').addEventListener('click', () => { this.open(false); game.runBenchmark(); });
     document.getElementById('btnReset').addEventListener('pointerdown', (e) => { e.preventDefault(); game.resetCar(); Haptics.pulse(20); });
     document.getElementById('btnCam').addEventListener('pointerdown', (e) => { e.preventDefault(); game.nextCamera(); });
     document.getElementById('btnEgo').addEventListener('pointerdown', (e) => { e.preventDefault(); game.toggleEgo(); });

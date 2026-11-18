@@ -206,6 +206,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Fünf Stufen** (Leicht … Insane) mit unterschiedlicher Wagenzahl, Tempo, Rammfreude, Sperren-Takt, Nagelbändern (ab Schwer: platte Reifen 9 s), Hubschrauber (ab Extrem). Fahndungssterne schalten zusätzlich frei: ★★★ Einkesseln, ★★★★ Sperren + Nagelbänder + Verstärkung, ★★★★★ Hubschrauber. Stufe und Sterne im HUD.
 - **Polizei-Optik:** LED-Lichtbalken mit 6 Segmenten (Doppelblitz, Lauflicht, Allblitz), Grillblitzer, blauer Lichtschein auf der Straße; getönte Scheiben mit zwei Beamten.
 - **Verkehr:** getönte, durchsichtige Scheiben mit Fahrer, Sitzen und Kopfstützen.
+- **Leistungstest** (Einstellungen): 15 s automatische Fahrt durch die Innenstadt, zeigt Ø-FPS, 1-%-Tief, Pixeldichte und ob das Ziel (iPad 60 / iPhone 30 FPS) erreicht ist.
 - **Grafik Hoch:** Umgebungsverdeckung (GTAO, halbe Auflösung), weiche Schatten (PCF mit Radius, engerer Bereich am Auto), leichter Dunst. Bäume: rissige Borke mit Furchen, Querrissen und Moos, dichtere Kronen, Blätterflattern, Durchscheinen gegen die Sonne.
 
 ## Code-Aufbau

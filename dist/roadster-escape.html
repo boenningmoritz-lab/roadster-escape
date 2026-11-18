@@ -426,6 +426,8 @@
       <div class="seg" data-key="quality"><button data-v="low">Niedrig</button><button data-v="medium">Mittel</button><button data-v="high">Hoch</button></div></div>
     <div class="row"><div>Telemetrie<small>Physik-Daten pro Rad anzeigen</small></div>
       <div class="seg" data-key="telemetry"><button data-v="true">An</button><button data-v="false">Aus</button></div></div>
+    <div class="row"><div>Leistungstest<small>15 s Fahrt durch die Stadt, misst die echte Bildrate auf diesem Gerät</small></div>
+      <div class="seg"><button id="btnBench">Starten</button></div></div>
     <button class="closeBtn" id="btnClose">Weiterfahren</button>
     <div class="help">Tastatur (zum Testen am Rechner): W/↑ Gas · S/↓ Bremse/Rückwärts · A/D ←/→ Lenken ·
       Leertaste Handbremse · C Kamera · V Ego · Shift Boost · F Fliegen (Leertaste/X: hoch/runter) · N Tag/Nacht · R Zurücksetzen · T Telemetrie.<br>
@@ -5788,6 +5790,7 @@ const UI = {
     const panel = document.getElementById('settings');
     document.getElementById('btnSettings').addEventListener('pointerdown', (e) => { e.preventDefault(); this.open(true); });
     document.getElementById('btnClose').addEventListener('click', () => this.open(false));
+    document.getElementById('btnBench').addEventListener('click', () => { this.open(false); game.runBenchmark(); });
     document.getElementById('btnReset').addEventListener('pointerdown', (e) => { e.preventDefault(); game.resetCar(); Haptics.pulse(20); });
     document.getElementById('btnCam').addEventListener('pointerdown', (e) => { e.preventDefault(); game.nextCamera(); });
     document.getElementById('btnEgo').addEventListener('pointerdown', (e) => { e.preventDefault(); game.toggleEgo(); });
@@ -8235,6 +8238,38 @@ class Game {
     Haptics.pulse(esc ? 40 : 80);
   }
 
+  /**
+   * Leistungstest: 15 s automatische Fahrt durch die Innenstadt (Verkehr, Fußgänger, Häuser = anspruchsvollste Szene).
+   * Misst echte Bildzeiten auf dem Gerät und vergleicht mit dem Ziel (iPad 60 FPS, iPhone 30 FPS).
+   */
+  runBenchmark() {
+    if (this.missions.active) this.missions.finish(false, null, true);
+    if (this.police.active) { this.police.stop(false); document.getElementById('btnPolice').classList.remove('on'); }
+    this.spawnAt(548, 452, -Math.PI / 2); this.traffic.spawnAll(this.vehicle.pos);
+    this.paused = false; this.bench = { t: 0, dts: [] };
+    toast('Leistungstest läuft … 15 s nicht berühren', 2500);
+  }
+
+  benchFrame(rawDt) {
+    const B = this.bench, st = Input.state, v = this.vehicle;
+    B.t += rawDt;
+    st.throttle = v.speed < 17 ? 1 : 0.15; st.brake = 0; st.steer = 0; st.handbrake = false; st.boost = false;
+    if (B.t > 1.5) B.dts.push(rawDt);                       // erste 1,5 s = Aufwärmen (Shader, Auflösung)
+    if (B.t < 16.5) return;
+    this.bench = null;
+    const d = B.dts.slice().sort((a, b) => a - b), tot = d.reduce((a, b) => a + b, 0);
+    const avg = d.length / tot, low = 1 / d[Math.min(d.length - 1, Math.floor(d.length * 0.99))];
+    const tablet = Math.min(screen.width, screen.height) >= 700, goal = tablet ? 60 : 30;
+    const ok = avg >= goal * 0.95;
+    document.getElementById('resTitle').textContent = 'LEISTUNGSTEST';
+    document.getElementById('resTitle').style.color = ok ? '#7dffa8' : '#ffc13b';
+    document.getElementById('resText').textContent = `Ø ${avg.toFixed(0)} FPS · 1 %-Tief ${low.toFixed(0)} FPS · Grafik ${({ low: 'Niedrig', medium: 'Mittel', high: 'Hoch' })[Settings.data.quality] || Settings.data.quality} · Pixeldichte ${this.renderer.getPixelRatio().toFixed(2).replace('.', ',')} · Auflösung ${Math.round(DynRes.scale * 100)} %`;
+    document.getElementById('resMoney').textContent = `${tablet ? 'iPad' : 'iPhone'}-Ziel ${goal} FPS: ${ok ? '✔ erreicht' : Settings.data.quality === 'low' ? '✘ nicht erreicht' : '✘ nicht erreicht – Grafik eine Stufe niedriger wählen'}`;
+    document.getElementById('result').hidden = false;
+    this.paused = true; Input.releaseAll();
+    try { localStorage.setItem('roadsterEscape.bench', JSON.stringify({ avg, low, q: Settings.data.quality, tablet, at: Date.now() })); } catch (e) { /* privat */ }
+  }
+
   toggleEgo() {
     const m = this.rig.toggleEgo();
     toast(CameraRig.LABELS[m], 900);
@@ -8273,7 +8308,7 @@ class Game {
 
   frame(now) {
     requestAnimationFrame((t) => this.frame(t));
-    let dt = (now - this.last) / 1000; this.last = now;
+    let dt = (now - this.last) / 1000; this.last = now; const rawDt = dt;
     if (dt > 0.1) dt = 0.1;               // nach Tab-Wechsel o. Ä. nicht „nachholen“
     if (this.garage?.open) {               // Garage: eigene Szene
       this.garage.update(dt);
@@ -8285,6 +8320,7 @@ class Game {
 
     Input.speed = v.speed;
     Input.update();
+    if (this.bench) this.benchFrame(rawDt);
     this.handleActions();
     if (!this.paused) {
       v.processInput(Input.state, dt);
