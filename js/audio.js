@@ -35,6 +35,11 @@ class SoundFX {
     this.gWind = gain(); this.fWind = noise('lowpass', 600, 0.5, this.gWind);
     this.gBoost = gain(); this.fBoost = noise('bandpass', 700, 1.5, this.gBoost); this.o4 = osc('sawtooth', 110, this.gBoost);
     this.gJet = gain(); this.fJet = noise('bandpass', 380, 0.8, this.gJet);
+    // Inverter: getaktete Taktfrequenz, die beim Anfahren in hörbaren Stufen steigt (typisch E-Auto)
+    this.gInv = gain(); this.o5 = osc('triangle', 1100, this.gInv);
+    // Reifenquietschen: tonaler Anteil mit leichtem Vibrato (zum Rauschen dazu)
+    this.gSq = gain(); this.o6 = osc('sine', 950, this.gSq);
+    this.lfo = osc('sine', 7, (() => { const g = ctx.createGain(); g.gain.value = 22; g.connect(this.o6.frequency); return g; })());
   }
   setOn(on) { this.on = on; if (this.master) this.master.gain.setTargetAtTime(on ? 0.8 : 0, this.ctx.currentTime, 0.05); }
   set(param, v, tc = 0.06) { param.setTargetAtTime(v, this.ctx.currentTime, tc); }
@@ -62,6 +67,14 @@ class SoundFX {
     this.set(this.fBoost.frequency, v.boosting ? 900 + sp * 8 : 500);
     this.set(this.o4.frequency, 90 + sp * 1.2);
     this.set(this.gJet.gain, v.flying ? 0.1 + v.throttle * 0.06 : 0, 0.15);
+    // Inverter-Stufen nur bei niedrigem Tempo unter Last
+    const step = Math.min(4, Math.floor(sp / 2.2));
+    this.set(this.o5.frequency, 900 + step * 420 + (sp % 2.2) * 60, 0.015);
+    this.set(this.gInv.gain, v.flying ? 0 : load * clamp(1 - sp / 11, 0, 1) * 0.016, 0.05);
+    // tonales Quietschen ab deutlichem Schlupf, Tonhöhe steigt mit dem Rutschen
+    const sq = asphalt > 1 ? clamp((slide - 0.15) / 0.6, 0, 1) * clamp(sp / 10, 0, 1) : 0;
+    this.set(this.gSq.gain, sq * 0.05, 0.04);
+    this.set(this.o6.frequency, 820 + slide * 380, 0.05);
   }
 
   /** Kurzer Knall/Rumms (Stärke ~ Aufprallgeschwindigkeit in m/s). */

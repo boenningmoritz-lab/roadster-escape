@@ -4460,6 +4460,28 @@ class Vehicle {
  * Karosserie = extrudierte Seitenprofile (Seitenteile + Mitte mit Cockpit-Ausschnitt),
  * Glaskuppel, Innenraum, Räder mit Felgen/Bremsen, Licht vorne/hinten.
  */
+/** „Orangenhaut“ des Klarlacks: feine, weiche Welligkeit als Normal-Map (nur Grafik Hoch). */
+function makeOrangePeel() {
+  const N = 128, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(N, N), d = img.data;
+  const h = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) h[i] = Math.random();
+  for (let pass = 0; pass < 3; pass++) {            // weichzeichnen → sanfte Hügel
+    const t = h.slice();
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      let a = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) a += t[((y + dy + N) % N) * N + ((x + dx + N) % N)];
+      h[y * N + x] = a / 9;
+    }
+  }
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const nx = (h[y * N + (x + 1) % N] - h[y * N + (x + N - 1) % N]) * 8, ny = (h[((y + 1) % N) * N + x] - h[((y + N - 1) % N) * N + x]) * 8;
+    const k = (y * N + x) * 4; d[k] = 128 + nx * 127; d[k + 1] = 128 + ny * 127; d[k + 2] = 255; d[k + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 6);
+  return t;
+}
+
 class CarModel {
   constructor(cfg, q) {
     this.cfg = cfg; this.q = q;
@@ -4472,7 +4494,8 @@ class CarModel {
     // Perlweiß mit Klarlack (Phase 9: Farbe in der Garage wählbar)
     const paintCol = new THREE.Color(Settings.data.paint || '#f2f2ee');
     this.paint = q.physicalPaint
-      ? new THREE.MeshPhysicalMaterial({ color: paintCol, metalness: 0.12, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03 })
+      ? new THREE.MeshPhysicalMaterial({ color: paintCol, metalness: 0.12, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03,
+        clearcoatNormalMap: makeOrangePeel(), clearcoatNormalScale: new THREE.Vector2(0.12, 0.12) })
       : new THREE.MeshStandardMaterial({ color: paintCol, metalness: 0.12, roughness: 0.28 });
     this.paint.envMapIntensity = 0.75;
     const black = new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.55, metalness: 0.3 });
@@ -4837,7 +4860,9 @@ class CarModel {
     const tireMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.92 });
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 0.9, roughness: 0.25 });
     const faceMat = new THREE.MeshStandardMaterial({ color: 0x1a1c20, metalness: 0.6, roughness: 0.5 });
-    const discMat = new THREE.MeshStandardMaterial({ color: 0x777b80, metalness: 0.8, roughness: 0.4 });
+    // Bremsscheiben: glühen nach harten Bremsungen orange-rot (Wärmemodell in update)
+    const discMat = this.discMat = new THREE.MeshStandardMaterial({ color: 0x777b80, metalness: 0.8, roughness: 0.4, emissive: 0xff3300, emissiveIntensity: 0 });
+    this.discHeat = 0;
     const calMat = new THREE.MeshStandardMaterial({ color: 0x36e0ff, roughness: 0.4, emissive: 0x062030 });
 
     for (const wd of cfg.wheels) {
@@ -4907,6 +4932,12 @@ class CarModel {
     this.steeringWheel.rotation.z = vehicle.swAngle;   // echter Lenkradwinkel (1:1 wie das Touch-Lenkrad)
     if (this.hands.visible) this.updateHands(vehicle.swAngle || 0, dt);
     this.tailMat.emissiveIntensity = vehicle.braking ? 4.5 : 0.9;
+    // Bremsenergie heizt die Scheiben auf, Fahrtwind kühlt sie (glühen erst ab starker Hitze)
+    if (dt > 0 && this.discMat) {
+      this.discHeat += ((vehicle.brake || 0) * (vehicle.speed || 0) * 0.013 - this.discHeat * (0.12 + (vehicle.speed || 0) * 0.004)) * dt;
+      this.discHeat = Math.max(0, this.discHeat);
+      this.discMat.emissiveIntensity = smoothstep(0.35, 1.3, this.discHeat) * 2.5;
+    }
     // Düsen
     this.fxTime.value += dt;
     const wantFly = vehicle.flying && !(vehicle.landing && vehicle.altitude < 3) ? 1 : 0;
@@ -6141,18 +6172,27 @@ class Grass {
     this.last = new THREE.Vector3(1e9, 0, 0);
     if (!this.cap) return;
     // Textur: viele schmale Halme mit Transparenz
-    const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    // feine, weiche Halme: unten dunkel (Eigenschatten), zur Spitze heller und leicht gelblich; einzelne Rispen
+    const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S;
     const c = cv.getContext('2d'), rng = mulberry32(12);
-    for (let i = 0; i < 140; i++) {
-      const x = 8 + rng() * (S - 16), h = S * (0.45 + rng() * 0.55), bend = (rng() - 0.5) * 40, w = 2 + rng() * 3;
-      const l = 17 + rng() * 17;
-      c.fillStyle = `hsl(${70 + rng() * 26},${24 + rng() * 20}%,${l}%)`;
-      c.beginPath(); c.moveTo(x - w, S); c.quadraticCurveTo(x + bend * 0.3, S - h * 0.6, x + bend, S - h); c.quadraticCurveTo(x + bend * 0.3 + w * 0.3, S - h * 0.6, x + w, S); c.fill();
+    for (let i = 0; i < 300; i++) {
+      const x = 10 + rng() * (S - 20), h = S * (0.35 + rng() * 0.62), bend = (rng() - 0.5) * 90, w = 1.6 + rng() * 2.6;
+      const hue = 72 + rng() * 30, sat = 30 + rng() * 22, l = 30 + rng() * 18, dry = rng() < 0.18;
+      const g = c.createLinearGradient(0, S, 0, S - h);
+      g.addColorStop(0, `hsl(${hue},${sat}%,${l * 0.45}%)`);
+      g.addColorStop(0.55, `hsl(${hue},${sat}%,${l}%)`);
+      g.addColorStop(1, dry ? `hsl(48,${sat}%,${l + 18}%)` : `hsl(${hue - 8},${sat + 6}%,${l + 12}%)`);
+      c.fillStyle = g;
+      c.beginPath(); c.moveTo(x - w, S); c.quadraticCurveTo(x + bend * 0.3, S - h * 0.6, x + bend, S - h); c.quadraticCurveTo(x + bend * 0.3 + w * 0.25, S - h * 0.6, x + w, S); c.fill();
+      if (rng() < 0.06) {           // Rispe an der Spitze
+        c.fillStyle = `hsl(45,30%,${55 + rng() * 15}%)`;
+        for (let k = 0; k < 7; k++) { c.beginPath(); c.ellipse(x + bend + (rng() - 0.5) * 8, S - h + k * 4, 2, 4, 0.3, 0, 6.3); c.fill(); }
+      }
     }
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
     const parts = [];
     for (let k = 0; k < 3; k++) {
-      const p = new THREE.PlaneGeometry(0.9, 0.5); p.translate(0, 0.25, 0); p.rotateY(k * Math.PI / 3);
+      const p = new THREE.PlaneGeometry(1.05, 0.55); p.translate(0, 0.275, 0); p.rotateY(k * Math.PI / 3);
       // Normalen nach oben kippen → wirkt wie Wiese, nicht wie Karten
       const n = p.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, n.getX(i) * 0.3, 0.95, n.getZ(i) * 0.3);
       parts.push(p);
@@ -6166,7 +6206,8 @@ class Grass {
       geo.setAttribute(k, new THREE.BufferAttribute(arr, sz));
     }
     this.time = { value: 0 };
-    const mat = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 });
+    tex.anisotropy = 4;
+    const mat = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.85 });
     const time = this.time;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = time;
@@ -6208,7 +6249,7 @@ class Grass {
         this._q.setFromAxisAngle(this._up, h1 * 6.28);
         this._m.compose(this._p.set(x, y - 0.05, z), this._q, this._s.set(sc, sc * (0.8 + h2 * 0.5), sc));
         this.mesh.setMatrixAt(k, this._m);
-        this.mesh.setColorAt(k, this._c.setRGB(0.78 + h2 * 0.22, 0.82 + h1 * 0.14, 0.62 + h3 * 0.16));
+        this.mesh.setColorAt(k, this._c.setRGB(0.86 + h2 * 0.2, 0.9 + h1 * 0.12, 0.66 + h3 * 0.18));
         k++;
       }
     }
@@ -6320,7 +6361,8 @@ function makeTrafficVariant(type) {
     parts[0].paint = true; parts[2].paint = true;
     for (const x of [-1, 1]) {
       lights.push({ geo: new THREE.BoxGeometry(0.4, 0.18, 0.04).translate(x * (W / 2 - 0.35), 0.95, -L / 2 - 0.02), color: [1, 0.96, 0.88] });
-      lights.push({ geo: new THREE.BoxGeometry(0.3, 0.2, 0.04).translate(x * (W / 2 - 0.25), 0.9, L / 2 + 0.02), color: [0.9, 0.04, 0.04] });
+      lights.push({ geo: new THREE.BoxGeometry(0.3, 0.2, 0.04).translate(x * (W / 2 - 0.25), 0.9, L / 2 + 0.02), color: [0.9, 0.04, 0.04], mask: [1, 0, 0] });
+      for (const z of [-L / 2 - 0.02, L / 2 + 0.02]) lights.push({ geo: new THREE.BoxGeometry(0.18, 0.12, 0.04).translate(x * (W / 2 - 0.08), 1.15, z), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
     }
   } else {
     // Seitenprofil mit ausgeschnittenen Radhäusern (z vorn = −L/2)
@@ -6368,7 +6410,10 @@ function makeTrafficVariant(type) {
     }
     for (const x of [-1, 1]) {
       lights.push({ geo: new THREE.BoxGeometry(0.42, 0.09, 0.08).translate(x * (W / 2 - 0.32), 0.68, -L / 2 + 0.03), color: [1, 0.96, 0.88] });
-      lights.push({ geo: new THREE.BoxGeometry(0.46, 0.1, 0.06).translate(x * (W / 2 - 0.3), 0.76, L / 2 + 0.0), color: [0.9, 0.04, 0.04] });
+      lights.push({ geo: new THREE.BoxGeometry(0.46, 0.1, 0.06).translate(x * (W / 2 - 0.3), 0.76, L / 2 + 0.0), color: [0.9, 0.04, 0.04], mask: [1, 0, 0] });
+      // Blinker vorn/hinten (bernstein), nur an wenn aktiv
+      lights.push({ geo: new THREE.BoxGeometry(0.1, 0.07, 0.07).translate(x * (W / 2 - 0.06), 0.66, -L / 2 + 0.06), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
+      lights.push({ geo: new THREE.BoxGeometry(0.1, 0.07, 0.06).translate(x * (W / 2 - 0.05), 0.66, L / 2 + 0.0), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
     }
   }
   // Lack-Maske: nur Karosserieteile nehmen die Instanzfarbe an (Glas, Reifen, Kennzeichen nicht)
@@ -6376,7 +6421,12 @@ function makeTrafficVariant(type) {
   let o = 0;
   for (const p of parts) { const n = p.geo.index ? p.geo.index.count : p.geo.attributes.position.count; if (p.paint) mask.fill(1, o, o + n); o += n; }
   merged.setAttribute('paint', new THREE.BufferAttribute(mask, 1));
-  return { type, ...s, body: merged, lights: mergeParts(lights), inertia: s.mass * (L * L + W * W) / 12 };
+  // Licht-Maske je Vertex: (Rücklicht, Blinker links, Blinker rechts) – per Instanzfarbe geschaltet
+  const lm = mergeParts(lights), lmask = new Float32Array(lm.attributes.position.count * 3);
+  o = 0;
+  for (const p of lights) { const n = p.geo.index ? p.geo.index.count : p.geo.attributes.position.count; if (p.mask) for (let i = o; i < o + n; i++) lmask.set(p.mask, i * 3); o += n; }
+  lm.setAttribute('lmask', new THREE.BufferAttribute(lmask, 3));
+  return { type, ...s, body: merged, lights: lm, inertia: s.mass * (L * L + W * W) / 12 };
 }
 
 /**
@@ -6394,6 +6444,12 @@ class TrafficSystem {
         .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix(vec3(1.0), instanceColor.xyz, paint);'));
     };
     this.lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+    // Instanzfarbe: r = Rücklicht-Helligkeit (Bremse), g/b = Blinker links/rechts (0 aus … 1 an)
+    this.lightMat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 lmask;')
+        .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;',
+          'vColor.xyz *= mix(1.0, instanceColor.r, lmask.x); vColor.xyz *= 1.0 - (lmask.y * (1.0 - instanceColor.g) + lmask.z * (1.0 - instanceColor.b)) * 0.88;'));
+    };
     const types = Object.keys(TRAFFIC_TYPES);
     this.variants = types.map((t) => makeTrafficVariant(t));
     const pick = () => { let r = this.rng(), acc = 0; for (let i = 0; i < types.length; i++) { acc += TRAFFIC_TYPES[types[i]].weight; if (r <= acc) return i; } return 0; };
@@ -6416,6 +6472,7 @@ class TrafficSystem {
         pers: 0.85 + this.rng() * 0.25 };
       const p = v.type === 'truck' ? [0.9, 0.9, 0.9] : CAR_PAINTS[Math.floor(this.rng() * CAR_PAINTS.length)];
       v.bodyMesh.setColorAt(car.slot, col.setRGB(p[0], p[1], p[2], THREE.SRGBColorSpace));
+      v.lightMesh.setColorAt(car.slot, col.setRGB(1, 0, 0));
       car.idx = this.cars.length;
       car.parked = car.idx >= count;
       this.cars.push(car);
@@ -6524,11 +6581,27 @@ class TrafficSystem {
     return Math.hypot(player.pos.x - node.x, player.pos.z - node.z) > 35;
   }
 
+  /** Nächste Kante an einem Knoten wählen (lieber geradeaus; Lkw nicht in die Stadt). */
+  chooseNext(car, e, node, here) {
+    const inTx = here.tx * car.dir, inTz = here.tz * car.dir;
+    const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && o.cls === 'city'));
+    if (!opts.length) return e;
+    let tot = 0; const ws = opts.map((o) => {
+      const out = o.a === node ? o.pts[1] : o.pts[o.pts.length - 2];
+      const ox2 = out.x - node.x, oz2 = out.z - node.z, l = Math.hypot(ox2, oz2) || 1;
+      const wgt = 0.35 + Math.max(0, (ox2 * inTx + oz2 * inTz) / l) * 2.2; tot += wgt; return wgt;
+    });
+    let r = this.rng() * tot; let k = 0; while (k < ws.length - 1 && r > ws[k]) { r -= ws[k]; k++; }
+    return opts[k];
+  }
+
   update(dt, player, camera) {
+    this.time = (this.time || 0) + dt;
     const w = this.w;
     for (const car of this.cars) {
       if (car.state === 'loose') { this.updateLoose(car, dt, player, camera); continue; }
       if (car.state === 'parked') continue;
+      if (car.blinkT > 0 && (car.blinkT -= dt) <= 0) car.blink = 0;
       const e = car.e, C = e.C;
       const node = car.dir > 0 ? e.b : e.a;
       const toNode = car.dir > 0 ? e.len - car.s : car.s;
@@ -6579,24 +6652,24 @@ class TrafficSystem {
       // Beschleunigen / Bremsen
       const dv = vT - car.speed;
       car.speed = Math.max(0, car.speed + clamp(dv, -9 * dt, 2.4 * dt));
+      // Bremslicht: beim Verzögern und im Stand (Fuß auf der Bremse)
+      car.brakeOn = dv < -0.6 || car.speed < 0.4;
+      // Abbiegen vorher festlegen → Blinker ca. 45 m vor der Kreuzung setzen
+      if (toNode < 45 && !car.nextE && node.edges.length >= 3) {
+        car.nextE = this.chooseNext(car, e, node, here);
+        const nE = car.nextE, out = nE.a === node ? nE.pts[1] : nE.pts[nE.pts.length - 2];
+        const ox2 = out.x - node.x, oz2 = out.z - node.z, l = Math.hypot(ox2, oz2) || 1;
+        const cr = (here.tx * car.dir) * (oz2 / l) - (here.tz * car.dir) * (ox2 / l);   // >0: rechts (Bildschirm-Koordinaten x/z)
+        car.blink = Math.abs(cr) > 0.45 ? (cr > 0 ? 1 : -1) : 0;
+      }
       car.s += car.dir * car.speed * dt;
       // Kantenende → nächste Kante wählen (lieber geradeaus)
       if (car.s > e.len || car.s < 0) {
         const over = car.s > e.len ? car.s - e.len : -car.s;
         const ox = car.x, oz = car.z;
         const inTx = here.tx * car.dir, inTz = here.tz * car.dir;
-        const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && o.cls === 'city'));
-        let next = null, dirN = 1;
-        if (opts.length) {
-          let tot = 0; const ws = opts.map((o) => {
-            const out = o.a === node ? o.pts[1] : o.pts[o.pts.length - 2];
-            const ox2 = out.x - node.x, oz2 = out.z - node.z, l = Math.hypot(ox2, oz2) || 1;
-            const wgt = 0.35 + Math.max(0, (ox2 * inTx + oz2 * inTz) / l) * 2.2; tot += wgt; return wgt;
-          });
-          let r = this.rng() * tot; let k = 0; while (k < ws.length - 1 && r > ws[k]) { r -= ws[k]; k++; }
-          next = opts[k];
-        } else next = e;
-        dirN = next.a === node ? 1 : -1;
+        const next = car.nextE || this.chooseNext(car, e, node, here); car.nextE = null; car.blinkT = 2.5;
+        const dirN = next.a === node ? 1 : -1;
         car.e = next; car.dir = dirN; car.s = dirN > 0 ? over : next.len - over;
         car.lane = Math.min(car.lane, next.C.lanes.length - 1);
         car.cleared = false; car.waitT = 0;
@@ -6648,6 +6721,10 @@ class TrafficSystem {
         e.set(car.pitch, car.yaw, 0, 'YXZ'); q.setFromEuler(e); p.set(car.x, car.y, car.z);
         m.compose(p, q, this._one);
       }
+      { const on = Math.sin((this.time || 0) * Math.PI * 3) > 0, drive = car.state === 'drive';
+        this._lc = this._lc || new THREE.Color();
+        this._lc.setRGB(drive && car.brakeOn ? 3.2 : 1, drive && car.blink < 0 && on ? 1 : 0, drive && car.blink > 0 && on ? 1 : 0);
+        car.v.lightMesh.setColorAt(car.slot, this._lc); }
       car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, car.state === 'parked' ? this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0)) : m);
       // Kontaktschatten
       const bx = car.body ? car.body.pos.x : car.x, bz = car.body ? car.body.pos.z : car.z;
@@ -6658,6 +6735,7 @@ class TrafficSystem {
       this.blobs.setMatrixAt(car.idx, m);
     }
     this.blobs.instanceMatrix.needsUpdate = true;
+    for (const v of this.variants) if (v.lightMesh.instanceColor) v.lightMesh.instanceColor.needsUpdate = true;
     // Lichthöfe (nur fahrende Autos, nur nachts)
     if (this.glow.visible) {
       const pa = this.glowGeo.attributes.position.array, ca = this.glowGeo.attributes.color.array;
@@ -6796,6 +6874,11 @@ class SoundFX {
     this.gWind = gain(); this.fWind = noise('lowpass', 600, 0.5, this.gWind);
     this.gBoost = gain(); this.fBoost = noise('bandpass', 700, 1.5, this.gBoost); this.o4 = osc('sawtooth', 110, this.gBoost);
     this.gJet = gain(); this.fJet = noise('bandpass', 380, 0.8, this.gJet);
+    // Inverter: getaktete Taktfrequenz, die beim Anfahren in hörbaren Stufen steigt (typisch E-Auto)
+    this.gInv = gain(); this.o5 = osc('triangle', 1100, this.gInv);
+    // Reifenquietschen: tonaler Anteil mit leichtem Vibrato (zum Rauschen dazu)
+    this.gSq = gain(); this.o6 = osc('sine', 950, this.gSq);
+    this.lfo = osc('sine', 7, (() => { const g = ctx.createGain(); g.gain.value = 22; g.connect(this.o6.frequency); return g; })());
   }
   setOn(on) { this.on = on; if (this.master) this.master.gain.setTargetAtTime(on ? 0.8 : 0, this.ctx.currentTime, 0.05); }
   set(param, v, tc = 0.06) { param.setTargetAtTime(v, this.ctx.currentTime, tc); }
@@ -6823,6 +6906,14 @@ class SoundFX {
     this.set(this.fBoost.frequency, v.boosting ? 900 + sp * 8 : 500);
     this.set(this.o4.frequency, 90 + sp * 1.2);
     this.set(this.gJet.gain, v.flying ? 0.1 + v.throttle * 0.06 : 0, 0.15);
+    // Inverter-Stufen nur bei niedrigem Tempo unter Last
+    const step = Math.min(4, Math.floor(sp / 2.2));
+    this.set(this.o5.frequency, 900 + step * 420 + (sp % 2.2) * 60, 0.015);
+    this.set(this.gInv.gain, v.flying ? 0 : load * clamp(1 - sp / 11, 0, 1) * 0.016, 0.05);
+    // tonales Quietschen ab deutlichem Schlupf, Tonhöhe steigt mit dem Rutschen
+    const sq = asphalt > 1 ? clamp((slide - 0.15) / 0.6, 0, 1) * clamp(sp / 10, 0, 1) : 0;
+    this.set(this.gSq.gain, sq * 0.05, 0.04);
+    this.set(this.o6.frequency, 820 + slide * 380, 0.05);
   }
 
   /** Kurzer Knall/Rumms (Stärke ~ Aufprallgeschwindigkeit in m/s). */
@@ -7567,6 +7658,15 @@ class Game {
     if (v.boosting) this.rig.shake = Math.max(this.rig.shake, 0.12);
     if (document.body.classList.contains('flying') !== v.flying) { document.body.classList.toggle('flying', v.flying); if (Input.stick.id === null) Input.placeStick(null); }
 
+    // Haptik: Rutschen (leises Rattern) und Bordstein-/Kantenkontakt (kurzer Stoß über die Federung)
+    { let slide = 0, bump = 0;
+      for (const w of v.wheels) if (w.grounded) { slide = Math.max(slide, w.slideAmount); bump = Math.max(bump, Math.abs((w.compression || 0) - (w.prevCompression || 0)) * CONFIG.physicsHz); }
+      this.hapT = (this.hapT || 0) - dt;
+      if (this.hapT <= 0 && !this.paused) {
+        if (bump > 1.6 && v.speed > 3) { Haptics.pulse(14); this.hapT = 0.18; }
+        else if (slide > 0.45 && v.speed > 6) { Haptics.pulse(6); this.hapT = 0.12; }
+      }
+    }
     if (v.lastImpact > 0) {
       Haptics.pulse(Math.min(60, v.lastImpact * 6));
       this.rig.addShake(clamp(v.lastImpact * 0.07, 0, 1));

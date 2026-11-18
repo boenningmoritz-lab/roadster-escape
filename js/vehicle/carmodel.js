@@ -9,6 +9,28 @@ import { smoothNormals } from '../environment.js';
  * Karosserie = extrudierte Seitenprofile (Seitenteile + Mitte mit Cockpit-Ausschnitt),
  * Glaskuppel, Innenraum, Räder mit Felgen/Bremsen, Licht vorne/hinten.
  */
+/** „Orangenhaut“ des Klarlacks: feine, weiche Welligkeit als Normal-Map (nur Grafik Hoch). */
+function makeOrangePeel() {
+  const N = 128, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(N, N), d = img.data;
+  const h = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) h[i] = Math.random();
+  for (let pass = 0; pass < 3; pass++) {            // weichzeichnen → sanfte Hügel
+    const t = h.slice();
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      let a = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) a += t[((y + dy + N) % N) * N + ((x + dx + N) % N)];
+      h[y * N + x] = a / 9;
+    }
+  }
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const nx = (h[y * N + (x + 1) % N] - h[y * N + (x + N - 1) % N]) * 8, ny = (h[((y + 1) % N) * N + x] - h[((y + N - 1) % N) * N + x]) * 8;
+    const k = (y * N + x) * 4; d[k] = 128 + nx * 127; d[k + 1] = 128 + ny * 127; d[k + 2] = 255; d[k + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 6);
+  return t;
+}
+
 class CarModel {
   constructor(cfg, q) {
     this.cfg = cfg; this.q = q;
@@ -21,7 +43,8 @@ class CarModel {
     // Perlweiß mit Klarlack (Phase 9: Farbe in der Garage wählbar)
     const paintCol = new THREE.Color(Settings.data.paint || '#f2f2ee');
     this.paint = q.physicalPaint
-      ? new THREE.MeshPhysicalMaterial({ color: paintCol, metalness: 0.12, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03 })
+      ? new THREE.MeshPhysicalMaterial({ color: paintCol, metalness: 0.12, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03,
+        clearcoatNormalMap: makeOrangePeel(), clearcoatNormalScale: new THREE.Vector2(0.12, 0.12) })
       : new THREE.MeshStandardMaterial({ color: paintCol, metalness: 0.12, roughness: 0.28 });
     this.paint.envMapIntensity = 0.75;
     const black = new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.55, metalness: 0.3 });
@@ -386,7 +409,9 @@ class CarModel {
     const tireMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.92 });
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 0.9, roughness: 0.25 });
     const faceMat = new THREE.MeshStandardMaterial({ color: 0x1a1c20, metalness: 0.6, roughness: 0.5 });
-    const discMat = new THREE.MeshStandardMaterial({ color: 0x777b80, metalness: 0.8, roughness: 0.4 });
+    // Bremsscheiben: glühen nach harten Bremsungen orange-rot (Wärmemodell in update)
+    const discMat = this.discMat = new THREE.MeshStandardMaterial({ color: 0x777b80, metalness: 0.8, roughness: 0.4, emissive: 0xff3300, emissiveIntensity: 0 });
+    this.discHeat = 0;
     const calMat = new THREE.MeshStandardMaterial({ color: 0x36e0ff, roughness: 0.4, emissive: 0x062030 });
 
     for (const wd of cfg.wheels) {
@@ -456,6 +481,12 @@ class CarModel {
     this.steeringWheel.rotation.z = vehicle.swAngle;   // echter Lenkradwinkel (1:1 wie das Touch-Lenkrad)
     if (this.hands.visible) this.updateHands(vehicle.swAngle || 0, dt);
     this.tailMat.emissiveIntensity = vehicle.braking ? 4.5 : 0.9;
+    // Bremsenergie heizt die Scheiben auf, Fahrtwind kühlt sie (glühen erst ab starker Hitze)
+    if (dt > 0 && this.discMat) {
+      this.discHeat += ((vehicle.brake || 0) * (vehicle.speed || 0) * 0.013 - this.discHeat * (0.12 + (vehicle.speed || 0) * 0.004)) * dt;
+      this.discHeat = Math.max(0, this.discHeat);
+      this.discMat.emissiveIntensity = smoothstep(0.35, 1.3, this.discHeat) * 2.5;
+    }
     // Düsen
     this.fxTime.value += dt;
     const wantFly = vehicle.flying && !(vehicle.landing && vehicle.altitude < 3) ? 1 : 0;

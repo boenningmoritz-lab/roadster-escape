@@ -312,6 +312,15 @@ class Game {
     if (v.boosting) this.rig.shake = Math.max(this.rig.shake, 0.12);
     if (document.body.classList.contains('flying') !== v.flying) { document.body.classList.toggle('flying', v.flying); if (Input.stick.id === null) Input.placeStick(null); }
 
+    // Haptik: Rutschen (leises Rattern) und Bordstein-/Kantenkontakt (kurzer Stoß über die Federung)
+    { let slide = 0, bump = 0;
+      for (const w of v.wheels) if (w.grounded) { slide = Math.max(slide, w.slideAmount); bump = Math.max(bump, Math.abs((w.compression || 0) - (w.prevCompression || 0)) * CONFIG.physicsHz); }
+      this.hapT = (this.hapT || 0) - dt;
+      if (this.hapT <= 0 && !this.paused) {
+        if (bump > 1.6 && v.speed > 3) { Haptics.pulse(14); this.hapT = 0.18; }
+        else if (slide > 0.45 && v.speed > 6) { Haptics.pulse(6); this.hapT = 0.12; }
+      }
+    }
     if (v.lastImpact > 0) {
       Haptics.pulse(Math.min(60, v.lastImpact * 6));
       this.rig.addShake(clamp(v.lastImpact * 0.07, 0, 1));

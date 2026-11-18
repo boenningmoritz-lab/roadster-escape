@@ -183,6 +183,11 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Cockpit:** geschwungenes Alcantara-Armaturenbrett mit Ziernaht, Hutze, vier Lüftungsdüsen, Carbon-Mitteltunnel mit Wählhebel und Tasten, Türverkleidung mit Armauflage und Lautsprecher, schlanke A-Säulen statt dickem Bogen, Innenspiegel; Hände in Handschuhen (9/3 Uhr) mit Umgreifen, Unterarme. Kopf schwingt gedämpft mit den g-Kräften, FOV 72°. Großer HUD-Tacho in der Ego-Sicht ausgeblendet.
 - **Fehler behoben:** FPS-Zeile nur noch mit Telemetrie; kein schwarzes Bild nach „Freie Fahrt“ (Auflösung wird vor dem Rendern angepasst, beim Start gesperrt); geparkte Autos mit Abstand zum Bordstein und zu Kreuzungen; Missions-Fenster nur beim langsamen Hineinfahren (nicht beim Spawnen im Ring) und kompakt links; Tutorial oben rechts, Toasts mittig – nichts verdeckt Tacho, Sterne, Lenkrad oder Pedale; Außenspiegel sitzen fest auf der Tür.
 
+- **Verkehr:** Bremslichter beim Verzögern und im Stand, Blinker ca. 45 m vor dem Abbiegen (Abbiegerichtung wird vorab gewählt).
+- **Spieler-Auto:** Klarlack mit „Orangenhaut“-Struktur (Grafik Hoch); Bremsscheiben heizen sich bei harten Bremsungen auf und glühen orange-rot.
+- **Ton & Haptik:** Inverter-Pfeifen in hörbaren Stufen beim Anfahren, tonales Reifenquietschen mit Vibrato; Vibration beim Rutschen und bei Bordstein-/Kantenkontakt.
+- **Gras:** feine, weichere Halme mit Farbverlauf (unten dunkel, Spitzen heller/gelblich), einzelne trockene Halme und Rispen.
+
 ## Code-Aufbau
 
 ```

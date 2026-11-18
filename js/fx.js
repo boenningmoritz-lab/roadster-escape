@@ -94,18 +94,27 @@ class Grass {
     this.last = new THREE.Vector3(1e9, 0, 0);
     if (!this.cap) return;
     // Textur: viele schmale Halme mit Transparenz
-    const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    // feine, weiche Halme: unten dunkel (Eigenschatten), zur Spitze heller und leicht gelblich; einzelne Rispen
+    const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S;
     const c = cv.getContext('2d'), rng = mulberry32(12);
-    for (let i = 0; i < 140; i++) {
-      const x = 8 + rng() * (S - 16), h = S * (0.45 + rng() * 0.55), bend = (rng() - 0.5) * 40, w = 2 + rng() * 3;
-      const l = 17 + rng() * 17;
-      c.fillStyle = `hsl(${70 + rng() * 26},${24 + rng() * 20}%,${l}%)`;
-      c.beginPath(); c.moveTo(x - w, S); c.quadraticCurveTo(x + bend * 0.3, S - h * 0.6, x + bend, S - h); c.quadraticCurveTo(x + bend * 0.3 + w * 0.3, S - h * 0.6, x + w, S); c.fill();
+    for (let i = 0; i < 300; i++) {
+      const x = 10 + rng() * (S - 20), h = S * (0.35 + rng() * 0.62), bend = (rng() - 0.5) * 90, w = 1.6 + rng() * 2.6;
+      const hue = 72 + rng() * 30, sat = 30 + rng() * 22, l = 30 + rng() * 18, dry = rng() < 0.18;
+      const g = c.createLinearGradient(0, S, 0, S - h);
+      g.addColorStop(0, `hsl(${hue},${sat}%,${l * 0.45}%)`);
+      g.addColorStop(0.55, `hsl(${hue},${sat}%,${l}%)`);
+      g.addColorStop(1, dry ? `hsl(48,${sat}%,${l + 18}%)` : `hsl(${hue - 8},${sat + 6}%,${l + 12}%)`);
+      c.fillStyle = g;
+      c.beginPath(); c.moveTo(x - w, S); c.quadraticCurveTo(x + bend * 0.3, S - h * 0.6, x + bend, S - h); c.quadraticCurveTo(x + bend * 0.3 + w * 0.25, S - h * 0.6, x + w, S); c.fill();
+      if (rng() < 0.06) {           // Rispe an der Spitze
+        c.fillStyle = `hsl(45,30%,${55 + rng() * 15}%)`;
+        for (let k = 0; k < 7; k++) { c.beginPath(); c.ellipse(x + bend + (rng() - 0.5) * 8, S - h + k * 4, 2, 4, 0.3, 0, 6.3); c.fill(); }
+      }
     }
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
     const parts = [];
     for (let k = 0; k < 3; k++) {
-      const p = new THREE.PlaneGeometry(0.9, 0.5); p.translate(0, 0.25, 0); p.rotateY(k * Math.PI / 3);
+      const p = new THREE.PlaneGeometry(1.05, 0.55); p.translate(0, 0.275, 0); p.rotateY(k * Math.PI / 3);
       // Normalen nach oben kippen → wirkt wie Wiese, nicht wie Karten
       const n = p.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, n.getX(i) * 0.3, 0.95, n.getZ(i) * 0.3);
       parts.push(p);
@@ -119,7 +128,8 @@ class Grass {
       geo.setAttribute(k, new THREE.BufferAttribute(arr, sz));
     }
     this.time = { value: 0 };
-    const mat = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 });
+    tex.anisotropy = 4;
+    const mat = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.85 });
     const time = this.time;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = time;
@@ -161,7 +171,7 @@ class Grass {
         this._q.setFromAxisAngle(this._up, h1 * 6.28);
         this._m.compose(this._p.set(x, y - 0.05, z), this._q, this._s.set(sc, sc * (0.8 + h2 * 0.5), sc));
         this.mesh.setMatrixAt(k, this._m);
-        this.mesh.setColorAt(k, this._c.setRGB(0.78 + h2 * 0.22, 0.82 + h1 * 0.14, 0.62 + h3 * 0.16));
+        this.mesh.setColorAt(k, this._c.setRGB(0.86 + h2 * 0.2, 0.9 + h1 * 0.12, 0.66 + h3 * 0.18));
         k++;
       }
     }

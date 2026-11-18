@@ -42,7 +42,8 @@ function makeTrafficVariant(type) {
     parts[0].paint = true; parts[2].paint = true;
     for (const x of [-1, 1]) {
       lights.push({ geo: new THREE.BoxGeometry(0.4, 0.18, 0.04).translate(x * (W / 2 - 0.35), 0.95, -L / 2 - 0.02), color: [1, 0.96, 0.88] });
-      lights.push({ geo: new THREE.BoxGeometry(0.3, 0.2, 0.04).translate(x * (W / 2 - 0.25), 0.9, L / 2 + 0.02), color: [0.9, 0.04, 0.04] });
+      lights.push({ geo: new THREE.BoxGeometry(0.3, 0.2, 0.04).translate(x * (W / 2 - 0.25), 0.9, L / 2 + 0.02), color: [0.9, 0.04, 0.04], mask: [1, 0, 0] });
+      for (const z of [-L / 2 - 0.02, L / 2 + 0.02]) lights.push({ geo: new THREE.BoxGeometry(0.18, 0.12, 0.04).translate(x * (W / 2 - 0.08), 1.15, z), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
     }
   } else {
     // Seitenprofil mit ausgeschnittenen Radhäusern (z vorn = −L/2)
@@ -90,7 +91,10 @@ function makeTrafficVariant(type) {
     }
     for (const x of [-1, 1]) {
       lights.push({ geo: new THREE.BoxGeometry(0.42, 0.09, 0.08).translate(x * (W / 2 - 0.32), 0.68, -L / 2 + 0.03), color: [1, 0.96, 0.88] });
-      lights.push({ geo: new THREE.BoxGeometry(0.46, 0.1, 0.06).translate(x * (W / 2 - 0.3), 0.76, L / 2 + 0.0), color: [0.9, 0.04, 0.04] });
+      lights.push({ geo: new THREE.BoxGeometry(0.46, 0.1, 0.06).translate(x * (W / 2 - 0.3), 0.76, L / 2 + 0.0), color: [0.9, 0.04, 0.04], mask: [1, 0, 0] });
+      // Blinker vorn/hinten (bernstein), nur an wenn aktiv
+      lights.push({ geo: new THREE.BoxGeometry(0.1, 0.07, 0.07).translate(x * (W / 2 - 0.06), 0.66, -L / 2 + 0.06), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
+      lights.push({ geo: new THREE.BoxGeometry(0.1, 0.07, 0.06).translate(x * (W / 2 - 0.05), 0.66, L / 2 + 0.0), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
     }
   }
   // Lack-Maske: nur Karosserieteile nehmen die Instanzfarbe an (Glas, Reifen, Kennzeichen nicht)
@@ -98,7 +102,12 @@ function makeTrafficVariant(type) {
   let o = 0;
   for (const p of parts) { const n = p.geo.index ? p.geo.index.count : p.geo.attributes.position.count; if (p.paint) mask.fill(1, o, o + n); o += n; }
   merged.setAttribute('paint', new THREE.BufferAttribute(mask, 1));
-  return { type, ...s, body: merged, lights: mergeParts(lights), inertia: s.mass * (L * L + W * W) / 12 };
+  // Licht-Maske je Vertex: (Rücklicht, Blinker links, Blinker rechts) – per Instanzfarbe geschaltet
+  const lm = mergeParts(lights), lmask = new Float32Array(lm.attributes.position.count * 3);
+  o = 0;
+  for (const p of lights) { const n = p.geo.index ? p.geo.index.count : p.geo.attributes.position.count; if (p.mask) for (let i = o; i < o + n; i++) lmask.set(p.mask, i * 3); o += n; }
+  lm.setAttribute('lmask', new THREE.BufferAttribute(lmask, 3));
+  return { type, ...s, body: merged, lights: lm, inertia: s.mass * (L * L + W * W) / 12 };
 }
 
 /**
@@ -116,6 +125,12 @@ class TrafficSystem {
         .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix(vec3(1.0), instanceColor.xyz, paint);'));
     };
     this.lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+    // Instanzfarbe: r = Rücklicht-Helligkeit (Bremse), g/b = Blinker links/rechts (0 aus … 1 an)
+    this.lightMat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 lmask;')
+        .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;',
+          'vColor.xyz *= mix(1.0, instanceColor.r, lmask.x); vColor.xyz *= 1.0 - (lmask.y * (1.0 - instanceColor.g) + lmask.z * (1.0 - instanceColor.b)) * 0.88;'));
+    };
     const types = Object.keys(TRAFFIC_TYPES);
     this.variants = types.map((t) => makeTrafficVariant(t));
     const pick = () => { let r = this.rng(), acc = 0; for (let i = 0; i < types.length; i++) { acc += TRAFFIC_TYPES[types[i]].weight; if (r <= acc) return i; } return 0; };
@@ -138,6 +153,7 @@ class TrafficSystem {
         pers: 0.85 + this.rng() * 0.25 };
       const p = v.type === 'truck' ? [0.9, 0.9, 0.9] : CAR_PAINTS[Math.floor(this.rng() * CAR_PAINTS.length)];
       v.bodyMesh.setColorAt(car.slot, col.setRGB(p[0], p[1], p[2], THREE.SRGBColorSpace));
+      v.lightMesh.setColorAt(car.slot, col.setRGB(1, 0, 0));
       car.idx = this.cars.length;
       car.parked = car.idx >= count;
       this.cars.push(car);
@@ -246,11 +262,27 @@ class TrafficSystem {
     return Math.hypot(player.pos.x - node.x, player.pos.z - node.z) > 35;
   }
 
+  /** Nächste Kante an einem Knoten wählen (lieber geradeaus; Lkw nicht in die Stadt). */
+  chooseNext(car, e, node, here) {
+    const inTx = here.tx * car.dir, inTz = here.tz * car.dir;
+    const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && o.cls === 'city'));
+    if (!opts.length) return e;
+    let tot = 0; const ws = opts.map((o) => {
+      const out = o.a === node ? o.pts[1] : o.pts[o.pts.length - 2];
+      const ox2 = out.x - node.x, oz2 = out.z - node.z, l = Math.hypot(ox2, oz2) || 1;
+      const wgt = 0.35 + Math.max(0, (ox2 * inTx + oz2 * inTz) / l) * 2.2; tot += wgt; return wgt;
+    });
+    let r = this.rng() * tot; let k = 0; while (k < ws.length - 1 && r > ws[k]) { r -= ws[k]; k++; }
+    return opts[k];
+  }
+
   update(dt, player, camera) {
+    this.time = (this.time || 0) + dt;
     const w = this.w;
     for (const car of this.cars) {
       if (car.state === 'loose') { this.updateLoose(car, dt, player, camera); continue; }
       if (car.state === 'parked') continue;
+      if (car.blinkT > 0 && (car.blinkT -= dt) <= 0) car.blink = 0;
       const e = car.e, C = e.C;
       const node = car.dir > 0 ? e.b : e.a;
       const toNode = car.dir > 0 ? e.len - car.s : car.s;
@@ -301,24 +333,24 @@ class TrafficSystem {
       // Beschleunigen / Bremsen
       const dv = vT - car.speed;
       car.speed = Math.max(0, car.speed + clamp(dv, -9 * dt, 2.4 * dt));
+      // Bremslicht: beim Verzögern und im Stand (Fuß auf der Bremse)
+      car.brakeOn = dv < -0.6 || car.speed < 0.4;
+      // Abbiegen vorher festlegen → Blinker ca. 45 m vor der Kreuzung setzen
+      if (toNode < 45 && !car.nextE && node.edges.length >= 3) {
+        car.nextE = this.chooseNext(car, e, node, here);
+        const nE = car.nextE, out = nE.a === node ? nE.pts[1] : nE.pts[nE.pts.length - 2];
+        const ox2 = out.x - node.x, oz2 = out.z - node.z, l = Math.hypot(ox2, oz2) || 1;
+        const cr = (here.tx * car.dir) * (oz2 / l) - (here.tz * car.dir) * (ox2 / l);   // >0: rechts (Bildschirm-Koordinaten x/z)
+        car.blink = Math.abs(cr) > 0.45 ? (cr > 0 ? 1 : -1) : 0;
+      }
       car.s += car.dir * car.speed * dt;
       // Kantenende → nächste Kante wählen (lieber geradeaus)
       if (car.s > e.len || car.s < 0) {
         const over = car.s > e.len ? car.s - e.len : -car.s;
         const ox = car.x, oz = car.z;
         const inTx = here.tx * car.dir, inTz = here.tz * car.dir;
-        const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && o.cls === 'city'));
-        let next = null, dirN = 1;
-        if (opts.length) {
-          let tot = 0; const ws = opts.map((o) => {
-            const out = o.a === node ? o.pts[1] : o.pts[o.pts.length - 2];
-            const ox2 = out.x - node.x, oz2 = out.z - node.z, l = Math.hypot(ox2, oz2) || 1;
-            const wgt = 0.35 + Math.max(0, (ox2 * inTx + oz2 * inTz) / l) * 2.2; tot += wgt; return wgt;
-          });
-          let r = this.rng() * tot; let k = 0; while (k < ws.length - 1 && r > ws[k]) { r -= ws[k]; k++; }
-          next = opts[k];
-        } else next = e;
-        dirN = next.a === node ? 1 : -1;
+        const next = car.nextE || this.chooseNext(car, e, node, here); car.nextE = null; car.blinkT = 2.5;
+        const dirN = next.a === node ? 1 : -1;
         car.e = next; car.dir = dirN; car.s = dirN > 0 ? over : next.len - over;
         car.lane = Math.min(car.lane, next.C.lanes.length - 1);
         car.cleared = false; car.waitT = 0;
@@ -370,6 +402,10 @@ class TrafficSystem {
         e.set(car.pitch, car.yaw, 0, 'YXZ'); q.setFromEuler(e); p.set(car.x, car.y, car.z);
         m.compose(p, q, this._one);
       }
+      { const on = Math.sin((this.time || 0) * Math.PI * 3) > 0, drive = car.state === 'drive';
+        this._lc = this._lc || new THREE.Color();
+        this._lc.setRGB(drive && car.brakeOn ? 3.2 : 1, drive && car.blink < 0 && on ? 1 : 0, drive && car.blink > 0 && on ? 1 : 0);
+        car.v.lightMesh.setColorAt(car.slot, this._lc); }
       car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, car.state === 'parked' ? this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0)) : m);
       // Kontaktschatten
       const bx = car.body ? car.body.pos.x : car.x, bz = car.body ? car.body.pos.z : car.z;
@@ -380,6 +416,7 @@ class TrafficSystem {
       this.blobs.setMatrixAt(car.idx, m);
     }
     this.blobs.instanceMatrix.needsUpdate = true;
+    for (const v of this.variants) if (v.lightMesh.instanceColor) v.lightMesh.instanceColor.needsUpdate = true;
     // Lichthöfe (nur fahrende Autos, nur nachts)
     if (this.glow.visible) {
       const pa = this.glowGeo.attributes.position.array, ca = this.glowGeo.attributes.color.array;
