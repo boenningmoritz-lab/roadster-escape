@@ -297,6 +297,12 @@ class Game {
 
     this.world.update(dt, this.camera, this._ip);
     this.env.update(dt, this._ip, this.camera.position);
+    // Häuserschlucht: hohe Gebäude ringsum → weniger Himmelslicht → Auge stellt heller; Tempo → Bewegungsunschärfe
+    { const cp = this.camera.position; let tall = 0;
+      for (const [dx, dz] of [[14, 0], [-14, 0], [0, 14], [0, -14], [10, 10], [-10, -10]]) {
+        for (const b of this.world.buildingHash.at(cp.x + dx, cp.z + dz)) if (b.top > cp.y + 12 && cp.x + dx > b.x0 - 2 && cp.x + dx < b.x1 + 2 && cp.z + dz > b.z0 - 2 && cp.z + dz < b.z1 + 2) { tall++; break; }
+      }
+      this.env.setAdapt(clamp(tall / 4, 0, 1) * 0.22 * (this.timeOfDay === 'night' ? 0.3 : 1), clamp((v.speed - 45) / 40, 0, 1) * (v.boosting ? 1.4 : 1)); }
     this.minimap.draw(dt, v, this.traffic);
     this.grass.update(dt, this.camera.position);
     this.scenery.update(this.camera.position);

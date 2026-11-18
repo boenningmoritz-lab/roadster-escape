@@ -188,6 +188,16 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Ton & Haptik:** Inverter-Pfeifen in hörbaren Stufen beim Anfahren, tonales Reifenquietschen mit Vibrato; Vibration beim Rutschen und bei Bordstein-/Kantenkontakt.
 - **Gras:** feine, weichere Halme mit Farbverlauf (unten dunkel, Spitzen heller/gelblich), einzelne trockene Halme und Rispen.
 
+## Technik (Realismus-Paket 5 – Stadt, Wetter, Details)
+- **Stadt** (`js/world/street.js`): Granit-Bordsteine, Gehwegplatten (50 cm, in Weltkoordinaten), Kanaldeckel und Gullys; rund 700 Stadtmöbel (Mülleimer, Parkscheinautomaten, Poller, Bänke, Hydranten), die beim Anfahren wegfliegen und später wieder dastehen; Fußgänger (Niedrig 16 / Mittel 45 / Hoch 90) laufen mit Bein- und Armschwung um die Blöcke und springen vor schnellen Autos zur Hauswand.
+- **Fassaden:** Fensterscheiben liegen per Parallaxe ~25 cm hinter der Fassade (sichtbare Laibungen), Markisen über Ladenzeilen, rund 1900 Balkone mit Glasbrüstung.
+- **Ego-Sicht bei Regen:** Tropfen auf der Frontscheibe, die bei Tempo nach oben laufen; zwei Scheibenwischer räumen ihren Bereich frei, danach füllt er sich wieder. Augenhöhe so, dass der Scheibenrahmen über dem Blick liegt.
+- **Spiegel mit echtem Bild:** Innen- und Außenspiegel zeigen in der Ego-Sicht eine Rückansicht (kleines Render-Target, jedes 3. Bild; nicht auf Niedrig).
+- **Reifen:** Lauffläche mit Längsrillen und Lamellen, Flanke mit Schriftzug „VOLTARA AERO-GRIP 275/30 ZR21“.
+- **Schmutz:** Offroad-Fahrten verschmutzen Schweller und Flanken fleckig braun, Regen wäscht ihn ab.
+- **Augen-Anpassung:** in Häuserschluchten stellt die Belichtung träge (~1,5 s) heller.
+- **Bewegungsunschärfe** (Grafik Hoch, abschaltbar): ab ca. 160 km/h radial vom Bildrand, Mitte bleibt scharf.
+
 ## Code-Aufbau
 
 ```
@@ -197,6 +207,7 @@ js/main.js            Startpunkt: Ladebildschirm, Spiel erzeugen, Menü öffnen
 js/config.js          Fahrzeug-Abstimmung (CONFIG), Grafikstufen, Einstellungen
 js/input.js           Touch (Lenk-Schieber, Knöpfe, Multitouch), Neigen, Haptik, Querformat/Drehung
 js/camera.js          Verfolger-, Motorhauben- und Cockpit-Kamera, Wisch-/Zoom-Gesten
+js/world/street.js     Bordsteine, Kanaldeckel, Stadtmöbel, Fußgänger
 js/hud.js             Tacho, Gang, Drehzahl, Boost/Flug-Leisten, Geld, Telemetrie
 js/vehicle/vehicle.js Raycast-Fahrphysik, E-Motor + Getriebe, Boost, Fliegen
 js/vehicle/carmodel.js 3D-Modell des Roadsters inkl. Innenraum, Düsen, Reifenspuren

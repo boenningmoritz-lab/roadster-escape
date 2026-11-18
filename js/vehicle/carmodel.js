@@ -9,6 +9,39 @@ import { smoothNormals } from '../environment.js';
  * Karosserie = extrudierte Seitenprofile (Seitenteile + Mitte mit Cockpit-Ausschnitt),
  * Glaskuppel, Innenraum, Räder mit Felgen/Bremsen, Licht vorne/hinten.
  */
+/** Reifenprofil: vier Längsrillen und schräge Lamellen (u = Umfang, v = Breite). */
+function makeTreadTexture() {
+  const W = 512, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#1b1b1c'; c.fillRect(0, 0, W, H);
+  c.fillStyle = '#080808';
+  for (const v of [0.2, 0.4, 0.6, 0.8]) c.fillRect(0, v * H - 3, W, 6);                     // Längsrillen
+  c.strokeStyle = '#0b0b0b'; c.lineWidth = 2.5;
+  for (let u = 0; u < W; u += 12) for (const [a, b] of [[0, 0.2], [0.4, 0.6], [0.8, 1]]) { c.beginPath(); c.moveTo(u, a * H + 4); c.lineTo(u + 9, b * H - 4); c.stroke(); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(6, 1); t.anisotropy = 4;
+  return t;
+}
+
+/** Reifenflanke: Gummi mit erhabenem Schriftzug im Kreis (Fantasiemarke, keine echte Marke). */
+function makeSidewallTexture(R) {
+  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#151516'; c.fillRect(0, 0, S, S);
+  const rText = (0.268 / R) * S * 0.5;               // Textring knapp außerhalb der Felge
+  c.font = `bold ${Math.round(S * 0.032)}px sans-serif`; c.fillStyle = '#4a4a4c'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const write = (txt, a0) => {
+    const step = 0.052;
+    for (let i = 0; i < txt.length; i++) {
+      const a = a0 + (i - txt.length / 2) * step;
+      c.save(); c.translate(S / 2 + Math.cos(a) * rText, S / 2 + Math.sin(a) * rText); c.rotate(a + Math.PI / 2); c.fillText(txt[i], 0, 0); c.restore();
+    }
+  };
+  write('VOLTARA AERO-GRIP', -Math.PI / 2); write('275/30 ZR21  101Y', Math.PI / 2);
+  c.strokeStyle = '#2a2a2c'; c.lineWidth = 2; c.beginPath(); c.arc(S / 2, S / 2, rText + S * 0.03, 0, 6.3); c.stroke();
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
 /** „Orangenhaut“ des Klarlacks: feine, weiche Welligkeit als Normal-Map (nur Grafik Hoch). */
 function makeOrangePeel() {
   const N = 128, cv = document.createElement('canvas'); cv.width = cv.height = N;
@@ -47,6 +80,21 @@ class CarModel {
         clearcoatNormalMap: makeOrangePeel(), clearcoatNormalScale: new THREE.Vector2(0.12, 0.12) })
       : new THREE.MeshStandardMaterial({ color: paintCol, metalness: 0.12, roughness: 0.28 });
     this.paint.envMapIntensity = 0.75;
+    // Schmutz nach Offroad-Fahrten: unten und an den Flanken fleckig braun, Regen wäscht ihn langsam ab
+    this.dirtU = { value: 0 };
+    { const dirtU = this.dirtU, prev = this.paint.onBeforeCompile;
+      this.paint.onBeforeCompile = (sh, r) => {
+        prev?.(sh, r);
+        sh.uniforms.uDirt = dirtU;
+        sh.vertexShader = 'varying vec3 vDirtP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vDirtP = position;');
+        sh.fragmentShader = 'uniform float uDirt; varying vec3 vDirtP;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+          { float n = fract(sin(dot(floor(vDirtP.xz * 9.0), vec2(12.9898, 78.233))) * 43758.5453) * 0.5 + 0.5 * sin(vDirtP.x * 23.0 + vDirtP.z * 17.0);
+            float low = 1.0 - smoothstep(0.25, 0.75, vDirtP.y);
+            float k = clamp(uDirt * (low * 1.3 + 0.15) * (0.55 + 0.45 * n), 0.0, 0.85);
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.3, 0.21, 0.11), k); }`)
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.85, clamp(uDirt * 0.8, 0.0, 0.8));');
+      };
+    }
     const black = new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.55, metalness: 0.3 });
     const carbon = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.35, metalness: 0.4 });
     const glass = new THREE.MeshStandardMaterial({ color: 0x0a1018, roughness: 0.05, metalness: 0.9, transparent: true, opacity: 0.42, depthWrite: false });
@@ -413,6 +461,10 @@ class CarModel {
     const discGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.025, 20).rotateZ(Math.PI / 2);
     const calGeo = new THREE.BoxGeometry(0.07, 0.11, 0.2);
     const tireMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.92 });
+    // Lauffläche mit Profil + Reifenflanke mit Schriftzug (Canvas-Texturen)
+    const treadMat = new THREE.MeshStandardMaterial({ map: makeTreadTexture(), roughness: 0.95 });
+    const wallMat = new THREE.MeshStandardMaterial({ map: makeSidewallTexture(R), roughness: 0.88 });
+    const tireMats = [treadMat, wallMat, wallMat];
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 0.9, roughness: 0.25 });
     const faceMat = new THREE.MeshStandardMaterial({ color: 0x1a1c20, metalness: 0.6, roughness: 0.5 });
     // Bremsscheiben: glühen nach harten Bremsungen orange-rot (Wärmemodell in update)
@@ -425,7 +477,7 @@ class CarModel {
       const pivot = new THREE.Group();            // Federweg + Lenkung
       const spin = new THREE.Group();             // Raddrehung
       pivot.add(spin);
-      const tire = new THREE.Mesh(tireGeo, tireMat); tire.castShadow = true; spin.add(tire);
+      const tire = new THREE.Mesh(tireGeo, tireMats); tire.castShadow = true; spin.add(tire);
       for (const o of [-1, 1]) { const sw = new THREE.Mesh(sideWallGeo, tireMat); sw.position.x = o * cfg.wheelWidth * 0.42; spin.add(sw); }
       const rimGrp = new THREE.Group(); spin.add(rimGrp);      // Felge (Design austauschbar)
       const disc = new THREE.Mesh(discGeo, discMat); disc.position.x = side * 0.02; spin.add(disc);
@@ -487,6 +539,12 @@ class CarModel {
     this.steeringWheel.rotation.z = vehicle.swAngle;   // echter Lenkradwinkel (1:1 wie das Touch-Lenkrad)
     if (this.hands.visible) this.updateHands(vehicle.swAngle || 0, dt);
     this.tailMat.emissiveIntensity = vehicle.braking ? 4.5 : 0.9;
+    // Schmutz: Offroad bei Tempo → mehr, Regen → abwaschen
+    if (dt > 0 && vehicle.wheels) {
+      let off = 0; for (const w of vehicle.wheels) if (w.grounded && w.grip < 0.95) off++;
+      this.dirt = clamp((this.dirt || 0) + (off >= 2 ? Math.min(vehicle.speed || 0, 25) * 0.0035 : 0) * dt - (this.rainWash || 0) * 0.025 * dt, 0, 1);
+      this.dirtU.value = this.dirt;
+    }
     // Bremsenergie heizt die Scheiben auf, Fahrtwind kühlt sie (glühen erst ab starker Hitze)
     if (dt > 0 && this.discMat) {
       this.discHeat += ((vehicle.brake || 0) * (vehicle.speed || 0) * 0.013 - this.discHeat * (0.12 + (vehicle.speed || 0) * 0.004)) * dt;
@@ -603,7 +661,7 @@ class CarModel {
   updateRain(dt, rain, speed, cockpit) {
     if (!this.rainU) return;
     const U = this.rainU;
-    U.uTime.value += dt; U.uRain.value = rain; U.uSpeed.value = speed;
+    U.uTime.value += dt; U.uRain.value = rain; U.uSpeed.value = speed; this.rainWash = rain;
     this.glassRain.visible = cockpit && rain > 0.02;
     if (rain > 0.05) { U.uPeriod.value = rain > 0.6 ? 1.0 : 1.5; this.wipeT += dt; }
     else if (this.wipeT % U.uPeriod.value > 0.02) this.wipeT += dt;   // Wischer in Ruhelage fahren

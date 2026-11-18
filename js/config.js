@@ -74,7 +74,7 @@ const approach = (v, t, step) => (v < t ? Math.min(v + step, t) : Math.max(v - s
 const Settings = {
   KEY: 'roadsterEscape.settings.v1',
   data: { transmission: 'auto', tractionControl: true, quality: 'auto', telemetry: false,
-          timeOfDay: 'day', weather: 'clear', sound: true, music: true, dynres: true, policeLevel: 'normal', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
+          timeOfDay: 'day', weather: 'clear', sound: true, music: true, dynres: true, motionBlur: true, policeLevel: 'normal', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.KEY) || '{}')); } catch (e) { /* privat-Modus */ }
     if (this.data.quality === 'auto') {
