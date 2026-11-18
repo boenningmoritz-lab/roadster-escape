@@ -166,7 +166,7 @@ class Vehicle {
     this.quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     this.vel.set(0, 0, 0); this.angVel.set(0, 0, 0);
     this.prevPos.copy(this.pos); this.prevQuat.copy(this.quat);
-    this.drivetrain.gear = 1; this.direction = 1; this.steerAngle = 0; this.swAngle = 0; this.swVel = 0;
+    this.drivetrain.gear = 1; this.direction = 1; this.steerAngle = 0; this.swAngle = 0; this.swVel = 0; this.puncture = 0;
     this.flying = false; this.landing = false; this.altitude = 0; this.airTime = 0;
     for (const w of this.wheels) { w.omega = 0; w.compression = w.prevCompression = 0; }
   }
@@ -213,6 +213,8 @@ class Vehicle {
     this.boostIn = inp.boost; this.steerIn = inp.steer; this.climbIn = inp.climb || 0;
     this.braking = this.brake > 0.05;
     this.reversing = dtn.gear < 0;
+    // platte Reifen (Nagelband): weniger Antrieb, Zeit läuft ab
+    if (this.puncture > 0) { this.puncture -= dt; this.throttle *= fs > 25 ? 0.25 : 0.6; }
 
     // ---------- Lenkung: Lenkrad (Hände) → Lenkgetriebe → Vorderräder ----------
     const sc = this.cfg.steer;
@@ -371,6 +373,7 @@ class Vehicle {
       // Lastempfindlichkeit: doppelte Last ≠ doppelter Grip (macht Stabi-Abstimmung wirksam)
       // Untergrund (Asphalt/Gras/Sand …) bestimmt den Grip
       let mu = T.mu * w.grip * (w.front ? 1 : T.rearGrip) * clamp(1 - T.loadSensitivity * (Fz / this.staticLoad - 1), 0.6, 1.15);
+      if (this.puncture > 0) mu *= 0.55;                     // Nagelband: platte Reifen → wenig Grip
       const handbrakeRear = this.handbrake && !w.front;
       let latMu = handbrakeRear ? mu * T.handbrakeGrip : mu;
       let Flat = -magic(slipAngle, T.B, T.C, T.E) * latMu * Fz;

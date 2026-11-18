@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clamp, lerp, damp } from './config.js';
 import { mergeParts, makeBlobTexture } from './world/world.js';
+import { Haptics, toast } from './input.js';
 
 // ============================== Spielstand ==============================
 /** Geld, Fortschritt, Upgrades (Phase 9) – dauerhaft in localStorage. */
@@ -15,11 +16,14 @@ SaveData.load();
 const fmtMoney = (n) => Math.round(n).toLocaleString('de-DE') + ' €';
 
 // ============================== Polizei ==============================
+// Polizei-Stufen. bust = Sekunden, die die Polizei dicht bei einem (langsamen) Spieler sein muss.
+// spikes = Nagelbänder, blockEvery = Abstand der Straßensperren (s), maxStars = höchste Fahndungsstufe.
 const POLICE_LEVELS = {
-  normal:  { name: 'Normal',  count: 2,  vmax: 52, accel: 7,  predict: 0.8, encircle: false, ram: 0.3, block: false, heli: false, escape: 8,  reward: 12 },
-  hard:    { name: 'Schwer',  count: 4,  vmax: 66, accel: 9,  predict: 1.2, encircle: true,  ram: 0.55, block: true, heli: false, escape: 11, reward: 25 },
-  extreme: { name: 'Extrem',  count: 6,  vmax: 78, accel: 10.5, predict: 1.6, encircle: true, ram: 0.75, block: true, heli: true,  escape: 14, reward: 45 },
-  insane:  { name: 'Insane',  count: 10, vmax: 92, accel: 12.5, predict: 2.6, encircle: true, ram: 1.0, block: true, heli: true,  escape: 18, reward: 80 },
+  easy:    { name: 'Leicht',  count: 1,  vmax: 42, accel: 5.5, predict: 0.4, encircle: false, ram: 0.12, block: false, spikes: false, heli: false, escape: 6,  reward: 6,  bust: 7,   blockEvery: 60, maxStars: 3 },
+  normal:  { name: 'Normal',  count: 2,  vmax: 52, accel: 7,   predict: 0.8, encircle: false, ram: 0.3,  block: false, spikes: false, heli: false, escape: 8,  reward: 12, bust: 5,   blockEvery: 50, maxStars: 4 },
+  hard:    { name: 'Schwer',  count: 4,  vmax: 66, accel: 9,   predict: 1.2, encircle: true,  ram: 0.55, block: true,  spikes: true,  heli: false, escape: 11, reward: 25, bust: 4.7,   blockEvery: 40, maxStars: 5 },
+  extreme: { name: 'Extrem',  count: 6,  vmax: 78, accel: 10.5, predict: 1.6, encircle: true, ram: 0.75, block: true,  spikes: true,  heli: true,  escape: 14, reward: 45, bust: 4.4, blockEvery: 32, maxStars: 5 },
+  insane:  { name: 'Insane',  count: 10, vmax: 92, accel: 12.5, predict: 2.6, encircle: true, ram: 1.0,  block: true,  spikes: true,  heli: true,  escape: 18, reward: 80, bust: 4,   blockEvery: 25, maxStars: 5 },
 };
 
 /** Großer, fliegender Luxus-SUV der Polizei (frei erfunden, keine echte Marke). */
@@ -80,7 +84,7 @@ class PoliceSystem {
     this._v = Array.from({ length: 6 }, () => new THREE.Vector3());
     this.ui = {
       hud: document.getElementById('chaseHud'), stars: document.getElementById('chaseStars'), status: document.getElementById('chaseStatus'),
-      bust: document.getElementById('bustFill'), bustWrap: document.getElementById('bustBar'),
+      bust: document.getElementById('bustFill'), bustWrap: document.getElementById('bustBar'), bustTxt: document.querySelector('#bustBar span'),
     };
   }
 
@@ -146,12 +150,15 @@ class PoliceSystem {
     const D = this.D = POLICE_LEVELS[levelKey]; this.levelKey = levelKey;
     this.active = true; this.time = 0; this.lastSeen = 0; this.seen = true; this.bustT = 0; this.rams = 0; this.wanted = 1;
     this.lastKnown = player.pos.clone(); this.blockTimer = 25;
-    while (this.units.length < D.count + 3) this.units.push(this.makeUnit());
+    while (this.units.length < D.count + 8) this.units.push(this.makeUnit());
+    this.extra = 0; this.spikeTimer = 20; this.bustWarned = 0; this.heliOn = false;
+    for (const s of this.spikes || []) s.mesh.visible = false; this.spikes = this.spikes || [];
     this.units.forEach((u, i) => {
       u.active = i < D.count; u.grp.visible = u.active; u.slot = i; u.block = null; u.mode = 'air';
       if (u.active) this.spawnUnit(u, player, 260 + i * 40);
     });
     if (D.heli) {
+      this.heliOn = true;
       if (!this.heli) this.heli = this.makeHeli();
       const h = this.heli; h.grp.visible = true; h.beam.visible = true;
       h.pos.copy(player.pos).add(this._v[0].set(-200, 90, -200)); h.vel.set(0, 0, 0);
@@ -174,6 +181,7 @@ class PoliceSystem {
     for (const u of this.units) { u.grp.visible = false; u.active = false; u.blob.visible = false; }
     if (this.heli) { this.heli.grp.visible = false; this.heli.beam.visible = false; this.heli.spot.intensity = 0; }
     for (const l of this.flashLights) l.intensity = 0;
+    for (const sp of this.spikes || []) sp.mesh.visible = false;
     this.ui.hud.hidden = true;
     this.sound?.policeOn(false);
     if (!result) return null;
@@ -206,22 +214,34 @@ class PoliceSystem {
     this.time += dt;
     const pp = player.pos, pv = player.vel;
     // Fahndungslevel steigt mit der Zeit und mit Rammstößen
-    this.wanted = clamp(1 + Math.floor(this.time / 30) + Math.floor(this.rams / 3), 1, 5);
+    this.wanted = clamp(1 + Math.floor(this.time / 30) + Math.floor(this.rams / 3), 1, D.maxStars);
     const boost = 1 + (this.wanted - 1) * 0.05;
+    // Höhere Fahndungsstufe schaltet Taktiken frei: ★★★ Einkesseln, ★★★★ Sperren + Nagelbänder + Verstärkung, ★★★★★ Hubschrauber
+    this.tact = { encircle: D.encircle || this.wanted >= 3, block: D.block || this.wanted >= 4, spikes: D.spikes || this.wanted >= 4, heli: D.heli || this.wanted >= 5 };
+    const wantExtra = Math.max(0, this.wanted - 2) * Math.max(1, Math.round(D.count * 0.25));
+    if (wantExtra > this.extra) {
+      const free = this.units.filter((u) => !u.active && !u.block).slice(0, wantExtra - this.extra);
+      for (const u of free) { u.active = true; u.grp.visible = true; u.block = null; this.spawnUnit(u, player, 320); this.extra++; }
+      if (free.length) toast('Verstärkung angefordert ' + '★'.repeat(this.wanted), 1500);
+    }
+    if (this.tact.heli && !this.heliOn) this.enableHeli(player);
     // Sicht prüfen (4× pro Sekunde)
     this.seeT = (this.seeT || 0) - dt;
     if (this.seeT <= 0) {
       this.seeT = 0.25;
       let seen = false;
       for (const u of this.units) if (u.active && !u.block?.wait && this.canSee(u.pos, pp, 300)) { seen = true; break; }
-      if (!seen && this.heli && D.heli && this.canSee(this.heli.pos, pp, 480)) seen = true;
+      if (!seen && this.heli && this.heliOn && this.canSee(this.heli.pos, pp, 480)) seen = true;
       this.seen = seen;
       if (seen) { this.lastSeen = this.time; this.lastKnown.copy(pp); }
     }
     const hidden = this.time - this.lastSeen;
     if (hidden > D.escape) return this.stop('escaped');
     // Straßensperren (ab „Schwer“)
-    if (D.block && (this.blockTimer -= dt) <= 0) { this.blockTimer = 35 + Math.random() * 25; this.placeRoadblock(player); }
+    if (this.tact.block && (this.blockTimer -= dt) <= 0) { this.blockTimer = D.blockEvery * (0.8 + Math.random() * 0.5); this.placeRoadblock(player); }
+    // Nagelbänder vor dem Spieler auslegen; Überfahren zerstört die Reifen für einige Sekunden
+    if (this.tact.spikes && (this.spikeTimer -= dt) <= 0) { this.spikeTimer = 22 + Math.random() * 18; this.placeSpikes(player); }
+    this.updateSpikes(dt, player);
     // Einheiten bewegen
     let near = 0;
     const hs = Math.hypot(pv.x, pv.z);
@@ -237,7 +257,7 @@ class PoliceSystem {
       target.copy(known);
       if (this.seen) target.addScaledVector(pv, predict);
       // Einkesseln: feste Plätze rund um den Spieler (vorne links/rechts, seitlich, hinten)
-      if (D.encircle && dist < 70 && this.seen) {
+      if (this.tact.encircle && dist < 70 && this.seen) {
         const ang = [Math.PI * 0.25, -Math.PI * 0.25, Math.PI * 0.6, -Math.PI * 0.6, Math.PI, Math.PI * 0.85, -Math.PI * 0.85, 0.1, Math.PI * 0.4, -Math.PI * 0.4][idx % 10];
         const r = dist < 20 ? 5.5 : 9;
         const c = Math.cos(ang), s = Math.sin(ang);
@@ -301,11 +321,19 @@ class PoliceSystem {
       // zu weit weg / verloren → neu heranführen
       if (u.pos.distanceTo(pp) > 900) this.spawnUnit(u, player, 380);
     });
-    // Festnahme: eingekesselt oder lange stehen bei Polizei in der Nähe
+    // Festnahme: NICHT durch Berühren/Rammen, sondern erst wenn die Polizei D.bust Sekunden dicht dran ist
+    // (< 6 m und ich langsamer als 25 km/h) oder ich eingekesselt bin (3 Wagen < 9 m, < 50 km/h).
+    let close = 0, ring = 0;
+    for (const u of act) { const d = u.pos.distanceTo(pp); if (d < 6) close++; if (d < 9) ring++; }
     const pSpeed = player.speed;
-    const busting = (near >= 2 && pSpeed < 8) || (near >= 1 && pSpeed < 2.5);
-    this.bustT = busting ? this.bustT + dt : Math.max(0, this.bustT - dt * 1.5);
-    if (this.bustT > 3) return this.stop('busted');
+    const busting = !player.flying && ((close >= 1 && pSpeed < 25 / 3.6) || (ring >= 3 && pSpeed < 50 / 3.6));
+    const prevT = this.bustT;
+    this.bustT = busting ? this.bustT + dt : Math.max(0, this.bustT - dt * 0.6);      // freigekommen → läuft langsam zurück
+    const left = D.bust - this.bustT;
+    if (busting && prevT === 0) { Haptics.pulse(40); this.sound?.beep?.(880, 0.12); }
+    if (busting && left < 1 && this.bustWarned < 1) { this.bustWarned = 1; Haptics.pulse([60, 40, 60]); this.sound?.beep?.(1320, 0.25); }
+    if (left > 1.2) this.bustWarned = 0;
+    if (this.bustT >= D.bust) return this.stop('busted');
     this.updateHeli(dt, player);
     this.updateVisuals(dt, camera);
     this.updateHud(hidden);
@@ -313,6 +341,59 @@ class PoliceSystem {
   }
 
   /** Straßensperre auf der vermuteten Fluchtroute: 2–3 Wagen quer auf der Straße. */
+  /** Hubschrauber nachträglich dazuholen (ab ★★★★★ auch in niedrigeren Stufen). */
+  enableHeli(player) {
+    this.heliOn = true;
+    if (!this.heli) this.heli = this.makeHeli();
+    const h = this.heli; h.grp.visible = true; h.beam.visible = true;
+    h.pos.copy(player.pos).add(this._v[0].set(-200, 90, -200)); h.vel.set(0, 0, 0);
+    toast('Polizeihubschrauber im Einsatz', 1500);
+  }
+
+  /** Nagelband quer über die Straße, ein Stück vor dem Spieler. */
+  placeSpikes(player) {
+    const hs = Math.hypot(player.vel.x, player.vel.z);
+    if (player.flying || hs < 15) { this.spikeTimer = 4; return; }
+    const ahead = clamp(hs * 5, 110, 260);
+    const px = player.pos.x + player.vel.x / hs * ahead, pz = player.pos.z + player.vel.z / hs * ahead;
+    const pose = this.w.nearestRoadPose(px, pz, player.yaw());
+    if (!pose.edge || Math.hypot(pose.x - px, pose.z - pz) > 50) { this.spikeTimer = 4; return; }
+    let s = this.spikes.find((k) => !k.mesh.visible);
+    if (!s) {
+      if (this.spikes.length >= 3) s = this.spikes[0];
+      else {
+        const parts = [{ geo: new THREE.BoxGeometry(1, 0.04, 0.35), color: [0.1, 0.1, 0.11] }];
+        for (let i = -4.5; i <= 4.5; i += 0.5) parts.push({ geo: new THREE.ConeGeometry(0.03, 0.09, 4).translate(i / 9, 0.06, 0), color: [0.75, 0.76, 0.78] });
+        const mesh = new THREE.Mesh(mergeParts(parts), new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.6, roughness: 0.4 }));
+        mesh.castShadow = true; this.scene.add(mesh);
+        s = { mesh }; this.spikes.push(s);
+      }
+    }
+    const W = pose.edge.C.halfW * 2 + 1;
+    s.x = pose.x; s.z = pose.z; s.yaw = pose.yaw; s.half = W / 2; s.t = 0;
+    // quer zur Fahrbahn über die ganze Breite (Mitte der Straße)
+    const fx = -Math.sin(pose.yaw), fz = -Math.cos(pose.yaw), rx = -fz, rz = fx, lane = pose.edge.C.lanes[pose.edge.C.lanes.length - 1];
+    s.x -= rx * lane; s.z -= rz * lane;
+    s.mesh.position.set(s.x, this.w.sample(s.x, s.z) + 0.03, s.z); s.mesh.rotation.set(0, pose.yaw + Math.PI / 2, 0); s.mesh.scale.set(W, 1, 1);
+    s.mesh.visible = true;
+  }
+
+  updateSpikes(dt, player) {
+    for (const s of this.spikes) {
+      if (!s.mesh.visible) continue;
+      s.t += dt;
+      const dx = player.pos.x - s.x, dz = player.pos.z - s.z;
+      const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
+      const along = dx * fx + dz * fz, across = Math.abs(dx * -fz + dz * fx);
+      if (Math.abs(along) < 1.6 && across < s.half && !player.flying && player.pos.y - this.w.sample(player.pos.x, player.pos.z) < 1.5) {
+        player.puncture = 9; Haptics.pulse([30, 20, 30, 20, 30]); this.sound?.impact?.(6);
+        toast('Nagelband! Reifen platt – Grip und Tempo reduziert', 1800);
+        s.mesh.visible = false;
+      }
+      if (s.t > 45 || Math.hypot(dx, dz) > 700) s.mesh.visible = false;
+    }
+  }
+
   placeRoadblock(player) {
     const hs = Math.hypot(player.vel.x, player.vel.z);
     if (player.flying || hs < 12) { this.blockTimer = 3; return; }
@@ -349,7 +430,7 @@ class PoliceSystem {
 
   updateHeli(dt, player) {
     const h = this.heli;
-    if (!h || !this.D.heli) return;
+    if (!h || !this.heliOn) return;
     const pp = player.pos;
     const back = this._v[2].set(player.vel.x, 0, player.vel.z);
     const sp = back.length(); if (sp > 1) back.multiplyScalar(-1 / sp); else back.set(0, 0, 1);
@@ -415,8 +496,16 @@ class PoliceSystem {
       : `AUSSER SICHT – entkommen in ${Math.max(0, Math.ceil(this.D.escape - hidden))} s`;
     if (ui.status.textContent !== st) ui.status.textContent = st;
     ui.hud.classList.toggle('lost', !this.seen);
-    ui.bustWrap.style.opacity = this.bustT > 0.05 ? 1 : 0;
-    ui.bust.style.width = Math.round(clamp(this.bustT / 3, 0, 1) * 100) + '%';
+    // Festnahme-Timer: Balken läuft hoch, Restzeit in Sekunden; letzte Sekunde rot blinkend
+    const B = this.D.bust, on = this.bustT > 0.03;
+    ui.bustWrap.classList.toggle('on', on);
+    ui.bust.style.width = (clamp(this.bustT / B, 0, 1) * 100).toFixed(1) + '%';
+    const rest = Math.max(0, B - this.bustT);
+    ui.bustWrap.classList.toggle('last', on && rest < 1);
+    const txt = on ? `FESTNAHME ${rest.toFixed(1).replace('.', ',')} s` : '';
+    if (ui.bustTxt.textContent !== txt) ui.bustTxt.textContent = txt;
+    const lvl = `${s} ${this.D.name.toUpperCase()}`;
+    if (ui.stars.textContent !== lvl) ui.stars.textContent = lvl;
   }
 
   /** Polizei gegen Spieler: schwere Wagen, Impuls nach Masse und Geschwindigkeit. */

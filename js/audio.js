@@ -77,6 +77,15 @@ class SoundFX {
     this.set(this.o6.frequency, 820 + slide * 380, 0.05);
   }
 
+  /** Kurzer Warnton (z. B. Festnahme-Timer). */
+  beep(freq = 880, dur = 0.12) {
+    if (!this.ctx || !this.on) return;
+    const ctx = this.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + dur + 0.02);
+  }
+
   /** Kurzer Knall/Rumms (Stärke ~ Aufprallgeschwindigkeit in m/s). */
   impact(strength, kind = 'hit') {
     if (!this.ctx || !this.on) return;

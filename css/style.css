@@ -86,9 +86,15 @@
   #chaseStars { font-size: calc(22px * var(--s)); color: #ffd23f; letter-spacing: 2px; text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
   #chaseStatus { font: 800 calc(12px * var(--s)) sans-serif; letter-spacing: 1px; color: #ff6b7a; }
   #chaseHud.lost #chaseStatus { color: #8fe0ff; }
-  #bustBar { position: relative; width: calc(180px * var(--s)); height: 8px; margin: 5px auto 0; border-radius: 4px; background: rgba(255,255,255,0.15); overflow: hidden; opacity: 0; transition: opacity .2s; }
-  #bustFill { height: 100%; width: 0%; background: #ff3b4e; }
-  #bustBar span { position: absolute; inset: 0; font: 800 7px sans-serif; letter-spacing: 1px; line-height: 8px; color: #fff; }
+  /* Festnahme-Timer: großer Balken mit Restzeit, letzte Sekunde rot blinkend */
+  #bustBar { position: relative; width: calc(230px * var(--s)); height: calc(20px * var(--s)); margin: 6px auto 0; border-radius: 10px;
+             background: rgba(10,14,22,0.75); border: 2px solid rgba(255,180,60,0.9); overflow: hidden; opacity: 0; transition: opacity .2s; }
+  #bustBar.on { opacity: 1; }
+  #bustFill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffb13b, #ff6a2b); transition: width .1s linear; }
+  #bustBar span { position: absolute; inset: 0; font: 900 calc(11px * var(--s))/calc(17px * var(--s)) sans-serif; letter-spacing: 1px; color: #fff; text-align: center; text-shadow: 0 1px 2px #000; }
+  #bustBar.last { border-color: #ff2a3d; animation: bustBlink .25s steps(2) infinite; }
+  #bustBar.last #bustFill { background: #ff2a3d; }
+  @keyframes bustBlink { 50% { opacity: 0.35; } }
   #result { position: fixed; inset: 0; z-index: 12; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); }
   #result[hidden] { display: none; }
   #result h2 { font-size: 30px; letter-spacing: 2px; margin: 0 0 6px; }
