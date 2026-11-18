@@ -224,9 +224,13 @@ class Vehicle {
     for (let i = 0; i < n; i++) {
       const err = target - this.swAngle;
       const back = Math.abs(this.swAngle) > 0.05 && Math.sign(err) !== Math.sign(this.swAngle);   // Gegenlenken/zurück
-      const vmax = back ? sc.counterRate : sc.rate;
+      // Zurück Richtung Mitte (Ziel liegt zwischen 0 und aktuellem Winkel): Rückstellmoment der Lenkung → sehr schnell
+      const centering = back && Math.abs(target) <= Math.abs(this.swAngle) && Math.sign(target) !== -Math.sign(this.swAngle);
+      const vmax = centering ? sc.returnRate : back ? sc.counterRate : sc.rate;
+      const amax = centering ? sc.returnAccel : sc.accel;
+      const wn = centering ? w0 * 2.3 : w0;
       // Beschleunigung der Hand begrenzt (kein Ruck beim Anlenken)
-      const acc = clamp(w0 * w0 * err - 2 * w0 * this.swVel, -sc.accel, sc.accel);
+      const acc = clamp(wn * wn * err - 2 * wn * this.swVel, -amax, amax);
       this.swVel = clamp(this.swVel + acc * h, -vmax, vmax);
       this.swAngle += this.swVel * h;
       if ((target - this.swAngle) * err < 0) { this.swAngle = target; this.swVel = 0; }

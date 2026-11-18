@@ -206,7 +206,7 @@ class StreetLife {
     // ---------- Fußgänger ----------
     if (!this.peds.length) return;
     const pm = this.pm, m = this._m, q = this._q, s = this._s, pos = this._p, e = this._e;
-    const vis = inCity || Math.hypot(cam.x - C.cx, cam.z - C.cz) < 600;
+    const vis = !this.hidePeds && (inCity || Math.hypot(cam.x - C.cx, cam.z - C.cz) < 600);
     for (const k of ['body', 'head', 'leg', 'arm']) pm[k].visible = vis;
     if (!vis) return;
     let i = 0;

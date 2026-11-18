@@ -204,15 +204,19 @@ class CarModel {
     // Dachrahmen (A-Säulen-Optik)
     // schlanke A-Säulen + Scheibenrahmen oben (Roadster), dazu Innenspiegel
     {
-      const tubeM = (pts, r) => { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, r, 8, false), black); body.add(m); return m; };
-      for (const sx of [-1, 1]) tubeM([new THREE.Vector3(sx * 0.66, 0.83, -0.76), new THREE.Vector3(sx * 0.62, 0.95, -0.55), new THREE.Vector3(sx * 0.56, 1.06, -0.3)], 0.013);
-      tubeM([new THREE.Vector3(-0.56, 1.06, -0.3), new THREE.Vector3(0, 1.085, -0.3), new THREE.Vector3(0.56, 1.06, -0.3)], 0.016);
-      const rv = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.055, 0.025), black); rv.position.set(0, 1.035, -0.29); rv.rotation.x = -0.12; body.add(rv);
+      // Nur in der Ego-Sicht: Frontscheibenrahmen hoch über der Augenlinie (Fahrer sitzt höher, Sicht frei);
+      // von außen sieht man stattdessen die flache Glaskuppel.
+      this.cockpitOnly = new THREE.Group(); this.cockpitOnly.visible = false; body.add(this.cockpitOnly);
+      const tubeM = (pts, r) => { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, r, 8, false), black); this.cockpitOnly.add(m); return m; };
+      for (const sx of [-1, 1]) tubeM([new THREE.Vector3(sx * 0.66, 0.84, -0.78), new THREE.Vector3(sx * 0.63, 1.08, -0.5), new THREE.Vector3(sx * 0.58, 1.33, -0.2)], 0.012);
+      tubeM([new THREE.Vector3(-0.58, 1.33, -0.2), new THREE.Vector3(0, 1.36, -0.2), new THREE.Vector3(0.58, 1.33, -0.2)], 0.014);
+      const rv = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.055, 0.025), black); rv.position.set(0.05, 1.3, -0.19); rv.rotation.x = -0.12; this.cockpitOnly.add(rv);
       // Spiegelglas: zeigt (in der Ego-Sicht) ein echtes Bild nach hinten – Render-Target, siehe Game.updateMirrors
       this.mirrorMat = new THREE.MeshBasicMaterial({ color: 0x9aa4ae });
       const rvgGeo = new THREE.PlaneGeometry(0.185, 0.045); { const uv = rvgGeo.attributes.uv; for (let i = 0; i < uv.count; i++) { uv.setX(i, 0.2 + (1 - uv.getX(i)) * 0.6); uv.setY(i, 0.25 + uv.getY(i) * 0.5); } }
       const rvg = new THREE.Mesh(rvgGeo, this.mirrorMat);
-      rvg.position.set(0, 1.035, -0.276); rvg.rotation.x = -0.12; body.add(rvg);
+      rvg.position.set(0.05, 1.3, -0.176); rvg.rotation.x = -0.12; this.cockpitOnly.add(rvg);
+      this.canopyMesh = canopyMesh;
     }
 
     // Unterboden, Splitter, Diffusor, Seitenschweller
@@ -343,7 +347,7 @@ class CarModel {
     // Lenkrad (dreht sich mit) + Lenksäule
     add(new THREE.CylinderGeometry(0.025, 0.03, 0.32, 10), interior, -0.33, 0.8, -0.46, Math.PI / 2 - 0.35);
     this.steeringWheel = new THREE.Group();
-    this.steeringWheel.position.set(-0.33, 0.83, -0.32);
+    this.steeringWheel.position.set(-0.33, 0.8, -0.34); this.steeringWheel.scale.setScalar(0.92);
     this.steeringWheel.rotation.x = -0.35;
     const swRim = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.021, 10, 32), leather);
     const swHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16).rotateX(Math.PI / 2), carbon);
@@ -383,7 +387,7 @@ class CarModel {
         }
         const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.035, 4, 8), glove); thumb.position.set(-sx * 0.01, 0.04, 0.018); thumb.rotation.z = sx * 0.9; hand.add(thumb);
         const c = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.029, 0.03, 12), cuff); c.rotation.x = Math.PI / 2; c.position.set(sx * 0.012, -0.005, 0.06); hand.add(c);
-        const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.05, 1, 14).translate(0, 0.5, 0), sleeve);
+        const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.034, 1, 14).translate(0, 0.5, 0), sleeve);
         this.hands.add(pivot); body.add(arm); arm.visible = false;
         this.handList.push({ sx, pivot, hand, arm, grip: 0, elbow: new THREE.Vector3(-0.33 + sx * 0.3, 0.6, 0.12) });
       }
@@ -391,7 +395,7 @@ class CarModel {
     body.add(this.steeringWheel);
     this.buildWindshieldRain(body);
     // Hände-Gruppe liegt wie das Lenkrad (gleiche Lage/Neigung), dreht aber selbst
-    this.hands.position.copy(this.steeringWheel.position); this.hands.rotation.x = this.steeringWheel.rotation.x; body.add(this.hands);
+    this.hands.position.copy(this.steeringWheel.position); this.hands.rotation.x = this.steeringWheel.rotation.x; this.hands.scale.copy(this.steeringWheel.scale); body.add(this.hands);
 
     // Displays als Canvas-Texturen (werden nur im Cockpit-Modus aktualisiert)
     const makeScreen = (w, h, pw, ph) => {
@@ -495,7 +499,7 @@ class CarModel {
   /** Ego-Sicht an/aus: Hände/Unterarme nur von innen sichtbar. */
   setCockpit(on) {
     if (this.hands.visible === on) return;
-    this.hands.visible = on; for (const h of this.handList) h.arm.visible = false;
+    this.hands.visible = on; this.cockpitOnly.visible = on; if (this.canopyMesh) this.canopyMesh.visible = !on; for (const h of this.handList) h.arm.visible = false;
   }
 
   /** Hände am Lenkrad: drehen mit; über ±100° wird umgegriffen (Hand gleitet zurück Richtung 9/3 Uhr). */
@@ -619,7 +623,7 @@ class CarModel {
           return min(a, b) + floor(uWipeT / T) * 0.0;
         }
         void main(){
-          vec2 p = vUv * vec2(1.2, 0.51);                         // Meter auf der Scheibe
+          vec2 p = vUv * vec2(1.2, 0.71);                         // Meter auf der Scheibe
           // zwei Wischer, Drehpunkte unten; Wischbereich 0..2,2 rad
           float age = 99.0;
           for (int k = 0; k < 2; k++) {
@@ -642,15 +646,15 @@ class CarModel {
           gl_FragColor = vec4(col, alpha);
         }`,
     });
-    const glassRain = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.51), mat);
-    glassRain.position.set(-0.03, 0.985, -0.5); glassRain.rotation.x = 1.124; glassRain.renderOrder = 5;
+    const glassRain = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.71), mat);
+    glassRain.position.set(0, 1.09, -0.49); glassRain.rotation.x = 0.905; glassRain.renderOrder = 5;
     glassRain.visible = false; body.add(glassRain); this.glassRain = glassRain;
     // Wischerarme (liegen unten auf der Scheibe, schwenken bei Regen)
     this.wipers = [];
     const armMat = new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.5, metalness: 0.4 });
     for (const px of [0.33, 0.85]) {
-      const piv = new THREE.Group(); piv.position.set(-0.6 + px - 0.03, -0.255 + 0.02, 0.012);
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.014, 0.012), armMat); arm.position.x = -0.28; piv.add(arm);
+      const piv = new THREE.Group(); piv.position.set(-0.6 + px - 0.03, -0.355 + 0.02, 0.012);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.014, 0.012), armMat); arm.position.x = -0.3; piv.add(arm);
       const blade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.02), armMat); blade.position.set(-0.3, 0, 0.012); piv.add(blade);
       glassRain.add(piv); this.wipers.push(piv);
     }

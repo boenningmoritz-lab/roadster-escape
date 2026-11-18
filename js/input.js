@@ -275,8 +275,8 @@ const Input = {
     // bei Fahrt kräftiger; auch im Stand dreht es zurück (etwas langsamer). Das Auto-Lenkrad folgt mit max. 720°/s.
     if (this.wheel.id === null && this.wheel.angle !== 0) {
       const a = this.wheel.angle;
-      const base = this.speed < 0.5 ? 200 : clamp(300 + this.speed * 15, 300, 900);    // Grad pro Sekunde
-      const rate = Math.max(base, Math.abs(a) * (this.speed < 0.5 ? 3 : 7));
+      const base = this.speed < 0.5 ? 500 : clamp(1000 + this.speed * 20, 1000, 1500);   // Grad pro Sekunde
+      const rate = Math.max(base, Math.abs(a) * (this.speed < 0.5 ? 10 : 20));
       this.wheel.angle = Math.sign(a) * Math.max(0, Math.abs(a) - rate * dt);
     }
     let steer = (left ? 1 : 0) - (right ? 1 : 0);      // +1 = links

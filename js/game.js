@@ -137,6 +137,16 @@ class Game {
     this.weather.apply(Settings.data.weather || 'clear');   // nach der Tageszeit, da es Licht/Nebel/Himmel anpasst
   }
 
+  /** Leistungsstufe (DynRes): statt das Bild unscharf zu machen, werden teure Details abgeschaltet. */
+  setFxLevel(n) {
+    this.fxLevel = n;
+    if (this.grass.mesh) this.grass.mesh.visible = n < 1;
+    if (this.street.pm) for (const k of ['body', 'head', 'leg', 'arm']) this.street.pm[k].visible = n < 2;
+    this.street.hidePeds = n >= 2;
+    const sh = this.q.shadows && n < 3;
+    if (this.renderer.shadowMap.enabled !== sh) { this.renderer.shadowMap.enabled = sh; this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }
+  }
+
   resize() {
     View.update();
     const w = View.w, h = View.h;
@@ -351,7 +361,7 @@ class Game {
 
   /** Rück- und Außenspiegel: in der Ego-Sicht jedes 3. Bild eine kleine Rückansicht rendern (nicht auf Grafik Niedrig). */
   updateMirrors() {
-    if (this.rig.mode !== 'cockpit' || !this.q.shadows) return;
+    if (this.rig.mode !== 'cockpit' || !this.q.shadows || (this.fxLevel || 0) >= 2) return;
     if (!this.mirrorRT) {
       this.mirrorRT = new THREE.WebGLRenderTarget(320, 120, { samples: 0 });
       this.mirrorCam = new THREE.PerspectiveCamera(32, 320 / 120, 0.3, 900);

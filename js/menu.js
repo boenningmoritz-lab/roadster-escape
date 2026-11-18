@@ -79,7 +79,7 @@ const Tutorial = {
 
 /** Dynamische Auflösung: hält die Bildrate stabil, indem die Pixeldichte nachgeregelt wird. */
 const DynRes = {
-  scale: 1, acc: 0, frames: 0, cool: 0,
+  scale: 1, acc: 0, frames: 0, cool: 0, fx: 0,   // fx: 0 = alles, 1 = ohne Gras, 2 = + ohne Fußgänger/Spiegel, 3 = + ohne Schatten
   update(game, dt) {
     if (Settings.data.dynres === false) return;
     this.acc += dt; this.frames++;
@@ -88,9 +88,17 @@ const DynRes = {
     if ((this.cool -= 1) > 0) return;
     const target = 56;
     const old = this.scale;
-    if (fps < target - 6 && this.scale > 0.55) this.scale = Math.max(0.55, this.scale - (fps < 35 ? 0.15 : 0.08));
-    else if (fps > target + 2 && this.scale < 1) this.scale = Math.min(1, this.scale + 0.05);
+    // Erst die Auflösung leicht senken (nie unter 80 % → Bild bleibt scharf), danach Effekte abschalten
+    const oldFx = this.fx || 0;
+    if (fps < target - 6) {
+      if (this.scale > 0.8) this.scale = Math.max(0.8, this.scale - 0.1);
+      else this.fx = Math.min(3, oldFx + 1);
+    } else if (fps > target + 2) {
+      if ((this.fx || 0) > 0) this.fx--;
+      else if (this.scale < 1) this.scale = Math.min(1, this.scale + 0.05);
+    }
     if (old !== this.scale) { game.resize(); this.cool = 2; }
+    if (oldFx !== (this.fx || 0)) { game.setFxLevel(this.fx); this.cool = 3; }
   },
 };
 

@@ -185,7 +185,7 @@ class CameraRig {
     head.applyQuaternion(carQuat).add(carPos);
     this.cam.position.copy(head);
     // Kopf neigt sich leicht gegen die Fliehkraft, nickt beim Bremsen
-    this._e.set(-0.07 - CamInput.pitch * 0.6 - (hood ? 0 : this.headG.z * 0.012), CamInput.yaw * 1.2, hood ? 0 : this.headG.x * 0.018, 'YXZ');
+    this._e.set(-0.1 - CamInput.pitch * 0.6 - (hood ? 0 : this.headG.z * 0.012), CamInput.yaw * 1.2, hood ? 0 : this.headG.x * 0.018, 'YXZ');
     this.cam.quaternion.copy(carQuat).multiply(this._q.setFromEuler(this._e));
     this.initialized = false;      // beim Zurückwechseln Verfolger neu ansetzen
   }

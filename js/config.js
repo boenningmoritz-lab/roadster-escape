@@ -9,7 +9,7 @@ const CONFIG = {
     mass: 1650,                   // kg
     inertiaBox: { w: 1.9, h: 1.0, l: 4.3 },
     cgHeight: 0.45,               // Schwerpunkt über Boden (Ruhelage, für Modell-Offset)
-    cockpitEyeY: 0.99,             // Augenhöhe des Fahrers über Boden
+    cockpitEyeY: 1.2,             // Augenhöhe des Fahrers über Boden
     wheelRadius: 0.34,
     wheelWidth: 0.28,
     wheels: [                     // Aufhängungspunkte relativ zum Schwerpunkt
@@ -38,7 +38,7 @@ const CONFIG = {
     },
     // Lenkung: Lenkrad → Vorderräder. Übersetzung = Anschlag / maxRoad (bei 270° ≈ 10,5 : 1).
     // rate/counterRate = maximale Drehgeschwindigkeit des Lenkrads (Hände), omega = Federhärte der Handbewegung.
-    steer: { maxRoad: 0.45, falloffFrom: 8, speedFalloff: 0.02, rate: 9.4, counterRate: 12.6, omega: 22, accel: 70 },
+    steer: { maxRoad: 0.45, falloffFrom: 8, speedFalloff: 0.02, rate: 9.4, counterRate: 12.6, omega: 22, accel: 70, returnRate: 28, returnAccel: 320 },
     aero: { rho: 1.225, CdA: 0.62, ClA: 2.4, frontDownforceShare: 0.42 },
     brake: { maxForce: 28000, frontBias: 0.62, handbrakeForce: 9000 },
     motor: {
@@ -74,7 +74,7 @@ const approach = (v, t, step) => (v < t ? Math.min(v + step, t) : Math.max(v - s
 const Settings = {
   KEY: 'roadsterEscape.settings.v1',
   data: { transmission: 'auto', tractionControl: true, quality: 'auto', telemetry: false,
-          timeOfDay: 'day', weather: 'clear', sound: true, music: true, dynres: true, motionBlur: true, policeLevel: 'normal', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
+          timeOfDay: 'day', weather: 'clear', sound: true, music: true, dynres: true, blurFx: false, filmLook: false, policeLevel: 'normal', steering: 'stick', steerSens: 'mid', tiltInvert: false, haptics: true, camMode: 'chase', camZoom: 1 },
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.KEY) || '{}')); } catch (e) { /* privat-Modus */ }
     if (this.data.quality === 'auto') {
@@ -88,7 +88,7 @@ const Settings = {
 Settings.load();
 
 const QUALITY = {
-  low:    { pixelRatio: 1.0, shadows: false, shadowSize: 0,    antialias: false, physicalPaint: false, headlights: false, bevelSegs: 1,
+  low:    { pixelRatio: 1.25, shadows: false, shadowSize: 0,    antialias: false, physicalPaint: false, headlights: false, bevelSegs: 1,
             treeDensity: 0.15, treeNear: 90,  treeFar: 480,  traffic: 12, parked: 10, pedestrians: 16, rainDrops: 1500, scenery: 500, sceneryRadius: 110, grass: 0,    grassRadius: 0,  particles: 500, lampLights: 0, bloom: false, clouds: false, fogFar: 1150, terrainNear: 180 },
   medium: { pixelRatio: 1.5, shadows: true,  shadowSize: 1024, antialias: true,  physicalPaint: false, headlights: true,  bevelSegs: 2,
             treeDensity: 0.38, treeNear: 150, treeFar: 750,  traffic: 22, parked: 26, pedestrians: 45, rainDrops: 3200, scenery: 1300, sceneryRadius: 160, grass: 3500, grassRadius: 38, particles: 1200, lampLights: 3, bloom: false, clouds: true,  fogFar: 1600, terrainNear: 260 },

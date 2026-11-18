@@ -90,13 +90,19 @@ class Environment {
     this.composer.addPass(new OutputPass());
     // Filmische Farbkorrektur: leichte S-Kurve, warme Lichter/kühle Schatten, feines Korn, minimale Farbsäume am Rand
     this.grade = new ShaderPass({
-      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 1 }, uBlur: { value: 0 } },
+      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 1 }, uBlur: { value: 0 }, uFilm: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1024, 1 / 768) } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uWarm; uniform float uBlur; varying vec2 vUv;
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uWarm; uniform float uBlur; uniform float uFilm; uniform vec2 uTexel; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
         void main(){
           vec2 d = vUv - 0.5; float r = dot(d, d);
-          vec3 c; c.r = texture2D(tDiffuse, vUv + d * r * 0.012).r; c.g = texture2D(tDiffuse, vUv).g; c.b = texture2D(tDiffuse, vUv - d * r * 0.012).b;
+          // Farbsäume nur mit Film-Look; sonst exakt das scharfe Bild
+          float ca = 0.012 * uFilm;
+          vec3 c; c.r = texture2D(tDiffuse, vUv + d * r * ca).r; c.g = texture2D(tDiffuse, vUv).g; c.b = texture2D(tDiffuse, vUv - d * r * ca).b;
+          // leichtes Nachschärfen (Unsharp-Mask aus 4 Nachbarpixeln) gegen weiches Bild
+          vec3 nb = texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb
+                  + texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb;
+          c = max(c + (c - nb * 0.25) * 0.35, 0.0);
           // Bewegungsunschärfe bei hohem Tempo: radial vom Bildzentrum, Mitte bleibt scharf
           if (uBlur > 0.001) { vec2 st = d * uBlur * smoothstep(0.02, 0.2, r) * 0.06; vec3 acc = c;
             for (int i = 1; i <= 4; i++) acc += texture2D(tDiffuse, vUv - st * float(i)).rgb;
@@ -105,7 +111,7 @@ class Environment {
           float l = dot(c, vec3(0.299, 0.587, 0.114));
           c += (vec3(0.035, 0.015, -0.03) * smoothstep(0.45, 1.0, l) + vec3(-0.02, 0.0, 0.03) * (1.0 - smoothstep(0.0, 0.4, l))) * uWarm;
           c = mix(vec3(l), c, 1.06);                                         // etwas mehr Sättigung
-          c += (h(vUv * 1000.0 + uTime) - 0.5) * 0.025;                      // Filmkorn
+          c += (h(vUv * 1000.0 + uTime) - 0.5) * 0.025 * uFilm;              // Filmkorn (nur Film-Look)
           gl_FragColor = vec4(c, 1.0);
         }`,
     });
@@ -118,7 +124,12 @@ class Environment {
     this.bloom.threshold = this.night ? 0.78 : 0.95;
     this.bloom.radius = this.night ? 0.55 : 0.4;
   }
-  resize(w, h) { if (this.composer) { this.composer.setSize(w, h); this.composer.setPixelRatio(this.renderer.getPixelRatio()); } }
+  resize(w, h) {
+    if (!this.composer) return;
+    this.composer.setSize(w, h); this.composer.setPixelRatio(this.renderer.getPixelRatio());
+    const pr = this.renderer.getPixelRatio();
+    if (this.grade) this.grade.uniforms.uTexel.value.set(1 / (w * pr), 1 / (h * pr));   // Nachschärfen pixelgenau
+  }
 
   setTime(mode) {
     const night = mode === 'night', dusk = mode === 'dusk';
@@ -162,7 +173,10 @@ class Environment {
   }
 
   /** Augen-Anpassung (k > 0: dunkle Umgebung → Belichtung hoch) und Bewegungsunschärfe (0..1). */
-  setAdapt(k, blur) { this.adaptK = k; if (this.grade) this.grade.uniforms.uBlur.value = Settings.data.motionBlur === false ? 0 : blur; }
+  setAdapt(k, blur) {
+    this.adaptK = k;
+    if (this.grade) { const U = this.grade.uniforms; U.uBlur.value = Settings.data.blurFx ? blur : 0; U.uFilm.value = Settings.data.filmLook ? 1 : 0; }
+  }
 
   update(dt, focus, camPos) {
     this.uniforms.uTime.value += dt;
