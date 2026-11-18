@@ -160,7 +160,7 @@ class Garage {
     this.car.root.position.y = CONFIG.car.cgHeight + 0.12;
     this.car.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     this.turn.add(this.car.root);
-    this.fake = { wheels: [0, 1, 2, 3].map(() => ({ grounded: true, suspLen: 0.27, steer: 0, omega: 0, spin: 0 })), steerAngle: 0, braking: false, reversing: false,
+    this.fake = { wheels: [0, 1, 2, 3].map(() => ({ grounded: true, suspLen: 0.27, steer: 0, omega: 0, spin: 0 })), steerAngle: 0, swAngle: 0, braking: false, reversing: false,
       flying: false, landing: false, altitude: 0, boosting: false, throttle: 0, climbIn: 0 };
     this.car.update(this.fake, 0.016);
     this.yaw = 0.7; this.pitch = 0.18; this.dist = 9.5; this.drag = null; this.spin = 0;

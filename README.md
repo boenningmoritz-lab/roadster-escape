@@ -42,7 +42,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 
 | Aktion | Touch | Tastatur (zum Testen) |
 |---|---|---|
-| Lenken | Schieber links: nur links/rechts, je weiter desto stärker (oder Neigen) | A / D, ← / → |
+| Lenken | Touch-Lenkrad links: Daumen auflegen und drehen (±270°), oder Neigen | A / D, ← / → |
 | Gas | GAS | W / ↑ |
 | Bremse / Rückwärts | BREMSE (im Stand halten → R) | S / ↓ |
 | Handbremse | HAND-BREMSE | Leertaste |
@@ -175,6 +175,13 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Asphalt:** heller, warmgrau, Splitt-Körnung als Bump-Map, Flickstellen, Risse, Ölspur, abgefahrene Markierungen.
 - **Gebäude:** Fensterscheiben spiegeln Himmel und Umgebung (Fresnel), Attika und Gesims an jedem Haus.
 - **Fehler behoben:** Tutorial-Hinweis verdeckte Fahndungssterne und lag über der Garage.
+
+## Technik (Realismus-Paket 4 – Lenkrad & Cockpit)
+- **Touch-Lenkrad** statt Schieber: Leder mit Ziernaht, Carbon-Speichen, 12-Uhr-Markierung. Daumen aufs Lenkrad (oder irgendwo links) legen und **drehen**; Anschlag ±270° (Empfindlichkeit: 360°/270°/200°), 2° Totzone. Losgelassen stellt es sich mit dem Tempo zurück, im Stand nicht.
+- **Echte Lenkübersetzung:** Lenkrad → Vorderräder ≈ 10,5 : 1 bei 270°, ab ca. 30 km/h zunehmend indirekter. Das Bildschirm-Lenkrad, das Cockpit-Lenkrad und die Räder zeigen immer denselben Winkel.
+- **Menschliche Lenkbewegung:** kritisch gedämpft, Handbeschleunigung begrenzt, max. 540°/s (Gegenlenken 720°/s). 1 cm am Kranz ≈ 40° Lenkrad ≈ 3,8° Radeinschlag; voller Anschlag in ≈ 0,8 s.
+- **Cockpit:** geschwungenes Alcantara-Armaturenbrett mit Ziernaht, Hutze, vier Lüftungsdüsen, Carbon-Mitteltunnel mit Wählhebel und Tasten, Türverkleidung mit Armauflage und Lautsprecher, schlanke A-Säulen statt dickem Bogen, Innenspiegel; Hände in Handschuhen (9/3 Uhr) mit Umgreifen, Unterarme. Kopf schwingt gedämpft mit den g-Kräften, FOV 72°. Großer HUD-Tacho in der Ego-Sicht ausgeblendet.
+- **Fehler behoben:** FPS-Zeile nur noch mit Telemetrie; kein schwarzes Bild nach „Freie Fahrt“ (Auflösung wird vor dem Rendern angepasst, beim Start gesperrt); geparkte Autos mit Abstand zum Bordstein und zu Kreuzungen; Missions-Fenster nur beim langsamen Hineinfahren (nicht beim Spawnen im Ring) und kompakt links; Tutorial oben rechts, Toasts mittig – nichts verdeckt Tacho, Sterne, Lenkrad oder Pedale; Außenspiegel sitzen fest auf der Tür.
 
 ## Code-Aufbau
 

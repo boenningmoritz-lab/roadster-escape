@@ -36,7 +36,9 @@ const CONFIG = {
       loadSensitivity: 0.14,      // Grip wächst unterproportional mit Radlast
       rearGrip: 1.10,             // breitere Hinterreifen → stabiler
     },
-    steer: { max: 0.66, speedFalloff: 0.035, rate: 6.5, returnRate: 8, wheelToSteeringWheel: 8 },
+    // Lenkung: Lenkrad → Vorderräder. Übersetzung = Anschlag / maxRoad (bei 270° ≈ 10,5 : 1).
+    // rate/counterRate = maximale Drehgeschwindigkeit des Lenkrads (Hände), omega = Federhärte der Handbewegung.
+    steer: { maxRoad: 0.45, falloffFrom: 8, speedFalloff: 0.02, rate: 9.4, counterRate: 12.6, omega: 22, accel: 70 },
     aero: { rho: 1.225, CdA: 0.62, ClA: 2.4, frontDownforceShare: 0.42 },
     brake: { maxForce: 28000, frontBias: 0.62, handbrakeForce: 9000 },
     motor: {

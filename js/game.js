@@ -236,6 +236,7 @@ class Game {
     const fixed = 1 / CONFIG.physicsHz;
     const v = this.vehicle;
 
+    Input.speed = v.speed;
     Input.update();
     this.handleActions();
     if (!this.paused) {
@@ -277,6 +278,9 @@ class Game {
     this.car.root.position.copy(this._ip);
     this.car.root.quaternion.copy(this._iq);
     this.car.update(v, this.paused ? 0 : dt);
+    this.car.setCockpit(this.rig.mode === 'cockpit');
+    document.body.classList.toggle('ego', this.rig.mode === 'cockpit');
+    Input.drawWheel(v.swAngle);   // Touch-Lenkrad zeigt exakt den Lenkradwinkel des Autos
     for (let i = 0; i < 4; i++) this.skid.track(i, v.wheels[i], v, this.world);
     this.skid.flush();
     if (this.menuOpen) this.menuCamera(dt); else this.rig.update(dt, this._ip, this._iq, v);
@@ -314,8 +318,9 @@ class Game {
       v.lastImpact = 0;
     }
 
-    this.env.render(this.camera);
+    // Auflösung VOR dem Rendern anpassen (ein Resize leert sonst das Bild bis zum nächsten Frame → schwarzes Bild)
     DynRes.update(this, dt);
+    this.env.render(this.camera);
 
     // FPS
     this.frames++; this.fpsTime += dt;

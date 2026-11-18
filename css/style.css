@@ -64,12 +64,13 @@
   #mBig { position: fixed; left: 0; right: 0; top: 30%; text-align: center; z-index: 8; pointer-events: none;
           font: 900 calc(84px * var(--s)) -apple-system, sans-serif; color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,0.6); }
   #mBig[hidden] { display: none; }
-  #mPrompt { position: fixed; left: 50%; bottom: calc(150px * var(--s) + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 6;
-             background: rgba(10,14,22,0.85); border: 2px solid #ffc13b; border-radius: 16px; color: #fff; padding: 10px 16px; max-width: 46%;
-             display: flex; flex-direction: column; gap: 3px; font: 600 12px sans-serif; text-align: center; }
+  /* Missions-Hinweis: kompakt links zwischen Minikarte und Lenkrad (verdeckt weder Auto noch Bedienelemente) */
+  #mPrompt { position: fixed; left: calc(16px + env(safe-area-inset-left)); top: calc(38px + 128px * var(--s) + env(safe-area-inset-top)); z-index: 6;
+             background: rgba(10,14,22,0.85); border: 2px solid #ffc13b; border-radius: 14px; color: #fff; padding: 7px 11px; max-width: calc(230px * var(--s));
+             display: flex; flex-direction: column; gap: 2px; font: 600 calc(11px * var(--s)) sans-serif; text-align: center; }
   #mPrompt[hidden] { display: none; }
-  #mPrompt b { font-size: 16px; color: #ffc13b; } #mPrompt small { color: var(--hud-dim); }
-  #mPrompt span { margin-top: 4px; background: #ffc13b; color: #1a1200; border-radius: 10px; padding: 6px; font-weight: 900; letter-spacing: 1px; }
+  #mPrompt b { font-size: calc(14px * var(--s)); color: #ffc13b; } #mPrompt small { color: var(--hud-dim); }
+  #mPrompt span { margin-top: 3px; background: #ffc13b; color: #1a1200; border-radius: 9px; padding: 5px; font-weight: 900; letter-spacing: 1px; }
   #missions { position: fixed; inset: 0; z-index: 11; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); }
   #missions[hidden] { display: none; }
   #mList { display: flex; flex-direction: column; gap: 6px; }
@@ -138,6 +139,17 @@
   #stickLabel { position: absolute; left: -40px; right: -40px; top: 108%; text-align: center; font: 700 calc(11px * var(--s)) sans-serif;
                 letter-spacing: 1px; color: var(--hud-dim); }
   body.tilt #stick { opacity: 0.25; }
+  /* Fahren: Touch-Lenkrad; der Kreuz-Joystick erscheint nur beim Fliegen */
+  body:not(.flying) #stick { display: none; }
+  body.flying #wheel { display: none; }
+  #wheel { position: absolute; left: 0; top: 0; width: calc(176px * var(--s)); height: calc(176px * var(--s));
+           margin: calc(-88px * var(--s)) 0 0 calc(-88px * var(--s)); pointer-events: none; opacity: 0.82; transition: opacity .15s; }
+  #wheel.active { opacity: 1; }
+  #wheelRot { width: 100%; height: 100%; will-change: transform; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.55)); }
+  #wheelRot svg { width: 100%; height: 100%; display: block; }
+  #wheelLabel { position: absolute; left: -30px; right: -30px; top: 101%; text-align: center; font: 700 calc(10px * var(--s)) sans-serif;
+                letter-spacing: 1px; color: var(--hud-dim); }
+  body.tilt #wheel { opacity: 0.35; }
   .tbtn { position: absolute; pointer-events: auto; border-radius: 50%;
           width: calc(var(--d) * var(--s)); height: calc(var(--d) * var(--s));
           right: calc(var(--r) * var(--s) + env(safe-area-inset-right)); bottom: calc(var(--b) * var(--s) + env(safe-area-inset-bottom));
@@ -180,7 +192,7 @@
           padding: 9px 16px; font: 600 13px sans-serif; display: none; align-items: center; gap: 12px; max-width: 70vw; }
   #hint.show { display: flex; }
   #hint button { background: var(--accent); color: #031018; border: none; border-radius: 14px; padding: 6px 12px; font: 700 12px sans-serif; }
-  #toast { position: fixed; top: 34%; left: 50%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none;
+  #toast { position: fixed; top: 52%; left: 50%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none;
            background: rgba(8,12,20,0.85); border-radius: 14px; padding: 12px 18px; font: 600 14px sans-serif;
            opacity: 0; transition: opacity .25s; text-align: center; max-width: 80vw; }
   #toast.show { opacity: 1; }
@@ -225,7 +237,7 @@
   body.inMenu #hint { display: none; }
   /* ---------- Tutorial ---------- */
   /* unten mittig zwischen Lenk-Schieber und Pedalen: verdeckt weder Tacho noch Fahndungssterne */
-  #coach { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 100px * var(--s)); transform: translateX(-50%); z-index: 7; width: 30%; max-width: 360px;
+  #coach { position: fixed; right: calc(16px + env(safe-area-inset-right)); top: calc(64px * var(--s) + env(safe-area-inset-top)); z-index: 7; width: 32%; max-width: 360px;
            background: rgba(8,12,20,0.82); border: 1px solid var(--accent); border-radius: 14px; padding: 8px 12px; font: 600 calc(12.5px * var(--s)) sans-serif; text-align: center; }
   #coach[hidden], body.inGarage #coach, body.inMenu #coach { display: none; }
   #coach span { color: var(--accent); font-weight: 900; margin-right: 6px; }
@@ -248,3 +260,5 @@
      sich das Spiel selbst um 90° (body.forced) – einfach das Handy quer halten. */
   #app { position: fixed; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; transform-origin: 0 0; }
   body.forced .panel { width: min(460px, 88%); max-height: 86%; }
+  /* Ego-Sicht: Tacho steht im Kombiinstrument → großen HUD-Tacho ausblenden, damit das Cockpit frei bleibt */
+  body.ego #speedo > div:first-child, body.ego #speedUnit, body.ego #rpmBar { display: none; }

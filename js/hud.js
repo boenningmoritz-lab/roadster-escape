@@ -21,7 +21,9 @@ const HUD = {
     const rpmPct = clamp(vehicle.drivetrain.rpm / vehicle.cfg.motor.redline, 0, 1);
     const w = (Math.round(rpmPct * 200) / 2) + '%';
     if (this.last.rpm !== w) { this.last.rpm = w; this.el.rpmFill.style.width = w; }
-    this.set('fps', `${fps} FPS · ${Settings.data.quality.toUpperCase()}${DynRes.scale < 1 ? ' · ' + Math.round(DynRes.scale * 100) + ' %' : ''}`);
+    // Bildrate nur mit eingeschalteter Telemetrie anzeigen
+    if (this.last.fpsOn !== !!Settings.data.telemetry) { this.last.fpsOn = !!Settings.data.telemetry; document.getElementById('fps').style.display = this.last.fpsOn ? '' : 'none'; }
+    if (this.last.fpsOn) this.set('fps', `${fps} FPS · ${Settings.data.quality.toUpperCase()}${DynRes.scale < 1 ? ' · ' + Math.round(DynRes.scale * 100) + ' %' : ''}`);
     this.set('money', '💰 ' + fmtMoney(SaveData.data.money));
     const bw = Math.round(vehicle.boostEnergy * 100) + '%', fw = Math.round(vehicle.flyEnergy * 100) + '%';
     if (this.last.bw !== bw) { this.last.bw = bw; this.el.boostFill.style.width = bw; this.el.tBoost.style.setProperty('--e', vehicle.boostEnergy.toFixed(2)); }

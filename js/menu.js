@@ -35,6 +35,7 @@ const Menu = {
   close() {
     const g = this.g;
     g.menuOpen = false; g.paused = false; g.rig.initialized = false;
+    DynRes.acc = 0; DynRes.frames = 0; DynRes.cool = 3;      // kein Auflösungswechsel direkt beim Start
     document.getElementById('mainMenu').hidden = true;
     document.body.classList.remove('inMenu');
     g.sound.start(); g.music?.start();
@@ -46,7 +47,7 @@ const Menu = {
 const Tutorial = {
   steps: [
     { text: 'Halte <b>GAS</b> gedrückt, um loszufahren.', el: 'tGas', done: (v) => v.throttle > 0.9, min: 1.2 },
-    { text: 'Schiebe den <b>Lenk-Schieber</b> nach links oder rechts – je weiter, desto stärker.', el: 'stick', done: () => Math.abs(Input.state.steer) > 0.45, min: 0.8 },
+    { text: 'Leg den Daumen auf das <b>Lenkrad</b> und <b>dreh</b> es – wie ein echtes Lenkrad (bis 270°).', el: 'wheel', done: () => Math.abs(Input.state.steer) > 0.25, min: 0.8 },
     { text: '<b>BOOST</b> gibt Extra-Schub. Der Ring zeigt die Energie.', el: 'tBoost', done: (v) => v.boosting, min: 0.6 },
     { text: '<b>FLIEGEN</b>: abheben – in der Luft steuerst du mit dem Joystick die Höhe.', el: 'tFly', done: (v) => v.flying, min: 0.5, skip: 9 },
     { text: 'Mit 🎥 und <b>EGO</b> wechselst du die Kamera. 🏁 Missionen, 🚨 Polizei, 🔧 Garage. Viel Spaß!', el: null, done: () => false, skip: 5 },

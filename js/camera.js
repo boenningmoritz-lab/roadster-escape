@@ -121,7 +121,7 @@ class CameraRig {
     }
 
     const speed = vehicle.speed;
-    const baseFov = inside ? 70 + clamp(speed * 0.07, 0, 9) : 60 + clamp(speed * 0.13, 0, 16);
+    const baseFov = inside ? 72 + clamp(speed * 0.04, 0, 3) : 60 + clamp(speed * 0.13, 0, 16);
     const fov = baseFov + this.fovExtra;
     if (Math.abs(fov - this.cam.fov) > 0.05) { this.cam.fov = damp(this.cam.fov, fov, 3, dt); this.cam.updateProjectionMatrix(); }
   }
@@ -165,20 +165,27 @@ class CameraRig {
   }
 
   updateCockpit(dt, carPos, carQuat, vehicle) {
+    // Kopf als gedämpftes Feder-Masse-System: folgt den g-Kräften mit leichter Verzögerung (Nackenmuskulatur)
+    if (!this.headG) { this.headG = { x: 0, z: 0, vx: 0, vz: 0 }; }
+    { const H = this.headG, k = 60, c = 11, h = Math.min(dt, 0.05);
+      const tx = clamp(vehicle.latAccel, -1.8, 1.8), tz = clamp(-vehicle.longAccel, -1.8, 1.8);   // tz > 0: Bremsen → Kopf nach vorn
+      H.vx += (k * (tx - H.x) - c * H.vx) * h; H.x += H.vx * h;
+      H.vz += (k * (tz - H.z) - c * H.vz) * h; H.z += H.vz * h; }
     // Kopf auf dem Fahrersitz; leichtes Mitschwingen mit den g-Kräften
     const hood = this.mode === 'hood';
     const head = hood
       ? this._t.set(0, 0.98 - CONFIG.car.cgHeight, -0.95)
       : this._t.set(
-        -0.33 - clamp(vehicle.latAccel, -1.5, 1.5) * 0.014,
-        CONFIG.car.cockpitEyeY - CONFIG.car.cgHeight,
-        0.42 + clamp(vehicle.longAccel, -1.5, 1.5) * 0.02);
+        -0.33 - this.headG.x * 0.032,
+        CONFIG.car.cockpitEyeY - CONFIG.car.cgHeight - Math.abs(this.headG.z) * 0.006,
+        0.42 - this.headG.z * 0.04);
     // feines Vibrieren bei hohem Tempo / Boost (realistischer Eindruck von Geschwindigkeit)
     const vib = clamp((vehicle.speed - 30) / 60, 0, 1) * 0.004 + (vehicle.boosting ? 0.004 : 0);
     if (vib > 0) { head.y += Math.sin(this.time * 73) * vib; head.x += Math.sin(this.time * 61 + 1) * vib * 0.6; }
     head.applyQuaternion(carQuat).add(carPos);
     this.cam.position.copy(head);
-    this._e.set(-0.07 - CamInput.pitch * 0.6, CamInput.yaw * 1.2, 0, 'YXZ');
+    // Kopf neigt sich leicht gegen die Fliehkraft, nickt beim Bremsen
+    this._e.set(-0.07 - CamInput.pitch * 0.6 - (hood ? 0 : this.headG.z * 0.012), CamInput.yaw * 1.2, hood ? 0 : this.headG.x * 0.018, 'YXZ');
     this.cam.quaternion.copy(carQuat).multiply(this._q.setFromEuler(this._e));
     this.initialized = false;      // beim Zurückwechseln Verfolger neu ansetzen
   }

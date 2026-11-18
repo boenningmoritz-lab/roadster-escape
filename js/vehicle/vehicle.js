@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { clamp, smoothstep, damp, approach } from '../config.js';
+import { clamp, smoothstep, damp, approach, Settings } from '../config.js';
+
+/** Lenkrad-Anschlag je Seite (rad) aus der Einstellung „Lenk-Empfindlichkeit“. */
+export function steerLockRad() {
+  return ({ low: 360, mid: 270, high: 200 }[Settings.data.steerSens] || 270) * Math.PI / 180;
+}
 
 // ============================== Drivetrain ==============================
 /**
@@ -133,7 +138,7 @@ class Vehicle {
     this.staticLoad = cfg.mass * 9.81 / 4;
 
     this.drivetrain = new Drivetrain(cfg);
-    this.steerAngle = 0;
+    this.steerAngle = 0; this.swAngle = 0; this.swVel = 0;    // Radeinschlag / Lenkradwinkel (rad)
     this.throttle = 0; this.brake = 0; this.handbrake = false;
     this.direction = 1;          // Automatik: 1 = vorwärts (D), −1 = rückwärts (R)
     this.dirTimer = 0;
@@ -161,7 +166,7 @@ class Vehicle {
     this.quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     this.vel.set(0, 0, 0); this.angVel.set(0, 0, 0);
     this.prevPos.copy(this.pos); this.prevQuat.copy(this.quat);
-    this.drivetrain.gear = 1; this.direction = 1; this.steerAngle = 0;
+    this.drivetrain.gear = 1; this.direction = 1; this.steerAngle = 0; this.swAngle = 0; this.swVel = 0;
     this.flying = false; this.landing = false; this.altitude = 0; this.airTime = 0;
     for (const w of this.wheels) { w.omega = 0; w.compression = w.prevCompression = 0; }
   }
@@ -209,18 +214,31 @@ class Vehicle {
     this.braking = this.brake > 0.05;
     this.reversing = dtn.gear < 0;
 
-    // Geschwindigkeitsabhängige Lenkung
+    // ---------- Lenkung: Lenkrad (Hände) → Lenkgetriebe → Vorderräder ----------
     const sc = this.cfg.steer;
-    let maxSteer = sc.max / (1 + Math.abs(fs) * sc.speedFalloff);
-    // Im Drift mehr Lenkeinschlag zulassen (Gegenlenken bis zum Schwimmwinkel)
+    const lock = steerLockRad();                       // Anschlag des Lenkrads (rad, je Seite)
+    this.steerLock = lock; this.steerRatio = lock / sc.maxRoad;
+    const target = clamp(inp.steer, -1, 1) * lock;
+    // Hände: kritisch gedämpfte Bewegung + begrenzte Drehgeschwindigkeit (weich, ohne Ruck/Überschwingen)
+    const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n, w0 = sc.omega;
+    for (let i = 0; i < n; i++) {
+      const err = target - this.swAngle;
+      const back = Math.abs(this.swAngle) > 0.05 && Math.sign(err) !== Math.sign(this.swAngle);   // Gegenlenken/zurück
+      const vmax = back ? sc.counterRate : sc.rate;
+      // Beschleunigung der Hand begrenzt (kein Ruck beim Anlenken)
+      const acc = clamp(w0 * w0 * err - 2 * w0 * this.swVel, -sc.accel, sc.accel);
+      this.swVel = clamp(this.swVel + acc * h, -vmax, vmax);
+      this.swAngle += this.swVel * h;
+      if ((target - this.swAngle) * err < 0) { this.swAngle = target; this.swVel = 0; }
+    }
+    // Lenkgetriebe: bei Tempo indirekter (variable Übersetzung) – das Lenkrad zeigt trotzdem den echten Winkel
+    const k0 = 1 / (1 + Math.max(0, Math.abs(fs) - sc.falloffFrom) * sc.speedFalloff);
     const lat = this.vel.dot(this._v[2].set(1, 0, 0).applyQuaternion(this.quat));
     const beta = Math.abs(Math.atan2(lat, Math.max(Math.abs(fs), 1)));
-    // nur in Gegenlenk-Richtung (zur Bewegungsrichtung hin): lat > 0 = rutscht nach rechts → rechts lenken (steer < 0)
-    const counter = inp.steer !== 0 && Math.sign(inp.steer) === -Math.sign(lat);
-    if (this.speed > 4 && counter) maxSteer = Math.max(maxSteer, Math.min(beta + 0.08, sc.max));
-    const target = inp.steer * maxSteer;
-    const returning = Math.abs(target) < Math.abs(this.steerAngle) || Math.sign(target) !== Math.sign(this.steerAngle);
-    this.steerAngle = approach(this.steerAngle, target, (returning ? sc.returnRate : sc.rate) * dt * (0.35 + maxSteer / sc.max * 0.65));
+    // Gegenlenken im Drift: volle Übersetzung bis zum Schwimmwinkel zulassen
+    const counter = Math.abs(this.swAngle) > 0.05 && Math.sign(this.swAngle) === -Math.sign(lat);
+    const k = this.speed > 4 && counter ? Math.max(k0, Math.min(beta + 0.08, sc.maxRoad) / sc.maxRoad) : k0;
+    this.steerAngle = this.swAngle / this.steerRatio * k;
   }
 
   step(dt) {

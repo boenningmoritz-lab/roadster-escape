@@ -172,13 +172,13 @@ class TrafficSystem {
     const city = this.w.edges.filter((e) => e.cls === 'city');
     if (fresh || !car.spot) {
       for (let t = 0; t < 40; t++) {
-        const e = city[Math.floor(this.rng() * city.length)], s = 18 + this.rng() * (e.len - 36), dir = this.rng() < 0.5 ? 1 : -1;
+        const e = city[Math.floor(this.rng() * city.length)], s = 24 + this.rng() * (e.len - 48), dir = this.rng() < 0.5 ? 1 : -1;
         if (this.cars.some((o) => o !== car && o.spot && o.spot.e === e && o.spot.dir === dir && Math.abs(o.spot.s - s) < 7)) continue;
         car.spot = { e, s, dir }; break;
       }
     }
     const sp = car.spot;
-    Object.assign(car, { e: sp.e, s: sp.s, dir: sp.dir, lane: 0, speed: 0, state: 'parked', latOff: 5.6 - sp.e.C.lanes[0], body: null, stopT: 0 });
+    Object.assign(car, { e: sp.e, s: sp.s, dir: sp.dir, lane: 0, speed: 0, state: 'parked', latOff: 5.45 - car.v.W / 2 + 0.92 - sp.e.C.lanes[0], body: null, stopT: 0 });
     this.place(car, 0, true);
   }
 

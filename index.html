@@ -52,7 +52,41 @@
 
 <div id="touch">
   <div id="stickZone"></div>
-  <div id="stick"><div id="stickKnob"></div><div id="stickLabel">LENKEN</div></div>
+  <div id="stick"><div id="stickKnob"></div><div id="stickLabel">STEUERN</div></div>
+  <!-- Touch-Lenkrad: Leder mit Naht, Carbon-Speichen, Markierung oben -->
+  <div id="wheel"><div id="wheelRot"><svg viewBox="-100 -100 200 200" aria-hidden="true">
+    <defs>
+      <radialGradient id="wlLeather" cx="35%" cy="25%" r="85%"><stop offset="0" stop-color="#4a4a4f"/><stop offset="0.55" stop-color="#1d1d21"/><stop offset="1" stop-color="#0b0b0d"/></radialGradient>
+      <linearGradient id="wlGrip" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a5a60"/><stop offset="1" stop-color="#151518"/></linearGradient>
+      <pattern id="wlCarbon" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="6" height="6" fill="#1b1d21"/><rect width="3" height="3" fill="#2c3036"/><rect x="3" y="3" width="3" height="3" fill="#2c3036"/></pattern>
+      <radialGradient id="wlHub" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#3d4148"/><stop offset="1" stop-color="#101114"/></radialGradient>
+    </defs>
+    <!-- Kranz -->
+    <circle r="82" fill="none" stroke="url(#wlLeather)" stroke-width="20"/>
+    <circle r="82" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="20" stroke-dasharray="0" transform="translate(1.5 2.5)" style="mix-blend-mode:multiply"/>
+    <circle r="82" fill="none" stroke="url(#wlLeather)" stroke-width="18"/>
+    <!-- Daumenauflagen (dicker, perforiertes Leder) -->
+    <path d="M -82 -26 A 86 86 0 0 0 -82 26" fill="none" stroke="url(#wlGrip)" stroke-width="24" stroke-linecap="round"/>
+    <path d="M 82 -26 A 86 86 0 0 1 82 26" fill="none" stroke="url(#wlGrip)" stroke-width="24" stroke-linecap="round"/>
+    <!-- Ziernähte -->
+    <circle r="73.5" fill="none" stroke="#c9a46a" stroke-opacity="0.55" stroke-width="1.1" stroke-dasharray="3 3"/>
+    <circle r="90.5" fill="none" stroke="#c9a46a" stroke-opacity="0.55" stroke-width="1.1" stroke-dasharray="3 3"/>
+    <!-- Glanzkante -->
+    <path d="M -62 -54 A 82 82 0 0 1 40 -72" fill="none" stroke="#fff" stroke-opacity="0.18" stroke-width="3" stroke-linecap="round"/>
+    <!-- Markierung oben (12 Uhr) -->
+    <path d="M -6 -92 L 6 -92 L 6 -72 L -6 -72 Z" fill="#ff8a1f"/>
+    <!-- Carbon-Speichen -->
+    <path d="M -74 -8 L -26 -12 L -22 12 L -74 10 Z" fill="url(#wlCarbon)" stroke="#000" stroke-opacity="0.5"/>
+    <path d="M 74 -8 L 26 -12 L 22 12 L 74 10 Z" fill="url(#wlCarbon)" stroke="#000" stroke-opacity="0.5"/>
+    <path d="M -12 20 L 12 20 L 9 74 L -9 74 Z" fill="url(#wlCarbon)" stroke="#000" stroke-opacity="0.5"/>
+    <!-- Nabe -->
+    <circle r="27" fill="url(#wlHub)" stroke="#000" stroke-opacity="0.6" stroke-width="2"/>
+    <circle r="27" fill="none" stroke="#9aa3ad" stroke-opacity="0.35" stroke-width="1"/>
+    <path d="M -10 -4 L 0 8 L 10 -4" fill="none" stroke="#36e0ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Schaltwippen-Andeutung / Tasten -->
+    <circle cx="-40" cy="0" r="4" fill="#2a2d33" stroke="#555" stroke-width="0.8"/><circle cx="40" cy="0" r="4" fill="#2a2d33" stroke="#555" stroke-width="0.8"/>
+  </svg></div><div id="wheelLabel">LENKRAD DREHEN</div></div>
   <div class="tbtn" id="tGas">GAS</div>
   <div class="tbtn" id="tBrake">BREMSE<small>halten = R</small></div>
   <div class="tbtn" id="tHand">HAND-<br>BREMSE</div>

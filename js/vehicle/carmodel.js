@@ -131,9 +131,15 @@ class CarModel {
     cg.translate(0, 0, -0.59); cg.rotateY(-Math.PI / 2);
     const canopyMesh = new THREE.Mesh(cg, glass); canopyMesh.renderOrder = 2; body.add(canopyMesh);
     // Dachrahmen (A-Säulen-Optik)
-    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.016, 6, 32, Math.PI), black);
-    frame.rotation.y = Math.PI / 2; frame.position.set(0, 0.8, 0.04); frame.scale.set(1, 0.48, 1.25);
-    body.add(frame);
+    // schlanke A-Säulen + Scheibenrahmen oben (Roadster), dazu Innenspiegel
+    {
+      const tubeM = (pts, r) => { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, r, 8, false), black); body.add(m); return m; };
+      for (const sx of [-1, 1]) tubeM([new THREE.Vector3(sx * 0.66, 0.83, -0.76), new THREE.Vector3(sx * 0.62, 0.95, -0.55), new THREE.Vector3(sx * 0.56, 1.06, -0.3)], 0.013);
+      tubeM([new THREE.Vector3(-0.56, 1.06, -0.3), new THREE.Vector3(0, 1.085, -0.3), new THREE.Vector3(0.56, 1.06, -0.3)], 0.016);
+      const rv = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.055, 0.025), black); rv.position.set(0, 1.035, -0.29); rv.rotation.x = -0.12; body.add(rv);
+      const rvg = new THREE.Mesh(new THREE.PlaneGeometry(0.185, 0.045), new THREE.MeshStandardMaterial({ color: 0x9fb0c0, metalness: 1, roughness: 0.04 }));
+      rvg.position.set(0, 1.035, -0.276); rvg.rotation.x = -0.12; body.add(rvg);
+    }
 
     // Unterboden, Splitter, Diffusor, Seitenschweller
     const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; body.add(m); return m; };
@@ -142,11 +148,18 @@ class CarModel {
     add(new THREE.BoxGeometry(1.3, 0.04, 0.32), carbon, 0, 0.23, 1.9, 0.22);          // Diffusor
     for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.06, 0.08, 1.6), carbon, s * 0.97, 0.26, 0);
     // Außenspiegel
-    const mirrorGeo = new THREE.SphereGeometry(1, 14, 10);
+    // Außenspiegel: Fuß auf der Tür, Arm, Gehäuse in Wagenfarbe, echtes Spiegelglas nach hinten
+    const mirrorGeo = new THREE.SphereGeometry(1, 16, 12);
+    const mirrorGlass = new THREE.MeshStandardMaterial({ color: 0xa8b4c0, metalness: 1, roughness: 0.03 });
     for (const s of [-1, 1]) {
-      add(new THREE.BoxGeometry(0.14, 0.025, 0.05), black, s * 0.97, 0.84, -0.62, 0, 0, s * 0.2);
-      const m = add(mirrorGeo, this.paint, s * 1.06, 0.87, -0.6); m.scale.set(0.07, 0.05, 0.1);
-      const g = add(new THREE.PlaneGeometry(0.1, 0.07), black, s * 1.06, 0.87, -0.5, 0, 0, 0); g.rotation.y = 0; g.scale.set(1, 1, 1);
+      // Fuß sitzt exakt auf der Türoberkante (per Strahl auf die Karosserie ermittelt)
+      const top = surf(s * 0.86, 2, -0.64, 0, -1, 0, 0).y;
+      const hx = s * 1.03, hy = top + 0.085;
+      add(new THREE.BoxGeometry(0.08, 0.04, 0.13), black, s * 0.86, top + 0.012, -0.64);                // Fuß
+      const ax = (s * 0.88 + hx) / 2, ay = (top + 0.02 + hy) / 2, len = Math.hypot(hx - s * 0.88, hy - top - 0.02);
+      add(new THREE.BoxGeometry(len + 0.02, 0.024, 0.045), carbon, ax, ay, -0.64, 0, 0, Math.atan2(hy - top - 0.02, hx - s * 0.88));   // Arm
+      const m = add(mirrorGeo, this.paint, hx, hy, -0.64); m.scale.set(0.085, 0.052, 0.06);
+      const g = add(new THREE.CircleGeometry(1, 20), mirrorGlass, hx, hy, -0.584); g.scale.set(0.072, 0.042, 1); g.castShadow = false;
     }
 
     // ---------- Lichter (auf der Karosserie-Oberfläche platziert) ----------
@@ -193,19 +206,53 @@ class CarModel {
     this.ambientMat = new THREE.MeshBasicMaterial({ color: 0x36e0ff });          // Ambientelicht (Phase 9: Farbe wählbar)
     add(new THREE.BoxGeometry(1.15, 0.03, 1.35), interior, 0, 0.5, 0.05);           // Boden
     // Armaturenbrett: Unterteil, gepolsterte Oberseite, Hutze über dem Fahrer-Display
-    add(new THREE.BoxGeometry(1.22, 0.16, 0.34), interior, 0, 0.74, -0.6);
-    add(new THREE.BoxGeometry(1.24, 0.045, 0.4), leather, 0, 0.835, -0.62, 0.08);
-    add(new THREE.BoxGeometry(0.36, 0.05, 0.13), leather, -0.33, 0.95, -0.62, -0.15);
+    const alcantara = new THREE.MeshStandardMaterial({ color: 0x2b2b2f, roughness: 1 });
+    const stitch = new THREE.MeshStandardMaterial({ color: 0xc9a46a, roughness: 0.7 });
+    {
+      // Profil (z, y): Stirnwand → gepolsterte, nach hinten abfallende Oberseite → Lippe → Kniebereich
+      const sh = new THREE.Shape();
+      sh.moveTo(-0.8, 0.64); sh.lineTo(-0.8, 0.82);
+      sh.quadraticCurveTo(-0.66, 0.875, -0.5, 0.872);
+      sh.quadraticCurveTo(-0.42, 0.868, -0.41, 0.83);
+      sh.quadraticCurveTo(-0.4, 0.74, -0.47, 0.64); sh.lineTo(-0.8, 0.64);
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 1.18, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 12 });
+      g.translate(0, 0, -0.59); g.rotateY(-Math.PI / 2);
+      const dash = new THREE.Mesh(g, alcantara); body.add(dash);
+      add(new THREE.BoxGeometry(1.16, 0.004, 0.004), stitch, 0, 0.862, -0.43).castShadow = false;   // Ziernaht an der Lippe
+      // Hutze über dem Fahrer-Display (halbe Röhre)
+      const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.16, 20, 1, true, -Math.PI / 2, Math.PI), alcantara);
+      hood.material = alcantara; hood.rotation.set(Math.PI / 2, 0, 0); hood.scale.set(1, 1, 0.42); hood.position.set(-0.33, 0.9, -0.6);
+      hood.material.side = THREE.DoubleSide; body.add(hood);
+      // Lüftungsdüsen: Alu-Ring, dunkler Grund, Lamellen
+      for (const vx of [-0.52, -0.1, 0.1, 0.52]) {
+        const ring = add(new THREE.TorusGeometry(0.038, 0.006, 6, 18), alu, vx, 0.79, -0.43); ring.castShadow = false;
+        add(new THREE.CircleGeometry(0.036, 18), black, vx, 0.79, -0.432).castShadow = false;
+        for (let k = -2; k <= 2; k++) add(new THREE.BoxGeometry(0.066, 0.004, 0.012), alu, vx, 0.79 + k * 0.012, -0.428).castShadow = false;
+      }
+    }
     add(new THREE.BoxGeometry(1.1, 0.012, 0.012), this.ambientMat, 0, 0.8, -0.425).castShadow = false;
     // Mittelkonsole mit Wählhebel
-    add(new THREE.BoxGeometry(0.18, 0.2, 0.95), interior, 0, 0.6, -0.02);
-    add(new THREE.BoxGeometry(0.16, 0.012, 0.8), alu, 0, 0.705, -0.02);
-    add(new THREE.CylinderGeometry(0.014, 0.018, 0.05, 12), alu, 0, 0.73, -0.12);
+    add(new THREE.BoxGeometry(0.2, 0.19, 0.95), carbon, 0, 0.6, -0.02);                         // Tunnel (Carbon)
+    add(new THREE.BoxGeometry(0.19, 0.035, 0.32), leather, 0, 0.71, 0.26);                       // Armlehne
+    add(new THREE.BoxGeometry(0.19, 0.003, 0.003), stitch, 0, 0.729, 0.26).castShadow = false;
+    for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.004, 0.004, 0.62), alu, sx * 0.1, 0.697, -0.15).castShadow = false;  // Alu-Zierleisten
+    // Wählhebel (Alu-Kugel auf Ledermanschette) und Tastenreihe
+    add(new THREE.CylinderGeometry(0.03, 0.04, 0.03, 14), leather, 0, 0.71, -0.1);
+    add(new THREE.CylinderGeometry(0.011, 0.013, 0.07, 10), alu, 0, 0.74, -0.1);
+    add(new THREE.SphereGeometry(0.024, 14, 10), alu, 0, 0.78, -0.1);
+    for (let k = 0; k < 4; k++) {
+      add(new THREE.BoxGeometry(0.032, 0.012, 0.03), black, -0.054 + k * 0.036, 0.702, -0.3).castShadow = false;
+      add(new THREE.BoxGeometry(0.012, 0.002, 0.004), this.ambientMat, -0.054 + k * 0.036, 0.709, -0.29).castShadow = false;
+    }
     // Türverkleidungen mit Ambientelicht-Leiste
     for (const sx of [-1, 1]) {
       add(new THREE.BoxGeometry(0.05, 0.26, 1.25), leather, sx * 0.6, 0.66, 0.0);
       add(new THREE.BoxGeometry(0.012, 0.012, 1.1), this.ambientMat, sx * 0.574, 0.76, 0.0).castShadow = false;
       add(new THREE.BoxGeometry(0.05, 0.03, 0.3), alu, sx * 0.574, 0.7, -0.15);     // Türöffner
+      add(new THREE.BoxGeometry(0.07, 0.04, 0.5), leather, sx * 0.56, 0.72, 0.12);  // Armauflage
+      add(new THREE.BoxGeometry(0.004, 0.004, 0.5), stitch, sx * 0.524, 0.742, 0.12).castShadow = false;
+      add(new THREE.TorusGeometry(0.06, 0.006, 6, 20), alu, sx * 0.578, 0.6, -0.42, 0, Math.PI / 2, 0).castShadow = false;   // Lautsprecher
+      add(new THREE.CircleGeometry(0.058, 20), black, sx * 0.582, 0.6, -0.42, 0, -sx * Math.PI / 2, 0).castShadow = false;
     }
     // Sportsitze: Sitzfläche, Lehne, Seitenwangen, Kopfstütze
     for (const sx of [-0.33, 0.33]) {
@@ -226,7 +273,7 @@ class CarModel {
     const swHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16).rotateX(Math.PI / 2), carbon);
     const swSpoke = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.028, 0.02), carbon);
     const swSpokeB = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.15, 0.02), carbon); swSpokeB.position.y = -0.08;
-    const swMark = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.03, 0.03), new THREE.MeshBasicMaterial({ color: 0x36e0ff }));
+    const swMark = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.034, 0.048), new THREE.MeshStandardMaterial({ color: 0xff8a1f, roughness: 0.6 }));   // 12-Uhr-Markierung
     swMark.position.y = 0.16;
     const swLogo = new THREE.Mesh(new THREE.CircleGeometry(0.025, 16), new THREE.MeshBasicMaterial({ color: 0x36e0ff }));
     swLogo.position.z = 0.021;
@@ -241,7 +288,33 @@ class CarModel {
     this.swVariants = { round, yoke, sport };
     yoke.visible = false; sport.visible = false;
     this.steeringWheel.add(round, yoke, sport, swHub, swSpoke, swSpokeB, swMark, swLogo);
+    // Daumenauflagen (dicker) bei 9 und 3 Uhr
+    for (const sx of [-1, 1]) { const tg = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.027, 10, 10, 0.75), leather); tg.rotation.z = sx > 0 ? -0.375 : Math.PI - 0.375; this.steeringWheel.add(tg); }
+    // Hände in Handschuhen (9-und-3-Uhr-Haltung): greifen den Kranz, drehen mit, greifen bei großen Winkeln um.
+    // Unterarme laufen zu festen Ellbogen-Punkten (werden pro Bild ausgerichtet). Nur in der Ego-Sicht sichtbar.
+    {
+      const glove = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.65 });
+      const cuff = new THREE.MeshStandardMaterial({ color: 0x3a3d44, roughness: 0.8 });
+      const sleeve = new THREE.MeshStandardMaterial({ color: 0x3b4049, roughness: 0.9 });
+      this.hands = new THREE.Group(); this.hands.visible = false; this.handList = [];
+      for (const sx of [-1, 1]) {
+        const pivot = new THREE.Group();                 // dreht um die Lenkradachse (liegt in der Lenkrad-Ebene)
+        const hand = new THREE.Group(); hand.position.set(sx * 0.16, 0, 0); hand.scale.setScalar(1.25); pivot.add(hand);
+        const palm = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.08, 0.04), glove); palm.position.set(sx * 0.01, 0, 0.028); hand.add(palm);
+        for (let f = 0; f < 4; f++) {                     // Finger umschließen den Kranz
+          const fg = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.009, 6, 10, Math.PI * 1.15), glove);
+          fg.rotation.set(0, Math.PI / 2, Math.PI * 0.42); fg.position.set(sx * 0.003, 0.028 - f * 0.019, 0); hand.add(fg);
+        }
+        const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.035, 4, 8), glove); thumb.position.set(-sx * 0.01, 0.04, 0.018); thumb.rotation.z = sx * 0.9; hand.add(thumb);
+        const c = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.029, 0.03, 12), cuff); c.rotation.x = Math.PI / 2; c.position.set(sx * 0.012, -0.005, 0.06); hand.add(c);
+        const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.05, 1, 14).translate(0, 0.5, 0), sleeve);
+        this.hands.add(pivot); body.add(arm); arm.visible = false;
+        this.handList.push({ sx, pivot, hand, arm, grip: 0, elbow: new THREE.Vector3(-0.33 + sx * 0.3, 0.6, 0.12) });
+      }
+    }
     body.add(this.steeringWheel);
+    // Hände-Gruppe liegt wie das Lenkrad (gleiche Lage/Neigung), dreht aber selbst
+    this.hands.position.copy(this.steeringWheel.position); this.hands.rotation.x = this.steeringWheel.rotation.x; body.add(this.hands);
 
     // Displays als Canvas-Texturen (werden nur im Cockpit-Modus aktualisiert)
     const makeScreen = (w, h, pw, ph) => {
@@ -336,6 +409,36 @@ class CarModel {
   }
 
   /** Optik aus dem Physikzustand aktualisieren. */
+  /** Ego-Sicht an/aus: Hände/Unterarme nur von innen sichtbar. */
+  setCockpit(on) {
+    if (this.hands.visible === on) return;
+    this.hands.visible = on; for (const h of this.handList) h.arm.visible = false;
+  }
+
+  /** Hände am Lenkrad: drehen mit; über ±100° wird umgegriffen (Hand gleitet zurück Richtung 9/3 Uhr). */
+  updateHands(sw, dt) {
+    const tmpA = this._ha || (this._ha = new THREE.Vector3()), up = this._hu || (this._hu = new THREE.Vector3(0, 1, 0));
+    for (const h of this.handList) {
+      // gewünschter Griff relativ zum Lenkrad: so, dass die Hand (Welt) höchstens ±100° von der Grundhaltung abweicht
+      const rel = sw - h.grip;
+      if (Math.abs(rel) > 1.75) h.gripTarget = sw - Math.sign(rel) * 0.35;
+      if (h.gripTarget !== undefined) {
+        h.grip += clamp(h.gripTarget - h.grip, -dt * 9, dt * 9);
+        if (Math.abs(h.gripTarget - h.grip) < 1e-3) h.gripTarget = undefined;
+      }
+      if (Math.abs(sw) < 0.3 && h.gripTarget === undefined) h.grip += clamp(0 - h.grip, -dt * 3, dt * 3);
+      h.pivot.rotation.z = sw - h.grip;
+      // Unterarm vom Handgelenk zum Ellbogen
+      h.pivot.updateWorldMatrix(true, false);
+      h.hand.getWorldPosition(tmpA); h.arm.parent.worldToLocal(tmpA);
+      tmpA.z += 0.06;
+      const d = h.elbow.clone().sub(tmpA), L = d.length();
+      h.arm.position.copy(tmpA); h.arm.scale.set(1, L, 1);
+      h.arm.quaternion.setFromUnitVectors(up, d.normalize());
+      h.arm.visible = true;
+    }
+  }
+
   update(vehicle, dt) {
     const cfg = this.cfg;
     for (let i = 0; i < 4; i++) {
@@ -350,7 +453,8 @@ class CarModel {
       w.spin -= w.omega * dt;
       m.spin.rotation.x = w.spin % (Math.PI * 2);
     }
-    this.steeringWheel.rotation.z = vehicle.steerAngle * cfg.steer.wheelToSteeringWheel * 0.5;
+    this.steeringWheel.rotation.z = vehicle.swAngle;   // echter Lenkradwinkel (1:1 wie das Touch-Lenkrad)
+    if (this.hands.visible) this.updateHands(vehicle.swAngle || 0, dt);
     this.tailMat.emissiveIntensity = vehicle.braking ? 4.5 : 0.9;
     // Düsen
     this.fxTime.value += dt;

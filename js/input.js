@@ -42,6 +42,10 @@ const Input = {
   pressed: new Set(),           // einmalige Ereignisse (Gangwechsel …)
   btn: { gas: false, brake: false, hand: false, boost: false, fly: false },
   stick: { id: null, x: 0, y: 0, cx: 0, cy: 0, radius: 58 },
+  // Touch-Lenkrad: angle = Wunsch-Drehwinkel in Grad (im Uhrzeigersinn positiv = rechts)
+  wheel: { id: null, angle: 0, lastA: 0, cx: 0, cy: 0, shown: 0 },
+  speed: 0,                     // Fahrzeugtempo (m/s), für die Rückstellung beim Loslassen
+  _lt: 0,
   tilt: { listening: false, raw: 0, zero: null, last: 0 },
   scale: 1,
   state: { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, fly: false, stickX: 0, stickY: 0 },
@@ -100,6 +104,10 @@ const Input = {
     document.documentElement.style.setProperty('--m', Math.min(this.scale, h / 500).toFixed(3));   // Menü-Maßstab nach Spielhöhe (auch im gedrehten Modus)
     this.stick.radius = 58 * this.scale;
     if (this.stick.id === null) this.placeStick(null);
+    // Lenkrad unten links (Mittelpunkt in Spielkoordinaten)
+    this.wheel.cx = 40 + 92 * this.scale; this.wheel.cy = View.h - 26 - 92 * this.scale;
+    const we = document.getElementById('wheel');
+    if (we) we.style.transform = `translate(${this.wheel.cx}px, ${this.wheel.cy}px)`;
   },
 
   placeStick(x, y) {
@@ -118,6 +126,7 @@ const Input = {
     const el = document.getElementById('stick');
     zone.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      if (!document.body.classList.contains('flying')) { this.grabWheel(e, zone); return; }
       if (this.stick.id !== null) return;
       this.stick.id = e.pointerId;
       try { zone.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
@@ -129,8 +138,8 @@ const Input = {
       el.classList.add('active');
       this.moveStick(e);
     });
-    zone.addEventListener('pointermove', (e) => { if (e.pointerId === this.stick.id) this.moveStick(e); });
-    const up = (e) => { if (e.pointerId === this.stick.id) this.endStick(); };
+    zone.addEventListener('pointermove', (e) => { if (e.pointerId === this.stick.id) this.moveStick(e); else if (e.pointerId === this.wheel.id) this.turnWheel(e); });
+    const up = (e) => { if (e.pointerId === this.stick.id) this.endStick(); if (e.pointerId === this.wheel.id) this.releaseWheel(); };
     zone.addEventListener('pointerup', up); zone.addEventListener('pointercancel', up); zone.addEventListener('lostpointercapture', up);
   },
 
@@ -149,6 +158,43 @@ const Input = {
       this.stick.x = dx / range; this.stick.y = 0;
     }
     document.getElementById('stickKnob').style.transform = `translate(${dx}px, ${dy}px)`;
+  },
+
+  // ---------- Touch-Lenkrad ----------
+  /** Daumen setzt auf: Lenkrad greifen (überall in der linken Zone – je weiter weg, desto feiner). */
+  grabWheel(e, zone) {
+    if (this.wheel.id !== null) return;
+    const [gx, gy] = View.toGame(e.clientX, e.clientY);
+    this.wheel.id = e.pointerId;
+    this.wheel.lastA = Math.atan2(gy - this.wheel.cy, gx - this.wheel.cx);
+    try { zone.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
+    document.getElementById('wheel').classList.add('active');
+  },
+  /** Drehen: Winkeländerung des Daumens um die Lenkradmitte = Drehung des Lenkrads (1:1). */
+  turnWheel(e) {
+    const [gx, gy] = View.toGame(e.clientX, e.clientY);
+    const dx = gx - this.wheel.cx, dy = gy - this.wheel.cy;
+    // zu nah an der Mitte ist der Winkel unruhig → nicht auswerten
+    if (dx * dx + dy * dy < (22 * this.scale) ** 2) return;
+    const a = Math.atan2(dy, dx);
+    let d = a - this.wheel.lastA;
+    if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
+    this.wheel.lastA = a;
+    const lock = this.wheelLockDeg();
+    this.wheel.angle = clamp(this.wheel.angle + d * 180 / Math.PI, -lock, lock);
+  },
+  releaseWheel() {
+    this.wheel.id = null;
+    document.getElementById('wheel').classList.remove('active');
+  },
+  wheelLockDeg() { return { low: 360, mid: 270, high: 200 }[Settings.data.steerSens] || 270; },
+  /** Bildschirm-Lenkrad auf den echten Lenkradwinkel des Autos stellen (rad, + = links). */
+  drawWheel(swRad) {
+    const deg = -swRad * 180 / Math.PI;
+    if (Math.abs(deg - this.wheel.shown) < 0.05) return;
+    this.wheel.shown = deg;
+    const el = document.getElementById('wheelRot');
+    if (el) el.style.transform = `rotate(${deg.toFixed(2)}deg)`;
   },
 
   endStick() {
@@ -224,11 +270,24 @@ const Input = {
     st.brake = (k.has('KeyS') || k.has('ArrowDown') || b.brake) ? 1 : 0;
     const left = k.has('KeyA') || k.has('ArrowLeft');
     const right = k.has('KeyD') || k.has('ArrowRight');
+    const now = performance.now(), dt = Math.min(0.1, (now - (this._lt || now)) / 1000); this._lt = now;
+    // Losgelassenes Lenkrad stellt sich zurück: im Stand gar nicht, mit dem Tempo immer schneller
+    if (this.wheel.id === null && this.wheel.angle !== 0) {
+      const rate = this.speed < 0.5 ? 0 : clamp(this.speed * 14, 60, 540);     // Grad pro Sekunde
+      const a = this.wheel.angle;
+      this.wheel.angle = Math.sign(a) * Math.max(0, Math.abs(a) - rate * dt);
+    }
     let steer = (left ? 1 : 0) - (right ? 1 : 0);      // +1 = links
     if (steer === 0) {
       const tiltOn = Settings.data.steering === 'tilt' && performance.now() - this.tilt.last < 1000;
-      steer = tiltOn ? this.tiltSteer() : -this.shapeSteer(this.stick.x);
-    }
+      if (tiltOn) steer = this.tiltSteer();
+      else if (document.body.classList.contains('flying')) steer = -this.shapeSteer(this.stick.x);
+      else {
+        // kleine Totzone um die Mitte (2°)
+        const a = this.wheel.angle, dz = 2;
+        steer = Math.abs(a) < dz ? 0 : -(a - Math.sign(a) * dz) / (this.wheelLockDeg() - dz);
+      }
+    } else if (this.wheel.id === null) this.wheel.angle = 0;
     st.steer = steer;
     st.stickX = this.stick.x; st.stickY = this.stick.y;
     st.handbrake = k.has('Space') || b.hand;

@@ -302,7 +302,15 @@ class MissionSystem {
     // Startpunkt-Hinweis in der freien Fahrt
     if (!this.active) {
       let near = null;
-      this.markers.forEach((mk) => { if (mk.grp.visible && Math.hypot(mk.p.x - v.pos.x, mk.p.z - v.pos.z) < 14) near = mk.m; });
+      // Teleport (Spawn/Reset) → Ringe, in denen man steht, erst nach dem Verlassen wieder anbieten
+      if (this._lp && Math.hypot(this._lp.x - v.pos.x, this._lp.z - v.pos.z) > 30) this.markers.forEach((mk) => { mk.wasOut = false; });
+      this._lp = { x: v.pos.x, z: v.pos.z };
+      this.markers.forEach((mk) => {
+        const d = Math.hypot(mk.p.x - v.pos.x, mk.p.z - v.pos.z);
+        if (d > 17) mk.wasOut = true;
+        // nur anbieten, wenn man langsam (< 30 km/h) in den Ring hineinfährt
+        if (mk.grp.visible && mk.wasOut && d < 14 && v.speed < 8.5) near = mk.m;
+      });
       if (near !== this.promptFor) {
         this.promptFor = near;
         this.ui.prompt.hidden = !near;

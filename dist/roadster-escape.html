@@ -75,12 +75,13 @@
   #mBig { position: fixed; left: 0; right: 0; top: 30%; text-align: center; z-index: 8; pointer-events: none;
           font: 900 calc(84px * var(--s)) -apple-system, sans-serif; color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,0.6); }
   #mBig[hidden] { display: none; }
-  #mPrompt { position: fixed; left: 50%; bottom: calc(150px * var(--s) + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 6;
-             background: rgba(10,14,22,0.85); border: 2px solid #ffc13b; border-radius: 16px; color: #fff; padding: 10px 16px; max-width: 46%;
-             display: flex; flex-direction: column; gap: 3px; font: 600 12px sans-serif; text-align: center; }
+  /* Missions-Hinweis: kompakt links zwischen Minikarte und Lenkrad (verdeckt weder Auto noch Bedienelemente) */
+  #mPrompt { position: fixed; left: calc(16px + env(safe-area-inset-left)); top: calc(38px + 128px * var(--s) + env(safe-area-inset-top)); z-index: 6;
+             background: rgba(10,14,22,0.85); border: 2px solid #ffc13b; border-radius: 14px; color: #fff; padding: 7px 11px; max-width: calc(230px * var(--s));
+             display: flex; flex-direction: column; gap: 2px; font: 600 calc(11px * var(--s)) sans-serif; text-align: center; }
   #mPrompt[hidden] { display: none; }
-  #mPrompt b { font-size: 16px; color: #ffc13b; } #mPrompt small { color: var(--hud-dim); }
-  #mPrompt span { margin-top: 4px; background: #ffc13b; color: #1a1200; border-radius: 10px; padding: 6px; font-weight: 900; letter-spacing: 1px; }
+  #mPrompt b { font-size: calc(14px * var(--s)); color: #ffc13b; } #mPrompt small { color: var(--hud-dim); }
+  #mPrompt span { margin-top: 3px; background: #ffc13b; color: #1a1200; border-radius: 9px; padding: 5px; font-weight: 900; letter-spacing: 1px; }
   #missions { position: fixed; inset: 0; z-index: 11; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); }
   #missions[hidden] { display: none; }
   #mList { display: flex; flex-direction: column; gap: 6px; }
@@ -149,6 +150,17 @@
   #stickLabel { position: absolute; left: -40px; right: -40px; top: 108%; text-align: center; font: 700 calc(11px * var(--s)) sans-serif;
                 letter-spacing: 1px; color: var(--hud-dim); }
   body.tilt #stick { opacity: 0.25; }
+  /* Fahren: Touch-Lenkrad; der Kreuz-Joystick erscheint nur beim Fliegen */
+  body:not(.flying) #stick { display: none; }
+  body.flying #wheel { display: none; }
+  #wheel { position: absolute; left: 0; top: 0; width: calc(176px * var(--s)); height: calc(176px * var(--s));
+           margin: calc(-88px * var(--s)) 0 0 calc(-88px * var(--s)); pointer-events: none; opacity: 0.82; transition: opacity .15s; }
+  #wheel.active { opacity: 1; }
+  #wheelRot { width: 100%; height: 100%; will-change: transform; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.55)); }
+  #wheelRot svg { width: 100%; height: 100%; display: block; }
+  #wheelLabel { position: absolute; left: -30px; right: -30px; top: 101%; text-align: center; font: 700 calc(10px * var(--s)) sans-serif;
+                letter-spacing: 1px; color: var(--hud-dim); }
+  body.tilt #wheel { opacity: 0.35; }
   .tbtn { position: absolute; pointer-events: auto; border-radius: 50%;
           width: calc(var(--d) * var(--s)); height: calc(var(--d) * var(--s));
           right: calc(var(--r) * var(--s) + env(safe-area-inset-right)); bottom: calc(var(--b) * var(--s) + env(safe-area-inset-bottom));
@@ -191,7 +203,7 @@
           padding: 9px 16px; font: 600 13px sans-serif; display: none; align-items: center; gap: 12px; max-width: 70vw; }
   #hint.show { display: flex; }
   #hint button { background: var(--accent); color: #031018; border: none; border-radius: 14px; padding: 6px 12px; font: 700 12px sans-serif; }
-  #toast { position: fixed; top: 34%; left: 50%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none;
+  #toast { position: fixed; top: 52%; left: 50%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none;
            background: rgba(8,12,20,0.85); border-radius: 14px; padding: 12px 18px; font: 600 14px sans-serif;
            opacity: 0; transition: opacity .25s; text-align: center; max-width: 80vw; }
   #toast.show { opacity: 1; }
@@ -236,7 +248,7 @@
   body.inMenu #hint { display: none; }
   /* ---------- Tutorial ---------- */
   /* unten mittig zwischen Lenk-Schieber und Pedalen: verdeckt weder Tacho noch Fahndungssterne */
-  #coach { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 100px * var(--s)); transform: translateX(-50%); z-index: 7; width: 30%; max-width: 360px;
+  #coach { position: fixed; right: calc(16px + env(safe-area-inset-right)); top: calc(64px * var(--s) + env(safe-area-inset-top)); z-index: 7; width: 32%; max-width: 360px;
            background: rgba(8,12,20,0.82); border: 1px solid var(--accent); border-radius: 14px; padding: 8px 12px; font: 600 calc(12.5px * var(--s)) sans-serif; text-align: center; }
   #coach[hidden], body.inGarage #coach, body.inMenu #coach { display: none; }
   #coach span { color: var(--accent); font-weight: 900; margin-right: 6px; }
@@ -259,6 +271,8 @@
      sich das Spiel selbst um 90° (body.forced) – einfach das Handy quer halten. */
   #app { position: fixed; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; transform-origin: 0 0; }
   body.forced .panel { width: min(460px, 88%); max-height: 86%; }
+  /* Ego-Sicht: Tacho steht im Kombiinstrument → großen HUD-Tacho ausblenden, damit das Cockpit frei bleibt */
+  body.ego #speedo > div:first-child, body.ego #speedUnit, body.ego #rpmBar { display: none; }
 </style>
 <script type="importmap">
 { "imports": {
@@ -300,7 +314,41 @@
 
 <div id="touch">
   <div id="stickZone"></div>
-  <div id="stick"><div id="stickKnob"></div><div id="stickLabel">LENKEN</div></div>
+  <div id="stick"><div id="stickKnob"></div><div id="stickLabel">STEUERN</div></div>
+  <!-- Touch-Lenkrad: Leder mit Naht, Carbon-Speichen, Markierung oben -->
+  <div id="wheel"><div id="wheelRot"><svg viewBox="-100 -100 200 200" aria-hidden="true">
+    <defs>
+      <radialGradient id="wlLeather" cx="35%" cy="25%" r="85%"><stop offset="0" stop-color="#4a4a4f"/><stop offset="0.55" stop-color="#1d1d21"/><stop offset="1" stop-color="#0b0b0d"/></radialGradient>
+      <linearGradient id="wlGrip" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a5a60"/><stop offset="1" stop-color="#151518"/></linearGradient>
+      <pattern id="wlCarbon" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="6" height="6" fill="#1b1d21"/><rect width="3" height="3" fill="#2c3036"/><rect x="3" y="3" width="3" height="3" fill="#2c3036"/></pattern>
+      <radialGradient id="wlHub" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#3d4148"/><stop offset="1" stop-color="#101114"/></radialGradient>
+    </defs>
+    <!-- Kranz -->
+    <circle r="82" fill="none" stroke="url(#wlLeather)" stroke-width="20"/>
+    <circle r="82" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="20" stroke-dasharray="0" transform="translate(1.5 2.5)" style="mix-blend-mode:multiply"/>
+    <circle r="82" fill="none" stroke="url(#wlLeather)" stroke-width="18"/>
+    <!-- Daumenauflagen (dicker, perforiertes Leder) -->
+    <path d="M -82 -26 A 86 86 0 0 0 -82 26" fill="none" stroke="url(#wlGrip)" stroke-width="24" stroke-linecap="round"/>
+    <path d="M 82 -26 A 86 86 0 0 1 82 26" fill="none" stroke="url(#wlGrip)" stroke-width="24" stroke-linecap="round"/>
+    <!-- Ziernähte -->
+    <circle r="73.5" fill="none" stroke="#c9a46a" stroke-opacity="0.55" stroke-width="1.1" stroke-dasharray="3 3"/>
+    <circle r="90.5" fill="none" stroke="#c9a46a" stroke-opacity="0.55" stroke-width="1.1" stroke-dasharray="3 3"/>
+    <!-- Glanzkante -->
+    <path d="M -62 -54 A 82 82 0 0 1 40 -72" fill="none" stroke="#fff" stroke-opacity="0.18" stroke-width="3" stroke-linecap="round"/>
+    <!-- Markierung oben (12 Uhr) -->
+    <path d="M -6 -92 L 6 -92 L 6 -72 L -6 -72 Z" fill="#ff8a1f"/>
+    <!-- Carbon-Speichen -->
+    <path d="M -74 -8 L -26 -12 L -22 12 L -74 10 Z" fill="url(#wlCarbon)" stroke="#000" stroke-opacity="0.5"/>
+    <path d="M 74 -8 L 26 -12 L 22 12 L 74 10 Z" fill="url(#wlCarbon)" stroke="#000" stroke-opacity="0.5"/>
+    <path d="M -12 20 L 12 20 L 9 74 L -9 74 Z" fill="url(#wlCarbon)" stroke="#000" stroke-opacity="0.5"/>
+    <!-- Nabe -->
+    <circle r="27" fill="url(#wlHub)" stroke="#000" stroke-opacity="0.6" stroke-width="2"/>
+    <circle r="27" fill="none" stroke="#9aa3ad" stroke-opacity="0.35" stroke-width="1"/>
+    <path d="M -10 -4 L 0 8 L 10 -4" fill="none" stroke="#36e0ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Schaltwippen-Andeutung / Tasten -->
+    <circle cx="-40" cy="0" r="4" fill="#2a2d33" stroke="#555" stroke-width="0.8"/><circle cx="40" cy="0" r="4" fill="#2a2d33" stroke="#555" stroke-width="0.8"/>
+  </svg></div><div id="wheelLabel">LENKRAD DREHEN</div></div>
   <div class="tbtn" id="tGas">GAS</div>
   <div class="tbtn" id="tBrake">BREMSE<small>halten = R</small></div>
   <div class="tbtn" id="tHand">HAND-<br>BREMSE</div>
@@ -424,7 +472,9 @@ const CONFIG = {
       loadSensitivity: 0.14,      // Grip wächst unterproportional mit Radlast
       rearGrip: 1.10,             // breitere Hinterreifen → stabiler
     },
-    steer: { max: 0.66, speedFalloff: 0.035, rate: 6.5, returnRate: 8, wheelToSteeringWheel: 8 },
+    // Lenkung: Lenkrad → Vorderräder. Übersetzung = Anschlag / maxRoad (bei 270° ≈ 10,5 : 1).
+    // rate/counterRate = maximale Drehgeschwindigkeit des Lenkrads (Hände), omega = Federhärte der Handbewegung.
+    steer: { maxRoad: 0.45, falloffFrom: 8, speedFalloff: 0.02, rate: 9.4, counterRate: 12.6, omega: 22, accel: 70 },
     aero: { rho: 1.225, CdA: 0.62, ClA: 2.4, frontDownforceShare: 0.42 },
     brake: { maxForce: 28000, frontBias: 0.62, handbrakeForce: 9000 },
     motor: {
@@ -525,6 +575,10 @@ const Input = {
   pressed: new Set(),           // einmalige Ereignisse (Gangwechsel …)
   btn: { gas: false, brake: false, hand: false, boost: false, fly: false },
   stick: { id: null, x: 0, y: 0, cx: 0, cy: 0, radius: 58 },
+  // Touch-Lenkrad: angle = Wunsch-Drehwinkel in Grad (im Uhrzeigersinn positiv = rechts)
+  wheel: { id: null, angle: 0, lastA: 0, cx: 0, cy: 0, shown: 0 },
+  speed: 0,                     // Fahrzeugtempo (m/s), für die Rückstellung beim Loslassen
+  _lt: 0,
   tilt: { listening: false, raw: 0, zero: null, last: 0 },
   scale: 1,
   state: { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, fly: false, stickX: 0, stickY: 0 },
@@ -583,6 +637,10 @@ const Input = {
     document.documentElement.style.setProperty('--m', Math.min(this.scale, h / 500).toFixed(3));   // Menü-Maßstab nach Spielhöhe (auch im gedrehten Modus)
     this.stick.radius = 58 * this.scale;
     if (this.stick.id === null) this.placeStick(null);
+    // Lenkrad unten links (Mittelpunkt in Spielkoordinaten)
+    this.wheel.cx = 40 + 92 * this.scale; this.wheel.cy = View.h - 26 - 92 * this.scale;
+    const we = document.getElementById('wheel');
+    if (we) we.style.transform = `translate(${this.wheel.cx}px, ${this.wheel.cy}px)`;
   },
 
   placeStick(x, y) {
@@ -601,6 +659,7 @@ const Input = {
     const el = document.getElementById('stick');
     zone.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      if (!document.body.classList.contains('flying')) { this.grabWheel(e, zone); return; }
       if (this.stick.id !== null) return;
       this.stick.id = e.pointerId;
       try { zone.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
@@ -612,8 +671,8 @@ const Input = {
       el.classList.add('active');
       this.moveStick(e);
     });
-    zone.addEventListener('pointermove', (e) => { if (e.pointerId === this.stick.id) this.moveStick(e); });
-    const up = (e) => { if (e.pointerId === this.stick.id) this.endStick(); };
+    zone.addEventListener('pointermove', (e) => { if (e.pointerId === this.stick.id) this.moveStick(e); else if (e.pointerId === this.wheel.id) this.turnWheel(e); });
+    const up = (e) => { if (e.pointerId === this.stick.id) this.endStick(); if (e.pointerId === this.wheel.id) this.releaseWheel(); };
     zone.addEventListener('pointerup', up); zone.addEventListener('pointercancel', up); zone.addEventListener('lostpointercapture', up);
   },
 
@@ -632,6 +691,43 @@ const Input = {
       this.stick.x = dx / range; this.stick.y = 0;
     }
     document.getElementById('stickKnob').style.transform = `translate(${dx}px, ${dy}px)`;
+  },
+
+  // ---------- Touch-Lenkrad ----------
+  /** Daumen setzt auf: Lenkrad greifen (überall in der linken Zone – je weiter weg, desto feiner). */
+  grabWheel(e, zone) {
+    if (this.wheel.id !== null) return;
+    const [gx, gy] = View.toGame(e.clientX, e.clientY);
+    this.wheel.id = e.pointerId;
+    this.wheel.lastA = Math.atan2(gy - this.wheel.cy, gx - this.wheel.cx);
+    try { zone.setPointerCapture(e.pointerId); } catch (err) { /* nicht kritisch */ }
+    document.getElementById('wheel').classList.add('active');
+  },
+  /** Drehen: Winkeländerung des Daumens um die Lenkradmitte = Drehung des Lenkrads (1:1). */
+  turnWheel(e) {
+    const [gx, gy] = View.toGame(e.clientX, e.clientY);
+    const dx = gx - this.wheel.cx, dy = gy - this.wheel.cy;
+    // zu nah an der Mitte ist der Winkel unruhig → nicht auswerten
+    if (dx * dx + dy * dy < (22 * this.scale) ** 2) return;
+    const a = Math.atan2(dy, dx);
+    let d = a - this.wheel.lastA;
+    if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
+    this.wheel.lastA = a;
+    const lock = this.wheelLockDeg();
+    this.wheel.angle = clamp(this.wheel.angle + d * 180 / Math.PI, -lock, lock);
+  },
+  releaseWheel() {
+    this.wheel.id = null;
+    document.getElementById('wheel').classList.remove('active');
+  },
+  wheelLockDeg() { return { low: 360, mid: 270, high: 200 }[Settings.data.steerSens] || 270; },
+  /** Bildschirm-Lenkrad auf den echten Lenkradwinkel des Autos stellen (rad, + = links). */
+  drawWheel(swRad) {
+    const deg = -swRad * 180 / Math.PI;
+    if (Math.abs(deg - this.wheel.shown) < 0.05) return;
+    this.wheel.shown = deg;
+    const el = document.getElementById('wheelRot');
+    if (el) el.style.transform = `rotate(${deg.toFixed(2)}deg)`;
   },
 
   endStick() {
@@ -707,11 +803,24 @@ const Input = {
     st.brake = (k.has('KeyS') || k.has('ArrowDown') || b.brake) ? 1 : 0;
     const left = k.has('KeyA') || k.has('ArrowLeft');
     const right = k.has('KeyD') || k.has('ArrowRight');
+    const now = performance.now(), dt = Math.min(0.1, (now - (this._lt || now)) / 1000); this._lt = now;
+    // Losgelassenes Lenkrad stellt sich zurück: im Stand gar nicht, mit dem Tempo immer schneller
+    if (this.wheel.id === null && this.wheel.angle !== 0) {
+      const rate = this.speed < 0.5 ? 0 : clamp(this.speed * 14, 60, 540);     // Grad pro Sekunde
+      const a = this.wheel.angle;
+      this.wheel.angle = Math.sign(a) * Math.max(0, Math.abs(a) - rate * dt);
+    }
     let steer = (left ? 1 : 0) - (right ? 1 : 0);      // +1 = links
     if (steer === 0) {
       const tiltOn = Settings.data.steering === 'tilt' && performance.now() - this.tilt.last < 1000;
-      steer = tiltOn ? this.tiltSteer() : -this.shapeSteer(this.stick.x);
-    }
+      if (tiltOn) steer = this.tiltSteer();
+      else if (document.body.classList.contains('flying')) steer = -this.shapeSteer(this.stick.x);
+      else {
+        // kleine Totzone um die Mitte (2°)
+        const a = this.wheel.angle, dz = 2;
+        steer = Math.abs(a) < dz ? 0 : -(a - Math.sign(a) * dz) / (this.wheelLockDeg() - dz);
+      }
+    } else if (this.wheel.id === null) this.wheel.angle = 0;
     st.steer = steer;
     st.stickX = this.stick.x; st.stickY = this.stick.y;
     st.handbrake = k.has('Space') || b.hand;
@@ -3154,7 +3263,7 @@ class CameraRig {
     }
 
     const speed = vehicle.speed;
-    const baseFov = inside ? 70 + clamp(speed * 0.07, 0, 9) : 60 + clamp(speed * 0.13, 0, 16);
+    const baseFov = inside ? 72 + clamp(speed * 0.04, 0, 3) : 60 + clamp(speed * 0.13, 0, 16);
     const fov = baseFov + this.fovExtra;
     if (Math.abs(fov - this.cam.fov) > 0.05) { this.cam.fov = damp(this.cam.fov, fov, 3, dt); this.cam.updateProjectionMatrix(); }
   }
@@ -3198,20 +3307,27 @@ class CameraRig {
   }
 
   updateCockpit(dt, carPos, carQuat, vehicle) {
+    // Kopf als gedämpftes Feder-Masse-System: folgt den g-Kräften mit leichter Verzögerung (Nackenmuskulatur)
+    if (!this.headG) { this.headG = { x: 0, z: 0, vx: 0, vz: 0 }; }
+    { const H = this.headG, k = 60, c = 11, h = Math.min(dt, 0.05);
+      const tx = clamp(vehicle.latAccel, -1.8, 1.8), tz = clamp(-vehicle.longAccel, -1.8, 1.8);   // tz > 0: Bremsen → Kopf nach vorn
+      H.vx += (k * (tx - H.x) - c * H.vx) * h; H.x += H.vx * h;
+      H.vz += (k * (tz - H.z) - c * H.vz) * h; H.z += H.vz * h; }
     // Kopf auf dem Fahrersitz; leichtes Mitschwingen mit den g-Kräften
     const hood = this.mode === 'hood';
     const head = hood
       ? this._t.set(0, 0.98 - CONFIG.car.cgHeight, -0.95)
       : this._t.set(
-        -0.33 - clamp(vehicle.latAccel, -1.5, 1.5) * 0.014,
-        CONFIG.car.cockpitEyeY - CONFIG.car.cgHeight,
-        0.42 + clamp(vehicle.longAccel, -1.5, 1.5) * 0.02);
+        -0.33 - this.headG.x * 0.032,
+        CONFIG.car.cockpitEyeY - CONFIG.car.cgHeight - Math.abs(this.headG.z) * 0.006,
+        0.42 - this.headG.z * 0.04);
     // feines Vibrieren bei hohem Tempo / Boost (realistischer Eindruck von Geschwindigkeit)
     const vib = clamp((vehicle.speed - 30) / 60, 0, 1) * 0.004 + (vehicle.boosting ? 0.004 : 0);
     if (vib > 0) { head.y += Math.sin(this.time * 73) * vib; head.x += Math.sin(this.time * 61 + 1) * vib * 0.6; }
     head.applyQuaternion(carQuat).add(carPos);
     this.cam.position.copy(head);
-    this._e.set(-0.07 - CamInput.pitch * 0.6, CamInput.yaw * 1.2, 0, 'YXZ');
+    // Kopf neigt sich leicht gegen die Fliehkraft, nickt beim Bremsen
+    this._e.set(-0.07 - CamInput.pitch * 0.6 - (hood ? 0 : this.headG.z * 0.012), CamInput.yaw * 1.2, hood ? 0 : this.headG.x * 0.018, 'YXZ');
     this.cam.quaternion.copy(carQuat).multiply(this._q.setFromEuler(this._e));
     this.initialized = false;      // beim Zurückwechseln Verfolger neu ansetzen
   }
@@ -3685,6 +3801,11 @@ class PoliceSystem {
 }
 
 // ---- js/vehicle/vehicle.js ----
+/** Lenkrad-Anschlag je Seite (rad) aus der Einstellung „Lenk-Empfindlichkeit“. */
+export function steerLockRad() {
+  return ({ low: 360, mid: 270, high: 200 }[Settings.data.steerSens] || 270) * Math.PI / 180;
+}
+
 // ============================== Drivetrain ==============================
 /**
  * E-Motor mit Kennlinie: konstantes Maximalmoment bis zur Eckdrehzahl,
@@ -3817,7 +3938,7 @@ class Vehicle {
     this.staticLoad = cfg.mass * 9.81 / 4;
 
     this.drivetrain = new Drivetrain(cfg);
-    this.steerAngle = 0;
+    this.steerAngle = 0; this.swAngle = 0; this.swVel = 0;    // Radeinschlag / Lenkradwinkel (rad)
     this.throttle = 0; this.brake = 0; this.handbrake = false;
     this.direction = 1;          // Automatik: 1 = vorwärts (D), −1 = rückwärts (R)
     this.dirTimer = 0;
@@ -3845,7 +3966,7 @@ class Vehicle {
     this.quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     this.vel.set(0, 0, 0); this.angVel.set(0, 0, 0);
     this.prevPos.copy(this.pos); this.prevQuat.copy(this.quat);
-    this.drivetrain.gear = 1; this.direction = 1; this.steerAngle = 0;
+    this.drivetrain.gear = 1; this.direction = 1; this.steerAngle = 0; this.swAngle = 0; this.swVel = 0;
     this.flying = false; this.landing = false; this.altitude = 0; this.airTime = 0;
     for (const w of this.wheels) { w.omega = 0; w.compression = w.prevCompression = 0; }
   }
@@ -3893,18 +4014,31 @@ class Vehicle {
     this.braking = this.brake > 0.05;
     this.reversing = dtn.gear < 0;
 
-    // Geschwindigkeitsabhängige Lenkung
+    // ---------- Lenkung: Lenkrad (Hände) → Lenkgetriebe → Vorderräder ----------
     const sc = this.cfg.steer;
-    let maxSteer = sc.max / (1 + Math.abs(fs) * sc.speedFalloff);
-    // Im Drift mehr Lenkeinschlag zulassen (Gegenlenken bis zum Schwimmwinkel)
+    const lock = steerLockRad();                       // Anschlag des Lenkrads (rad, je Seite)
+    this.steerLock = lock; this.steerRatio = lock / sc.maxRoad;
+    const target = clamp(inp.steer, -1, 1) * lock;
+    // Hände: kritisch gedämpfte Bewegung + begrenzte Drehgeschwindigkeit (weich, ohne Ruck/Überschwingen)
+    const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n, w0 = sc.omega;
+    for (let i = 0; i < n; i++) {
+      const err = target - this.swAngle;
+      const back = Math.abs(this.swAngle) > 0.05 && Math.sign(err) !== Math.sign(this.swAngle);   // Gegenlenken/zurück
+      const vmax = back ? sc.counterRate : sc.rate;
+      // Beschleunigung der Hand begrenzt (kein Ruck beim Anlenken)
+      const acc = clamp(w0 * w0 * err - 2 * w0 * this.swVel, -sc.accel, sc.accel);
+      this.swVel = clamp(this.swVel + acc * h, -vmax, vmax);
+      this.swAngle += this.swVel * h;
+      if ((target - this.swAngle) * err < 0) { this.swAngle = target; this.swVel = 0; }
+    }
+    // Lenkgetriebe: bei Tempo indirekter (variable Übersetzung) – das Lenkrad zeigt trotzdem den echten Winkel
+    const k0 = 1 / (1 + Math.max(0, Math.abs(fs) - sc.falloffFrom) * sc.speedFalloff);
     const lat = this.vel.dot(this._v[2].set(1, 0, 0).applyQuaternion(this.quat));
     const beta = Math.abs(Math.atan2(lat, Math.max(Math.abs(fs), 1)));
-    // nur in Gegenlenk-Richtung (zur Bewegungsrichtung hin): lat > 0 = rutscht nach rechts → rechts lenken (steer < 0)
-    const counter = inp.steer !== 0 && Math.sign(inp.steer) === -Math.sign(lat);
-    if (this.speed > 4 && counter) maxSteer = Math.max(maxSteer, Math.min(beta + 0.08, sc.max));
-    const target = inp.steer * maxSteer;
-    const returning = Math.abs(target) < Math.abs(this.steerAngle) || Math.sign(target) !== Math.sign(this.steerAngle);
-    this.steerAngle = approach(this.steerAngle, target, (returning ? sc.returnRate : sc.rate) * dt * (0.35 + maxSteer / sc.max * 0.65));
+    // Gegenlenken im Drift: volle Übersetzung bis zum Schwimmwinkel zulassen
+    const counter = Math.abs(this.swAngle) > 0.05 && Math.sign(this.swAngle) === -Math.sign(lat);
+    const k = this.speed > 4 && counter ? Math.max(k0, Math.min(beta + 0.08, sc.maxRoad) / sc.maxRoad) : k0;
+    this.steerAngle = this.swAngle / this.steerRatio * k;
   }
 
   step(dt) {
@@ -4448,9 +4582,15 @@ class CarModel {
     cg.translate(0, 0, -0.59); cg.rotateY(-Math.PI / 2);
     const canopyMesh = new THREE.Mesh(cg, glass); canopyMesh.renderOrder = 2; body.add(canopyMesh);
     // Dachrahmen (A-Säulen-Optik)
-    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.016, 6, 32, Math.PI), black);
-    frame.rotation.y = Math.PI / 2; frame.position.set(0, 0.8, 0.04); frame.scale.set(1, 0.48, 1.25);
-    body.add(frame);
+    // schlanke A-Säulen + Scheibenrahmen oben (Roadster), dazu Innenspiegel
+    {
+      const tubeM = (pts, r) => { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, r, 8, false), black); body.add(m); return m; };
+      for (const sx of [-1, 1]) tubeM([new THREE.Vector3(sx * 0.66, 0.83, -0.76), new THREE.Vector3(sx * 0.62, 0.95, -0.55), new THREE.Vector3(sx * 0.56, 1.06, -0.3)], 0.013);
+      tubeM([new THREE.Vector3(-0.56, 1.06, -0.3), new THREE.Vector3(0, 1.085, -0.3), new THREE.Vector3(0.56, 1.06, -0.3)], 0.016);
+      const rv = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.055, 0.025), black); rv.position.set(0, 1.035, -0.29); rv.rotation.x = -0.12; body.add(rv);
+      const rvg = new THREE.Mesh(new THREE.PlaneGeometry(0.185, 0.045), new THREE.MeshStandardMaterial({ color: 0x9fb0c0, metalness: 1, roughness: 0.04 }));
+      rvg.position.set(0, 1.035, -0.276); rvg.rotation.x = -0.12; body.add(rvg);
+    }
 
     // Unterboden, Splitter, Diffusor, Seitenschweller
     const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; body.add(m); return m; };
@@ -4459,11 +4599,18 @@ class CarModel {
     add(new THREE.BoxGeometry(1.3, 0.04, 0.32), carbon, 0, 0.23, 1.9, 0.22);          // Diffusor
     for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.06, 0.08, 1.6), carbon, s * 0.97, 0.26, 0);
     // Außenspiegel
-    const mirrorGeo = new THREE.SphereGeometry(1, 14, 10);
+    // Außenspiegel: Fuß auf der Tür, Arm, Gehäuse in Wagenfarbe, echtes Spiegelglas nach hinten
+    const mirrorGeo = new THREE.SphereGeometry(1, 16, 12);
+    const mirrorGlass = new THREE.MeshStandardMaterial({ color: 0xa8b4c0, metalness: 1, roughness: 0.03 });
     for (const s of [-1, 1]) {
-      add(new THREE.BoxGeometry(0.14, 0.025, 0.05), black, s * 0.97, 0.84, -0.62, 0, 0, s * 0.2);
-      const m = add(mirrorGeo, this.paint, s * 1.06, 0.87, -0.6); m.scale.set(0.07, 0.05, 0.1);
-      const g = add(new THREE.PlaneGeometry(0.1, 0.07), black, s * 1.06, 0.87, -0.5, 0, 0, 0); g.rotation.y = 0; g.scale.set(1, 1, 1);
+      // Fuß sitzt exakt auf der Türoberkante (per Strahl auf die Karosserie ermittelt)
+      const top = surf(s * 0.86, 2, -0.64, 0, -1, 0, 0).y;
+      const hx = s * 1.03, hy = top + 0.085;
+      add(new THREE.BoxGeometry(0.08, 0.04, 0.13), black, s * 0.86, top + 0.012, -0.64);                // Fuß
+      const ax = (s * 0.88 + hx) / 2, ay = (top + 0.02 + hy) / 2, len = Math.hypot(hx - s * 0.88, hy - top - 0.02);
+      add(new THREE.BoxGeometry(len + 0.02, 0.024, 0.045), carbon, ax, ay, -0.64, 0, 0, Math.atan2(hy - top - 0.02, hx - s * 0.88));   // Arm
+      const m = add(mirrorGeo, this.paint, hx, hy, -0.64); m.scale.set(0.085, 0.052, 0.06);
+      const g = add(new THREE.CircleGeometry(1, 20), mirrorGlass, hx, hy, -0.584); g.scale.set(0.072, 0.042, 1); g.castShadow = false;
     }
 
     // ---------- Lichter (auf der Karosserie-Oberfläche platziert) ----------
@@ -4510,19 +4657,53 @@ class CarModel {
     this.ambientMat = new THREE.MeshBasicMaterial({ color: 0x36e0ff });          // Ambientelicht (Phase 9: Farbe wählbar)
     add(new THREE.BoxGeometry(1.15, 0.03, 1.35), interior, 0, 0.5, 0.05);           // Boden
     // Armaturenbrett: Unterteil, gepolsterte Oberseite, Hutze über dem Fahrer-Display
-    add(new THREE.BoxGeometry(1.22, 0.16, 0.34), interior, 0, 0.74, -0.6);
-    add(new THREE.BoxGeometry(1.24, 0.045, 0.4), leather, 0, 0.835, -0.62, 0.08);
-    add(new THREE.BoxGeometry(0.36, 0.05, 0.13), leather, -0.33, 0.95, -0.62, -0.15);
+    const alcantara = new THREE.MeshStandardMaterial({ color: 0x2b2b2f, roughness: 1 });
+    const stitch = new THREE.MeshStandardMaterial({ color: 0xc9a46a, roughness: 0.7 });
+    {
+      // Profil (z, y): Stirnwand → gepolsterte, nach hinten abfallende Oberseite → Lippe → Kniebereich
+      const sh = new THREE.Shape();
+      sh.moveTo(-0.8, 0.64); sh.lineTo(-0.8, 0.82);
+      sh.quadraticCurveTo(-0.66, 0.875, -0.5, 0.872);
+      sh.quadraticCurveTo(-0.42, 0.868, -0.41, 0.83);
+      sh.quadraticCurveTo(-0.4, 0.74, -0.47, 0.64); sh.lineTo(-0.8, 0.64);
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 1.18, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 12 });
+      g.translate(0, 0, -0.59); g.rotateY(-Math.PI / 2);
+      const dash = new THREE.Mesh(g, alcantara); body.add(dash);
+      add(new THREE.BoxGeometry(1.16, 0.004, 0.004), stitch, 0, 0.862, -0.43).castShadow = false;   // Ziernaht an der Lippe
+      // Hutze über dem Fahrer-Display (halbe Röhre)
+      const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.16, 20, 1, true, -Math.PI / 2, Math.PI), alcantara);
+      hood.material = alcantara; hood.rotation.set(Math.PI / 2, 0, 0); hood.scale.set(1, 1, 0.42); hood.position.set(-0.33, 0.9, -0.6);
+      hood.material.side = THREE.DoubleSide; body.add(hood);
+      // Lüftungsdüsen: Alu-Ring, dunkler Grund, Lamellen
+      for (const vx of [-0.52, -0.1, 0.1, 0.52]) {
+        const ring = add(new THREE.TorusGeometry(0.038, 0.006, 6, 18), alu, vx, 0.79, -0.43); ring.castShadow = false;
+        add(new THREE.CircleGeometry(0.036, 18), black, vx, 0.79, -0.432).castShadow = false;
+        for (let k = -2; k <= 2; k++) add(new THREE.BoxGeometry(0.066, 0.004, 0.012), alu, vx, 0.79 + k * 0.012, -0.428).castShadow = false;
+      }
+    }
     add(new THREE.BoxGeometry(1.1, 0.012, 0.012), this.ambientMat, 0, 0.8, -0.425).castShadow = false;
     // Mittelkonsole mit Wählhebel
-    add(new THREE.BoxGeometry(0.18, 0.2, 0.95), interior, 0, 0.6, -0.02);
-    add(new THREE.BoxGeometry(0.16, 0.012, 0.8), alu, 0, 0.705, -0.02);
-    add(new THREE.CylinderGeometry(0.014, 0.018, 0.05, 12), alu, 0, 0.73, -0.12);
+    add(new THREE.BoxGeometry(0.2, 0.19, 0.95), carbon, 0, 0.6, -0.02);                         // Tunnel (Carbon)
+    add(new THREE.BoxGeometry(0.19, 0.035, 0.32), leather, 0, 0.71, 0.26);                       // Armlehne
+    add(new THREE.BoxGeometry(0.19, 0.003, 0.003), stitch, 0, 0.729, 0.26).castShadow = false;
+    for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.004, 0.004, 0.62), alu, sx * 0.1, 0.697, -0.15).castShadow = false;  // Alu-Zierleisten
+    // Wählhebel (Alu-Kugel auf Ledermanschette) und Tastenreihe
+    add(new THREE.CylinderGeometry(0.03, 0.04, 0.03, 14), leather, 0, 0.71, -0.1);
+    add(new THREE.CylinderGeometry(0.011, 0.013, 0.07, 10), alu, 0, 0.74, -0.1);
+    add(new THREE.SphereGeometry(0.024, 14, 10), alu, 0, 0.78, -0.1);
+    for (let k = 0; k < 4; k++) {
+      add(new THREE.BoxGeometry(0.032, 0.012, 0.03), black, -0.054 + k * 0.036, 0.702, -0.3).castShadow = false;
+      add(new THREE.BoxGeometry(0.012, 0.002, 0.004), this.ambientMat, -0.054 + k * 0.036, 0.709, -0.29).castShadow = false;
+    }
     // Türverkleidungen mit Ambientelicht-Leiste
     for (const sx of [-1, 1]) {
       add(new THREE.BoxGeometry(0.05, 0.26, 1.25), leather, sx * 0.6, 0.66, 0.0);
       add(new THREE.BoxGeometry(0.012, 0.012, 1.1), this.ambientMat, sx * 0.574, 0.76, 0.0).castShadow = false;
       add(new THREE.BoxGeometry(0.05, 0.03, 0.3), alu, sx * 0.574, 0.7, -0.15);     // Türöffner
+      add(new THREE.BoxGeometry(0.07, 0.04, 0.5), leather, sx * 0.56, 0.72, 0.12);  // Armauflage
+      add(new THREE.BoxGeometry(0.004, 0.004, 0.5), stitch, sx * 0.524, 0.742, 0.12).castShadow = false;
+      add(new THREE.TorusGeometry(0.06, 0.006, 6, 20), alu, sx * 0.578, 0.6, -0.42, 0, Math.PI / 2, 0).castShadow = false;   // Lautsprecher
+      add(new THREE.CircleGeometry(0.058, 20), black, sx * 0.582, 0.6, -0.42, 0, -sx * Math.PI / 2, 0).castShadow = false;
     }
     // Sportsitze: Sitzfläche, Lehne, Seitenwangen, Kopfstütze
     for (const sx of [-0.33, 0.33]) {
@@ -4543,7 +4724,7 @@ class CarModel {
     const swHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16).rotateX(Math.PI / 2), carbon);
     const swSpoke = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.028, 0.02), carbon);
     const swSpokeB = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.15, 0.02), carbon); swSpokeB.position.y = -0.08;
-    const swMark = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.03, 0.03), new THREE.MeshBasicMaterial({ color: 0x36e0ff }));
+    const swMark = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.034, 0.048), new THREE.MeshStandardMaterial({ color: 0xff8a1f, roughness: 0.6 }));   // 12-Uhr-Markierung
     swMark.position.y = 0.16;
     const swLogo = new THREE.Mesh(new THREE.CircleGeometry(0.025, 16), new THREE.MeshBasicMaterial({ color: 0x36e0ff }));
     swLogo.position.z = 0.021;
@@ -4558,7 +4739,33 @@ class CarModel {
     this.swVariants = { round, yoke, sport };
     yoke.visible = false; sport.visible = false;
     this.steeringWheel.add(round, yoke, sport, swHub, swSpoke, swSpokeB, swMark, swLogo);
+    // Daumenauflagen (dicker) bei 9 und 3 Uhr
+    for (const sx of [-1, 1]) { const tg = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.027, 10, 10, 0.75), leather); tg.rotation.z = sx > 0 ? -0.375 : Math.PI - 0.375; this.steeringWheel.add(tg); }
+    // Hände in Handschuhen (9-und-3-Uhr-Haltung): greifen den Kranz, drehen mit, greifen bei großen Winkeln um.
+    // Unterarme laufen zu festen Ellbogen-Punkten (werden pro Bild ausgerichtet). Nur in der Ego-Sicht sichtbar.
+    {
+      const glove = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.65 });
+      const cuff = new THREE.MeshStandardMaterial({ color: 0x3a3d44, roughness: 0.8 });
+      const sleeve = new THREE.MeshStandardMaterial({ color: 0x3b4049, roughness: 0.9 });
+      this.hands = new THREE.Group(); this.hands.visible = false; this.handList = [];
+      for (const sx of [-1, 1]) {
+        const pivot = new THREE.Group();                 // dreht um die Lenkradachse (liegt in der Lenkrad-Ebene)
+        const hand = new THREE.Group(); hand.position.set(sx * 0.16, 0, 0); hand.scale.setScalar(1.25); pivot.add(hand);
+        const palm = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.08, 0.04), glove); palm.position.set(sx * 0.01, 0, 0.028); hand.add(palm);
+        for (let f = 0; f < 4; f++) {                     // Finger umschließen den Kranz
+          const fg = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.009, 6, 10, Math.PI * 1.15), glove);
+          fg.rotation.set(0, Math.PI / 2, Math.PI * 0.42); fg.position.set(sx * 0.003, 0.028 - f * 0.019, 0); hand.add(fg);
+        }
+        const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.035, 4, 8), glove); thumb.position.set(-sx * 0.01, 0.04, 0.018); thumb.rotation.z = sx * 0.9; hand.add(thumb);
+        const c = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.029, 0.03, 12), cuff); c.rotation.x = Math.PI / 2; c.position.set(sx * 0.012, -0.005, 0.06); hand.add(c);
+        const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.05, 1, 14).translate(0, 0.5, 0), sleeve);
+        this.hands.add(pivot); body.add(arm); arm.visible = false;
+        this.handList.push({ sx, pivot, hand, arm, grip: 0, elbow: new THREE.Vector3(-0.33 + sx * 0.3, 0.6, 0.12) });
+      }
+    }
     body.add(this.steeringWheel);
+    // Hände-Gruppe liegt wie das Lenkrad (gleiche Lage/Neigung), dreht aber selbst
+    this.hands.position.copy(this.steeringWheel.position); this.hands.rotation.x = this.steeringWheel.rotation.x; body.add(this.hands);
 
     // Displays als Canvas-Texturen (werden nur im Cockpit-Modus aktualisiert)
     const makeScreen = (w, h, pw, ph) => {
@@ -4653,6 +4860,36 @@ class CarModel {
   }
 
   /** Optik aus dem Physikzustand aktualisieren. */
+  /** Ego-Sicht an/aus: Hände/Unterarme nur von innen sichtbar. */
+  setCockpit(on) {
+    if (this.hands.visible === on) return;
+    this.hands.visible = on; for (const h of this.handList) h.arm.visible = false;
+  }
+
+  /** Hände am Lenkrad: drehen mit; über ±100° wird umgegriffen (Hand gleitet zurück Richtung 9/3 Uhr). */
+  updateHands(sw, dt) {
+    const tmpA = this._ha || (this._ha = new THREE.Vector3()), up = this._hu || (this._hu = new THREE.Vector3(0, 1, 0));
+    for (const h of this.handList) {
+      // gewünschter Griff relativ zum Lenkrad: so, dass die Hand (Welt) höchstens ±100° von der Grundhaltung abweicht
+      const rel = sw - h.grip;
+      if (Math.abs(rel) > 1.75) h.gripTarget = sw - Math.sign(rel) * 0.35;
+      if (h.gripTarget !== undefined) {
+        h.grip += clamp(h.gripTarget - h.grip, -dt * 9, dt * 9);
+        if (Math.abs(h.gripTarget - h.grip) < 1e-3) h.gripTarget = undefined;
+      }
+      if (Math.abs(sw) < 0.3 && h.gripTarget === undefined) h.grip += clamp(0 - h.grip, -dt * 3, dt * 3);
+      h.pivot.rotation.z = sw - h.grip;
+      // Unterarm vom Handgelenk zum Ellbogen
+      h.pivot.updateWorldMatrix(true, false);
+      h.hand.getWorldPosition(tmpA); h.arm.parent.worldToLocal(tmpA);
+      tmpA.z += 0.06;
+      const d = h.elbow.clone().sub(tmpA), L = d.length();
+      h.arm.position.copy(tmpA); h.arm.scale.set(1, L, 1);
+      h.arm.quaternion.setFromUnitVectors(up, d.normalize());
+      h.arm.visible = true;
+    }
+  }
+
   update(vehicle, dt) {
     const cfg = this.cfg;
     for (let i = 0; i < 4; i++) {
@@ -4667,7 +4904,8 @@ class CarModel {
       w.spin -= w.omega * dt;
       m.spin.rotation.x = w.spin % (Math.PI * 2);
     }
-    this.steeringWheel.rotation.z = vehicle.steerAngle * cfg.steer.wheelToSteeringWheel * 0.5;
+    this.steeringWheel.rotation.z = vehicle.swAngle;   // echter Lenkradwinkel (1:1 wie das Touch-Lenkrad)
+    if (this.hands.visible) this.updateHands(vehicle.swAngle || 0, dt);
     this.tailMat.emissiveIntensity = vehicle.braking ? 4.5 : 0.9;
     // Düsen
     this.fxTime.value += dt;
@@ -4964,7 +5202,7 @@ class Garage {
     this.car.root.position.y = CONFIG.car.cgHeight + 0.12;
     this.car.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     this.turn.add(this.car.root);
-    this.fake = { wheels: [0, 1, 2, 3].map(() => ({ grounded: true, suspLen: 0.27, steer: 0, omega: 0, spin: 0 })), steerAngle: 0, braking: false, reversing: false,
+    this.fake = { wheels: [0, 1, 2, 3].map(() => ({ grounded: true, suspLen: 0.27, steer: 0, omega: 0, spin: 0 })), steerAngle: 0, swAngle: 0, braking: false, reversing: false,
       flying: false, landing: false, altitude: 0, boosting: false, throttle: 0, climbIn: 0 };
     this.car.update(this.fake, 0.016);
     this.yaw = 0.7; this.pitch = 0.18; this.dist = 9.5; this.drag = null; this.spin = 0;
@@ -5186,6 +5424,7 @@ const Menu = {
   close() {
     const g = this.g;
     g.menuOpen = false; g.paused = false; g.rig.initialized = false;
+    DynRes.acc = 0; DynRes.frames = 0; DynRes.cool = 3;      // kein Auflösungswechsel direkt beim Start
     document.getElementById('mainMenu').hidden = true;
     document.body.classList.remove('inMenu');
     g.sound.start(); g.music?.start();
@@ -5197,7 +5436,7 @@ const Menu = {
 const Tutorial = {
   steps: [
     { text: 'Halte <b>GAS</b> gedrückt, um loszufahren.', el: 'tGas', done: (v) => v.throttle > 0.9, min: 1.2 },
-    { text: 'Schiebe den <b>Lenk-Schieber</b> nach links oder rechts – je weiter, desto stärker.', el: 'stick', done: () => Math.abs(Input.state.steer) > 0.45, min: 0.8 },
+    { text: 'Leg den Daumen auf das <b>Lenkrad</b> und <b>dreh</b> es – wie ein echtes Lenkrad (bis 270°).', el: 'wheel', done: () => Math.abs(Input.state.steer) > 0.25, min: 0.8 },
     { text: '<b>BOOST</b> gibt Extra-Schub. Der Ring zeigt die Energie.', el: 'tBoost', done: (v) => v.boosting, min: 0.6 },
     { text: '<b>FLIEGEN</b>: abheben – in der Luft steuerst du mit dem Joystick die Höhe.', el: 'tFly', done: (v) => v.flying, min: 0.5, skip: 9 },
     { text: 'Mit 🎥 und <b>EGO</b> wechselst du die Kamera. 🏁 Missionen, 🚨 Polizei, 🔧 Garage. Viel Spaß!', el: null, done: () => false, skip: 5 },
@@ -5264,7 +5503,9 @@ const HUD = {
     const rpmPct = clamp(vehicle.drivetrain.rpm / vehicle.cfg.motor.redline, 0, 1);
     const w = (Math.round(rpmPct * 200) / 2) + '%';
     if (this.last.rpm !== w) { this.last.rpm = w; this.el.rpmFill.style.width = w; }
-    this.set('fps', `${fps} FPS · ${Settings.data.quality.toUpperCase()}${DynRes.scale < 1 ? ' · ' + Math.round(DynRes.scale * 100) + ' %' : ''}`);
+    // Bildrate nur mit eingeschalteter Telemetrie anzeigen
+    if (this.last.fpsOn !== !!Settings.data.telemetry) { this.last.fpsOn = !!Settings.data.telemetry; document.getElementById('fps').style.display = this.last.fpsOn ? '' : 'none'; }
+    if (this.last.fpsOn) this.set('fps', `${fps} FPS · ${Settings.data.quality.toUpperCase()}${DynRes.scale < 1 ? ' · ' + Math.round(DynRes.scale * 100) + ' %' : ''}`);
     this.set('money', '💰 ' + fmtMoney(SaveData.data.money));
     const bw = Math.round(vehicle.boostEnergy * 100) + '%', fw = Math.round(vehicle.flyEnergy * 100) + '%';
     if (this.last.bw !== bw) { this.last.bw = bw; this.el.boostFill.style.width = bw; this.el.tBoost.style.setProperty('--e', vehicle.boostEnergy.toFixed(2)); }
@@ -5586,7 +5827,15 @@ class MissionSystem {
     // Startpunkt-Hinweis in der freien Fahrt
     if (!this.active) {
       let near = null;
-      this.markers.forEach((mk) => { if (mk.grp.visible && Math.hypot(mk.p.x - v.pos.x, mk.p.z - v.pos.z) < 14) near = mk.m; });
+      // Teleport (Spawn/Reset) → Ringe, in denen man steht, erst nach dem Verlassen wieder anbieten
+      if (this._lp && Math.hypot(this._lp.x - v.pos.x, this._lp.z - v.pos.z) > 30) this.markers.forEach((mk) => { mk.wasOut = false; });
+      this._lp = { x: v.pos.x, z: v.pos.z };
+      this.markers.forEach((mk) => {
+        const d = Math.hypot(mk.p.x - v.pos.x, mk.p.z - v.pos.z);
+        if (d > 17) mk.wasOut = true;
+        // nur anbieten, wenn man langsam (< 30 km/h) in den Ring hineinfährt
+        if (mk.grp.visible && mk.wasOut && d < 14 && v.speed < 8.5) near = mk.m;
+      });
       if (near !== this.promptFor) {
         this.promptFor = near;
         this.ui.prompt.hidden = !near;
@@ -6201,13 +6450,13 @@ class TrafficSystem {
     const city = this.w.edges.filter((e) => e.cls === 'city');
     if (fresh || !car.spot) {
       for (let t = 0; t < 40; t++) {
-        const e = city[Math.floor(this.rng() * city.length)], s = 18 + this.rng() * (e.len - 36), dir = this.rng() < 0.5 ? 1 : -1;
+        const e = city[Math.floor(this.rng() * city.length)], s = 24 + this.rng() * (e.len - 48), dir = this.rng() < 0.5 ? 1 : -1;
         if (this.cars.some((o) => o !== car && o.spot && o.spot.e === e && o.spot.dir === dir && Math.abs(o.spot.s - s) < 7)) continue;
         car.spot = { e, s, dir }; break;
       }
     }
     const sp = car.spot;
-    Object.assign(car, { e: sp.e, s: sp.s, dir: sp.dir, lane: 0, speed: 0, state: 'parked', latOff: 5.6 - sp.e.C.lanes[0], body: null, stopT: 0 });
+    Object.assign(car, { e: sp.e, s: sp.s, dir: sp.dir, lane: 0, speed: 0, state: 'parked', latOff: 5.45 - car.v.W / 2 + 0.92 - sp.e.C.lanes[0], body: null, stopT: 0 });
     this.place(car, 0, true);
   }
 
@@ -7242,6 +7491,7 @@ class Game {
     const fixed = 1 / CONFIG.physicsHz;
     const v = this.vehicle;
 
+    Input.speed = v.speed;
     Input.update();
     this.handleActions();
     if (!this.paused) {
@@ -7283,6 +7533,9 @@ class Game {
     this.car.root.position.copy(this._ip);
     this.car.root.quaternion.copy(this._iq);
     this.car.update(v, this.paused ? 0 : dt);
+    this.car.setCockpit(this.rig.mode === 'cockpit');
+    document.body.classList.toggle('ego', this.rig.mode === 'cockpit');
+    Input.drawWheel(v.swAngle);   // Touch-Lenkrad zeigt exakt den Lenkradwinkel des Autos
     for (let i = 0; i < 4; i++) this.skid.track(i, v.wheels[i], v, this.world);
     this.skid.flush();
     if (this.menuOpen) this.menuCamera(dt); else this.rig.update(dt, this._ip, this._iq, v);
@@ -7320,8 +7573,9 @@ class Game {
       v.lastImpact = 0;
     }
 
-    this.env.render(this.camera);
+    // Auflösung VOR dem Rendern anpassen (ein Resize leert sonst das Bild bis zum nächsten Frame → schwarzes Bild)
     DynRes.update(this, dt);
+    this.env.render(this.camera);
 
     // FPS
     this.frames++; this.fpsTime += dt;
