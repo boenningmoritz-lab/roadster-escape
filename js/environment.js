@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { clamp, smoothstep, Settings } from './config.js';
 import { fbm } from './world/noise.js';
 import { WORLD } from './world/world.js';
@@ -85,6 +86,15 @@ class Environment {
     const size = r.getSize(new THREE.Vector2());
     this.composer = new EffectComposer(r);
     this.composer.addPass(new RenderPass(this.scene, this.g.camera));
+    // Umgebungsverdeckung (GTAO, halbe Auflösung): dunkelt Ecken, Spalten, Kontaktstellen ab – nur Grafik Hoch
+    try {
+      const ao = this.ao = new GTAOPass(this.scene, this.g.camera, size.x / 2, size.y / 2);
+      const setSz = ao.setSize.bind(ao); ao.setSize = (w, h) => setSz(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
+      ao.blendIntensity = 0.85;
+      ao.updateGtaoMaterial({ radius: 1.6, distanceExponent: 1.4, thickness: 1.2, scale: 1, samples: 10, distanceFallOff: 1, screenSpaceRadius: false });
+      ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 8 });
+      this.composer.addPass(ao);
+    } catch (e) { this.ao = null; }
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.35, 0.5, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -150,7 +160,7 @@ class Environment {
       this.sunDir.set(-0.78, 0.13, 0.6).normalize();
       this.sun.color.set(0xffa55e); this.sun.intensity = 2.4;
       this.hemi.color.set(0x8d8fb8); this.hemi.groundColor.set(0x4a3a2a); this.hemi.intensity = 0.55;
-      this.scene.fog.color.set(0xd99a72); this.scene.fog.near = 220; this.scene.fog.far = this.q.fogFar * 0.85;
+      this.scene.fog.color.set(0xd99a72); this.scene.fog.near = 110; this.scene.fog.far = this.q.fogFar * 0.95;   // warmer Dunst
       this.renderer.toneMappingExposure = this.baseExposure = 1.05;
       this.envGround.material.color.set(0x3a2e24);
     } else {
@@ -158,7 +168,7 @@ class Environment {
       this.sunDir.set(-0.5, 0.5, 0.42).normalize();
       this.sun.color.set(0xffe9cf); this.sun.intensity = 3.2;
       this.hemi.color.set(0xbfdcff); this.hemi.groundColor.set(0x5a6040); this.hemi.intensity = 0.85;
-      this.scene.fog.color.set(0xbcd6ea); this.scene.fog.near = 300; this.scene.fog.far = this.q.fogFar;
+      this.scene.fog.color.set(0xbcd6ea); this.scene.fog.near = 130; this.scene.fog.far = this.q.fogFar * 1.12;    // leichter Dunst, Ferne bleibt sichtbar
       this.renderer.toneMappingExposure = this.baseExposure = 0.95;
       this.envGround.material.color.set(0x4a5236);
     }

@@ -39,7 +39,17 @@ function makePoliceGeometry() {
   // Unterbau (dunkel), Seitenflächen hell, kantiges Glashaus, Dach dunkel
   parts.push({ geo: ext([[-L / 2, 0.42], [-L / 2 - 0.03, 0.98], [-L / 2 + 0.35, 1.1], [L / 2 - 0.15, 1.12], [L / 2, 1.0], [L / 2, 0.42]], W, 0.08), color: DARK });
   parts.push({ geo: new THREE.BoxGeometry(W + 0.02, 0.36, L - 1.6).translate(0, 0.78, 0.1), color: SILVER });         // Türen hell
-  parts.push({ geo: ext([[-L / 2 + 1.25, 1.08], [-L / 2 + 1.95, H], [L / 2 - 0.35, H], [L / 2 - 0.2, 1.1]], W - 0.14, 0.05), color: GLASS });
+  // Scheiben als eigene, getönt-durchsichtige Geometrie; dahinter Sitze und zwei Beamte
+  const glassParts = [{ geo: ext([[-L / 2 + 1.25, 1.08], [-L / 2 + 1.95, H], [L / 2 - 0.35, H], [L / 2 - 0.2, 1.1]], W - 0.14, 0.05), color: [1, 1, 1] }];
+  parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.06, L - 2.0).translate(0, 1.06, 0.4), color: [0.1, 0.1, 0.11] });          // Innenraum-Boden auf Brüstungshöhe
+  for (const sx of [-1, 1]) {
+    parts.push({ geo: new THREE.BoxGeometry(0.5, 0.62, 0.12).translate(sx * 0.45, 1.38, -0.05), color: [0.12, 0.12, 0.13] });  // Sitzlehne vorn
+    parts.push({ geo: new THREE.BoxGeometry(0.26, 0.16, 0.1).translate(sx * 0.45, 1.75, -0.02), color: [0.12, 0.12, 0.13] });  // Kopfstütze
+    parts.push({ geo: new THREE.BoxGeometry(0.46, 0.3, 0.26).translate(sx * 0.45, 1.3, -0.3), color: [0.1, 0.13, 0.25] });     // Oberkörper (Uniform)
+    parts.push({ geo: new THREE.SphereGeometry(0.11, 10, 8).translate(sx * 0.45, 1.58, -0.32), color: [0.82, 0.64, 0.52] });   // Kopf
+    parts.push({ geo: new THREE.CylinderGeometry(0.12, 0.125, 0.07, 10).translate(sx * 0.45, 1.68, -0.32), color: [0.08, 0.12, 0.3] });   // Mütze
+    parts.push({ geo: new THREE.BoxGeometry(0.5, 0.55, 0.12).translate(sx * 0.45, 1.36, 1.1), color: [0.12, 0.12, 0.13] });    // Rückbank-Lehne
+  }
   parts.push({ geo: new THREE.BoxGeometry(W - 0.18, 0.06, L - 2.5).translate(0, H + 0.02, 0.45), color: DARK });          // Dach
   parts.push({ geo: new THREE.BoxGeometry(W - 0.16, 0.5, 0.12).translate(0, H - 0.3, -0.3), color: DARK });             // B-Säule
   parts.push({ geo: new THREE.BoxGeometry(1.2, 0.48, 0.06).translate(0, 0.76, -L / 2 - 0.04), color: CHROME });         // Kühlergrill
@@ -52,7 +62,7 @@ function makePoliceGeometry() {
   }
   // Lichtbalken-Sockel
   parts.push({ geo: new THREE.BoxGeometry(1.3, 0.1, 0.36).translate(0, H + 0.08, -0.1), color: [0.12, 0.12, 0.14] });
-  return { body: mergeParts(parts), L, W, H };
+  return { body: mergeParts(parts), glass: mergeParts(glassParts), L, W, H };
 }
 
 /** Schriftzug „POLIZEI“ als Textur. */
@@ -91,10 +101,24 @@ class PoliceSystem {
   makeUnit() {
     const G = this.geo, grp = new THREE.Group();
     const body = new THREE.Mesh(G.body, this.bodyMat); body.castShadow = true; grp.add(body);
+    if (!this.glassMat) this.glassMat = new THREE.MeshStandardMaterial({ color: 0x0d1218, roughness: 0.06, metalness: 0.4, transparent: true, opacity: 0.62, envMapIntensity: 1.4 });
+    const gl = new THREE.Mesh(G.glass, this.glassMat); gl.renderOrder = 2; grp.add(gl);
+    // Frontblitzer im Grill + Lichtbalken mit 3 Segmenten je Seite (Lauf-/Doppelblitz-Muster)
+    if (!this.segMats) this.segMats = [0, 1, 2, 3, 4, 5].map(() => new THREE.MeshBasicMaterial({ color: 0x1030ff, toneMapped: false }));
+    for (let k = 0; k < 6; k++) {
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.11, 0.3), this.segMats[k]);
+      seg.position.set((k - 2.5) * 0.2, G.H + 0.19, -0.1); grp.add(seg);
+    }
+    for (const s of [-1, 1]) {
+      const fl = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.03), s < 0 ? this.blueA : this.blueB); fl.position.set(s * 0.42, 0.62, -G.L / 2 - 0.08); grp.add(fl);
+    }
+    // Lichtschein auf der Straße (additiv, blitzt mit) – billige „Reflexion“ auch ohne echte Lichter
+    if (!this.glowTex) this.glowTex = makeBlobTexture();
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: this.glowTex, color: 0x2050ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -9, polygonOffsetUnits: -9 }));
+    glow.scale.set(11, 1, 11); glow.renderOrder = 2; this.scene.add(glow);
     for (const s of [-1, 1]) {
       const d = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.36), this.decalMat);
       d.position.set(s * (G.W / 2 + 0.025), 0.78, 0.15); d.rotation.y = s * Math.PI / 2; grp.add(d);
-      const lb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.13, 0.3), s < 0 ? this.blueA : this.blueB); lb.position.set(s * 0.36, G.H + 0.19, -0.1); grp.add(lb);
       const hl = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.12, 0.05), this.headMat); hl.position.set(s * 0.75, 0.88, -G.L / 2 - 0.04); grp.add(hl);
       const tl = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.16, 0.05), this.tailMat); tl.position.set(s * 0.8, 0.95, G.L / 2 + 0.03); grp.add(tl);
     }
@@ -108,7 +132,7 @@ class PoliceSystem {
     if (!this.blobMat) this.blobMat = new THREE.MeshBasicMaterial({ map: makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), this.blobMat.clone());
     blob.scale.set(this.geo.W + 0.6, 1, this.geo.L + 0.8); blob.visible = false; blob.renderOrder = 1; this.scene.add(blob);
-    return { grp, jets, blob, pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, bank: 0, pitch: 0, mode: 'air', slot: 0, block: null, mass: 2600, flying: true };
+    return { grp, jets, blob, glow, pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, bank: 0, pitch: 0, mode: 'air', slot: 0, block: null, mass: 2600, flying: true };
   }
 
   makeHeli() {
@@ -178,7 +202,7 @@ class PoliceSystem {
   stop(result) {
     if (!this.active) return null;
     this.active = false;
-    for (const u of this.units) { u.grp.visible = false; u.active = false; u.blob.visible = false; }
+    for (const u of this.units) { u.grp.visible = false; u.active = false; u.blob.visible = false; if (u.glow) u.glow.visible = false; }
     if (this.heli) { this.heli.grp.visible = false; this.heli.beam.visible = false; this.heli.spot.intensity = 0; }
     for (const l of this.flashLights) l.intensity = 0;
     for (const sp of this.spikes || []) sp.mesh.visible = false;
@@ -460,10 +484,20 @@ class PoliceSystem {
 
   updateVisuals(dt, camera) {
     // Blaulicht: Doppelblitz, links/rechts abwechselnd
+    // Muster wie bei echten LED-Balken: Doppelblitz links/rechts, Segmente laufen von innen nach außen,
+    // alle 4 s ein kurzer „Allblitz“; Grillblitzer gegenläufig
     const t = this.time * 2.2 % 1;
     const a = (t < 0.08 || (t > 0.16 && t < 0.24)) ? 1 : 0, b = (t > 0.5 && t < 0.58) || (t > 0.66 && t < 0.74) ? 1 : 0;
-    this.blueA.color.setRGB(0.1 + a * 1.4, 0.2 + a * 2.0, 0.6 + a * 6);
-    this.blueB.color.setRGB(0.1 + b * 1.4, 0.2 + b * 2.0, 0.6 + b * 6);
+    this.blueA.color.setRGB(0.1 + b * 1.4, 0.2 + b * 2.0, 0.6 + b * 6);
+    this.blueB.color.setRGB(0.1 + a * 1.4, 0.2 + a * 2.0, 0.6 + a * 6);
+    const all = (this.time % 4) < 0.35 && Math.sin(this.time * 60) > 0;
+    if (this.segMats) this.segMats.forEach((m, k) => {
+      const left = k < 3, idx = left ? 2 - k : k - 3;                  // 0 = innen
+      const sweep = Math.abs(((this.time * 3.3) % 1) * 3 - idx - 0.5) < 0.5;
+      const on = all || (left ? a : b) || (sweep && (left ? b : a) === 0 && Math.sin(this.time * 30) > 0.3);
+      m.color.setRGB(0.08 + on * 1.4, 0.15 + on * 2.0, 0.5 + on * 6);
+    });
+    const glowK = Math.max(a, b, all ? 1 : 0);
     const night = this.w.night;
     this.headMat.color.setScalar(night ? 4 : 1.4); this.tailMat.color.setRGB(night ? 3 : 1.2, 0.08, 0.08);
     let anyFly = false;
@@ -476,6 +510,7 @@ class PoliceSystem {
       if (u.flying) anyFly = true;
       for (const j of u.jets) j.visible = u.flying;
       { const gy = this.w.sample(u.pos.x, u.pos.z, undefined, u.pos.y), alt = u.pos.y - 0.95 - gy;
+        u.glow.visible = alt < 8; u.glow.position.set(u.pos.x, gy + 0.06, u.pos.z); u.glow.material.opacity = glowK * (night ? 0.55 : 0.18) * clamp(1 - alt / 8, 0, 1);
         u.blob.visible = alt < 6; u.blob.position.set(u.pos.x, gy + 0.05, u.pos.z); u.blob.rotation.y = u.yaw; u.blob.material.opacity = 0.6 * clamp(1 - alt / 6, 0, 1); }
     }
     this.jetMat.opacity = anyFly ? 0.55 + Math.sin(this.time * 40) * 0.1 : 0;

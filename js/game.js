@@ -115,6 +115,11 @@ class Game {
     document.body.classList.toggle('tilt', s.steering === 'tilt');
     this.renderer.shadowMap.enabled = this.q.shadows;
     this.env.sun.castShadow = this.q.shadows;
+    // Hoch: weiche Schatten (PCF mit Radius) und engerer, feinerer Schattenbereich nahe am Auto
+    { const hi = this.q.shadowSize >= 2048, sc = this.env.sun.shadow.camera, R = hi ? 48 : 70;
+      this.renderer.shadowMap.type = hi ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+      this.env.sun.shadow.radius = hi ? 3.5 : 1; this.env.sun.shadow.blurSamples = 12;
+      if (sc.right !== R) { sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.updateProjectionMatrix(); } }
     if (this.q.shadows && this.env.sun.shadow.mapSize.x !== this.q.shadowSize) {
       this.env.sun.shadow.mapSize.set(this.q.shadowSize, this.q.shadowSize);
       this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null;
@@ -141,6 +146,7 @@ class Game {
   setFxLevel(n) {
     this.fxLevel = n;
     if (this.grass.mesh) this.grass.mesh.visible = n < 1;
+    if (this.env.ao) this.env.ao.enabled = n < 1;               // AO als Erstes abschalten
     if (this.street.pm) for (const k of ['body', 'head', 'leg', 'arm']) this.street.pm[k].visible = n < 2;
     this.street.hidePeds = n >= 2;
     const sh = this.q.shadows && n < 3;
@@ -307,6 +313,7 @@ class Game {
 
     this.world.update(dt, this.camera, this._ip);
     this.env.update(dt, this._ip, this.camera.position);
+    if (this.world.treeSun) this.world.treeSun.value.copy(this.env.sunDir).transformDirection(this.camera.matrixWorldInverse);
     // Häuserschlucht: hohe Gebäude ringsum → weniger Himmelslicht → Auge stellt heller; Tempo → Bewegungsunschärfe
     { const cp = this.camera.position; let tall = 0;
       for (const [dx, dz] of [[14, 0], [-14, 0], [0, 14], [0, -14], [10, 10], [-10, -10]]) {

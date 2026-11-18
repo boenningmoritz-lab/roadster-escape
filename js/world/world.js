@@ -1652,10 +1652,10 @@ Object.assign(World.prototype, {
       { geo: GREY(0.8, 1, 4, 7)(bark(new THREE.CylinderGeometry(0.06, 0.13, 2.6, 5).rotateZ(-0.7).rotateY(2).translate(-0.6, 5.0, -0.6))) },
       { geo: GREY(0.45, 0.8, 4.5, 9.5)(sphereNormals(dense(jitter(new THREE.IcosahedronGeometry(2.5, 1).scale(1.15, 0.95, 1.15).translate(0, 7, 0), 0.7, rng)), 0, 7, 0)) },
     ];
-    for (let k = 0; k < 14; k++) {
-      const th = rng() * Math.PI * 2, ph = Math.acos(rng() * 1.6 - 0.65), r = 2.4 + rng() * 0.9;
+    for (let k = 0; k < 24; k++) {          // mehr, kleinere Blätterkarten → dichtere, weichere Krone
+      const th = rng() * Math.PI * 2, ph = Math.acos(rng() * 1.6 - 0.65), r = 2.4 + rng() * 1.0;
       const c = new THREE.Vector3(Math.sin(ph) * Math.cos(th) * r * 1.15, 7 + Math.cos(ph) * r * 0.95, Math.sin(ph) * Math.sin(th) * r * 1.15);
-      const size = 3.4 + rng() * 1.6;
+      const size = 2.6 + rng() * 1.4;
       const g = remap(new THREE.PlaneGeometry(size, size), ...LEAF);
       const o = new THREE.Object3D(); o.position.copy(c); o.lookAt(c.clone().multiplyScalar(2).setY(c.y * 2 - 7)); o.rotateZ(rng() * Math.PI); o.updateMatrix();
       g.applyMatrix4(o.matrix);
@@ -1687,8 +1687,15 @@ Object.assign(World.prototype, {
     this.treeMat = mat;
     this.windT = { value: 0 };
     const windT = this.windT;
+    this.treeSun = { value: new THREE.Vector3(0, 1, 0) };      // Sonnenrichtung im Kameraraum (pro Bild gesetzt)
+    const treeSun = this.treeSun;
     mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uWind = windT;
+      sh.uniforms.uWind = windT; sh.uniforms.uSunV = treeSun;
+      // Durchscheinen (Subsurface): Laub leuchtet gelbgrün, wenn man gegen die Sonne durch die Blätter schaut
+      sh.fragmentShader = 'uniform vec3 uSunV;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        { float leaf = 1.0 - step(vMapUv.x, 0.19) * step(0.5, vMapUv.y);
+          float back = pow(max(dot(normalize(-vViewPosition), uSunV), 0.0), 5.0);
+          totalEmissiveRadiance += diffuseColor.rgb * vec3(0.85, 1.0, 0.45) * back * 0.9 * leaf; }`);
       sh.vertexShader = 'uniform float uWind;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
         #ifdef USE_INSTANCING
           vec3 tp = instanceMatrix[3].xyz;
@@ -1696,6 +1703,10 @@ Object.assign(World.prototype, {
           float ph = uWind * 1.25 + tp.x * 0.13 + tp.z * 0.17;
           transformed.x += (sin(ph) + 0.4 * sin(ph * 2.3 + 1.0)) * 0.026 * sw;
           transformed.z += cos(ph * 0.8) * 0.018 * sw;
+          // Blätter flattern zusätzlich schnell und klein (nur oben in der Krone)
+          float fl = step(4.2, position.y) * 0.035;
+          transformed.x += sin(uWind * 7.0 + position.x * 3.1 + position.z * 2.3 + tp.x) * fl;
+          transformed.y += sin(uWind * 6.3 + position.z * 2.7 + tp.z) * fl * 0.6;
         #endif`);
     };
     const T = this.trees, N = T.count;

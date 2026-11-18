@@ -198,6 +198,16 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Augen-Anpassung:** in Häuserschluchten stellt die Belichtung träge (~1,5 s) heller.
 - **Bewegungsunschärfe** (Grafik Hoch, abschaltbar): ab ca. 160 km/h radial vom Bildrand, Mitte bleibt scharf.
 
+## Technik (Realismus-Paket 6 – Schärfe, Ego-Sicht, Polizei)
+- **Scharfes Bild:** dynamische Auflösung nie unter 80 %; reicht das nicht, werden nacheinander Umgebungsverdeckung/Gras, Fußgänger/Spiegel und Schatten abgeschaltet. Nachschärfen (Unsharp-Mask) auf Hoch; Filmkorn, Farbsäume und Bewegungsunschärfe sind standardmäßig aus (Einstellungen „Film-Look“, „Bewegungsunschärfe“). Niedrig rendert mit 1,25-facher Pixeldichte.
+- **Lenkrad-Rückstellung:** losgelassen von 270° in ≈ 0,23 s (Fahrt) bzw. ≈ 0,3 s (Stand) mittig, ohne Überschwingen.
+- **Ego-Sicht:** Augenhöhe 1,20 m – freie Sicht auf die Straße, Cockpit im unteren Drittel; Scheibenrahmen und Innenspiegel liegen oben, Lenkrad etwas kleiner/tiefer, schlanke Unterarme.
+- **Festnahme mit Timer:** Berühren/Rammen allein reicht nicht. Erst wenn Polizei < 6 m dran ist und man < 25 km/h fährt (oder 3 Wagen < 9 m bei < 50 km/h), läuft der Timer: Leicht 7 s, Normal 5 s, Schwer 4,7 s, Extrem 4,4 s, Insane 4 s. Balken mit „FESTNAHME x,x s“, letzte Sekunde rot blinkend, Warnton + Vibration; freigekommen läuft er langsam zurück.
+- **Fünf Stufen** (Leicht … Insane) mit unterschiedlicher Wagenzahl, Tempo, Rammfreude, Sperren-Takt, Nagelbändern (ab Schwer: platte Reifen 9 s), Hubschrauber (ab Extrem). Fahndungssterne schalten zusätzlich frei: ★★★ Einkesseln, ★★★★ Sperren + Nagelbänder + Verstärkung, ★★★★★ Hubschrauber. Stufe und Sterne im HUD.
+- **Polizei-Optik:** LED-Lichtbalken mit 6 Segmenten (Doppelblitz, Lauflicht, Allblitz), Grillblitzer, blauer Lichtschein auf der Straße; getönte Scheiben mit zwei Beamten.
+- **Verkehr:** getönte, durchsichtige Scheiben mit Fahrer, Sitzen und Kopfstützen.
+- **Grafik Hoch:** Umgebungsverdeckung (GTAO, halbe Auflösung), weiche Schatten (PCF mit Radius, engerer Bereich am Auto), leichter Dunst. Bäume: dichtere Kronen, Blätterflattern, Durchscheinen gegen die Sonne.
+
 ## Code-Aufbau
 
 ```

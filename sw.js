@@ -1,6 +1,6 @@
 // Service Worker: macht das Spiel offline spielbar (nach dem ersten Laden).
 // Bei jeder Änderung an den Dateien VERSION erhöhen, damit Geräte die neue Fassung laden.
-const VERSION = 'roadster-escape-v3';
+const VERSION = 'roadster-escape-v4';
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
 const FILES = [
   "./",
@@ -40,6 +40,10 @@ const THREE_FILES = [
   "examples/jsm/objects/Lensflare.js",
   "examples/jsm/postprocessing/Pass.js",
   "examples/jsm/postprocessing/ShaderPass.js",
+  "examples/jsm/postprocessing/GTAOPass.js",
+  "examples/jsm/shaders/GTAOShader.js",
+  "examples/jsm/shaders/PoissonDenoiseShader.js",
+  "examples/jsm/math/SimplexNoise.js",
   "examples/jsm/postprocessing/MaskPass.js",
   "examples/jsm/shaders/CopyShader.js",
   "examples/jsm/shaders/LuminosityHighPassShader.js",

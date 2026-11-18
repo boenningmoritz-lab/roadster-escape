@@ -443,6 +443,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
 
 // ---- js/config.js ----
@@ -1037,6 +1038,15 @@ class Environment {
     const size = r.getSize(new THREE.Vector2());
     this.composer = new EffectComposer(r);
     this.composer.addPass(new RenderPass(this.scene, this.g.camera));
+    // Umgebungsverdeckung (GTAO, halbe Auflösung): dunkelt Ecken, Spalten, Kontaktstellen ab – nur Grafik Hoch
+    try {
+      const ao = this.ao = new GTAOPass(this.scene, this.g.camera, size.x / 2, size.y / 2);
+      const setSz = ao.setSize.bind(ao); ao.setSize = (w, h) => setSz(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
+      ao.blendIntensity = 0.85;
+      ao.updateGtaoMaterial({ radius: 1.6, distanceExponent: 1.4, thickness: 1.2, scale: 1, samples: 10, distanceFallOff: 1, screenSpaceRadius: false });
+      ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 8 });
+      this.composer.addPass(ao);
+    } catch (e) { this.ao = null; }
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.35, 0.5, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -1102,7 +1112,7 @@ class Environment {
       this.sunDir.set(-0.78, 0.13, 0.6).normalize();
       this.sun.color.set(0xffa55e); this.sun.intensity = 2.4;
       this.hemi.color.set(0x8d8fb8); this.hemi.groundColor.set(0x4a3a2a); this.hemi.intensity = 0.55;
-      this.scene.fog.color.set(0xd99a72); this.scene.fog.near = 220; this.scene.fog.far = this.q.fogFar * 0.85;
+      this.scene.fog.color.set(0xd99a72); this.scene.fog.near = 110; this.scene.fog.far = this.q.fogFar * 0.95;   // warmer Dunst
       this.renderer.toneMappingExposure = this.baseExposure = 1.05;
       this.envGround.material.color.set(0x3a2e24);
     } else {
@@ -1110,7 +1120,7 @@ class Environment {
       this.sunDir.set(-0.5, 0.5, 0.42).normalize();
       this.sun.color.set(0xffe9cf); this.sun.intensity = 3.2;
       this.hemi.color.set(0xbfdcff); this.hemi.groundColor.set(0x5a6040); this.hemi.intensity = 0.85;
-      this.scene.fog.color.set(0xbcd6ea); this.scene.fog.near = 300; this.scene.fog.far = this.q.fogFar;
+      this.scene.fog.color.set(0xbcd6ea); this.scene.fog.near = 130; this.scene.fog.far = this.q.fogFar * 1.12;    // leichter Dunst, Ferne bleibt sichtbar
       this.renderer.toneMappingExposure = this.baseExposure = 0.95;
       this.envGround.material.color.set(0x4a5236);
     }
@@ -2946,10 +2956,10 @@ Object.assign(World.prototype, {
       { geo: GREY(0.8, 1, 4, 7)(bark(new THREE.CylinderGeometry(0.06, 0.13, 2.6, 5).rotateZ(-0.7).rotateY(2).translate(-0.6, 5.0, -0.6))) },
       { geo: GREY(0.45, 0.8, 4.5, 9.5)(sphereNormals(dense(jitter(new THREE.IcosahedronGeometry(2.5, 1).scale(1.15, 0.95, 1.15).translate(0, 7, 0), 0.7, rng)), 0, 7, 0)) },
     ];
-    for (let k = 0; k < 14; k++) {
-      const th = rng() * Math.PI * 2, ph = Math.acos(rng() * 1.6 - 0.65), r = 2.4 + rng() * 0.9;
+    for (let k = 0; k < 24; k++) {          // mehr, kleinere Blätterkarten → dichtere, weichere Krone
+      const th = rng() * Math.PI * 2, ph = Math.acos(rng() * 1.6 - 0.65), r = 2.4 + rng() * 1.0;
       const c = new THREE.Vector3(Math.sin(ph) * Math.cos(th) * r * 1.15, 7 + Math.cos(ph) * r * 0.95, Math.sin(ph) * Math.sin(th) * r * 1.15);
-      const size = 3.4 + rng() * 1.6;
+      const size = 2.6 + rng() * 1.4;
       const g = remap(new THREE.PlaneGeometry(size, size), ...LEAF);
       const o = new THREE.Object3D(); o.position.copy(c); o.lookAt(c.clone().multiplyScalar(2).setY(c.y * 2 - 7)); o.rotateZ(rng() * Math.PI); o.updateMatrix();
       g.applyMatrix4(o.matrix);
@@ -2981,8 +2991,15 @@ Object.assign(World.prototype, {
     this.treeMat = mat;
     this.windT = { value: 0 };
     const windT = this.windT;
+    this.treeSun = { value: new THREE.Vector3(0, 1, 0) };      // Sonnenrichtung im Kameraraum (pro Bild gesetzt)
+    const treeSun = this.treeSun;
     mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uWind = windT;
+      sh.uniforms.uWind = windT; sh.uniforms.uSunV = treeSun;
+      // Durchscheinen (Subsurface): Laub leuchtet gelbgrün, wenn man gegen die Sonne durch die Blätter schaut
+      sh.fragmentShader = 'uniform vec3 uSunV;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        { float leaf = 1.0 - step(vMapUv.x, 0.19) * step(0.5, vMapUv.y);
+          float back = pow(max(dot(normalize(-vViewPosition), uSunV), 0.0), 5.0);
+          totalEmissiveRadiance += diffuseColor.rgb * vec3(0.85, 1.0, 0.45) * back * 0.9 * leaf; }`);
       sh.vertexShader = 'uniform float uWind;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
         #ifdef USE_INSTANCING
           vec3 tp = instanceMatrix[3].xyz;
@@ -2990,6 +3007,10 @@ Object.assign(World.prototype, {
           float ph = uWind * 1.25 + tp.x * 0.13 + tp.z * 0.17;
           transformed.x += (sin(ph) + 0.4 * sin(ph * 2.3 + 1.0)) * 0.026 * sw;
           transformed.z += cos(ph * 0.8) * 0.018 * sw;
+          // Blätter flattern zusätzlich schnell und klein (nur oben in der Krone)
+          float fl = step(4.2, position.y) * 0.035;
+          transformed.x += sin(uWind * 7.0 + position.x * 3.1 + position.z * 2.3 + tp.x) * fl;
+          transformed.y += sin(uWind * 6.3 + position.z * 2.7 + tp.z) * fl * 0.6;
         #endif`);
     };
     const T = this.trees, N = T.count;
@@ -3478,7 +3499,17 @@ function makePoliceGeometry() {
   // Unterbau (dunkel), Seitenflächen hell, kantiges Glashaus, Dach dunkel
   parts.push({ geo: ext([[-L / 2, 0.42], [-L / 2 - 0.03, 0.98], [-L / 2 + 0.35, 1.1], [L / 2 - 0.15, 1.12], [L / 2, 1.0], [L / 2, 0.42]], W, 0.08), color: DARK });
   parts.push({ geo: new THREE.BoxGeometry(W + 0.02, 0.36, L - 1.6).translate(0, 0.78, 0.1), color: SILVER });         // Türen hell
-  parts.push({ geo: ext([[-L / 2 + 1.25, 1.08], [-L / 2 + 1.95, H], [L / 2 - 0.35, H], [L / 2 - 0.2, 1.1]], W - 0.14, 0.05), color: GLASS });
+  // Scheiben als eigene, getönt-durchsichtige Geometrie; dahinter Sitze und zwei Beamte
+  const glassParts = [{ geo: ext([[-L / 2 + 1.25, 1.08], [-L / 2 + 1.95, H], [L / 2 - 0.35, H], [L / 2 - 0.2, 1.1]], W - 0.14, 0.05), color: [1, 1, 1] }];
+  parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.06, L - 2.0).translate(0, 1.06, 0.4), color: [0.1, 0.1, 0.11] });          // Innenraum-Boden auf Brüstungshöhe
+  for (const sx of [-1, 1]) {
+    parts.push({ geo: new THREE.BoxGeometry(0.5, 0.62, 0.12).translate(sx * 0.45, 1.38, -0.05), color: [0.12, 0.12, 0.13] });  // Sitzlehne vorn
+    parts.push({ geo: new THREE.BoxGeometry(0.26, 0.16, 0.1).translate(sx * 0.45, 1.75, -0.02), color: [0.12, 0.12, 0.13] });  // Kopfstütze
+    parts.push({ geo: new THREE.BoxGeometry(0.46, 0.3, 0.26).translate(sx * 0.45, 1.3, -0.3), color: [0.1, 0.13, 0.25] });     // Oberkörper (Uniform)
+    parts.push({ geo: new THREE.SphereGeometry(0.11, 10, 8).translate(sx * 0.45, 1.58, -0.32), color: [0.82, 0.64, 0.52] });   // Kopf
+    parts.push({ geo: new THREE.CylinderGeometry(0.12, 0.125, 0.07, 10).translate(sx * 0.45, 1.68, -0.32), color: [0.08, 0.12, 0.3] });   // Mütze
+    parts.push({ geo: new THREE.BoxGeometry(0.5, 0.55, 0.12).translate(sx * 0.45, 1.36, 1.1), color: [0.12, 0.12, 0.13] });    // Rückbank-Lehne
+  }
   parts.push({ geo: new THREE.BoxGeometry(W - 0.18, 0.06, L - 2.5).translate(0, H + 0.02, 0.45), color: DARK });          // Dach
   parts.push({ geo: new THREE.BoxGeometry(W - 0.16, 0.5, 0.12).translate(0, H - 0.3, -0.3), color: DARK });             // B-Säule
   parts.push({ geo: new THREE.BoxGeometry(1.2, 0.48, 0.06).translate(0, 0.76, -L / 2 - 0.04), color: CHROME });         // Kühlergrill
@@ -3491,7 +3522,7 @@ function makePoliceGeometry() {
   }
   // Lichtbalken-Sockel
   parts.push({ geo: new THREE.BoxGeometry(1.3, 0.1, 0.36).translate(0, H + 0.08, -0.1), color: [0.12, 0.12, 0.14] });
-  return { body: mergeParts(parts), L, W, H };
+  return { body: mergeParts(parts), glass: mergeParts(glassParts), L, W, H };
 }
 
 /** Schriftzug „POLIZEI“ als Textur. */
@@ -3530,10 +3561,24 @@ class PoliceSystem {
   makeUnit() {
     const G = this.geo, grp = new THREE.Group();
     const body = new THREE.Mesh(G.body, this.bodyMat); body.castShadow = true; grp.add(body);
+    if (!this.glassMat) this.glassMat = new THREE.MeshStandardMaterial({ color: 0x0d1218, roughness: 0.06, metalness: 0.4, transparent: true, opacity: 0.62, envMapIntensity: 1.4 });
+    const gl = new THREE.Mesh(G.glass, this.glassMat); gl.renderOrder = 2; grp.add(gl);
+    // Frontblitzer im Grill + Lichtbalken mit 3 Segmenten je Seite (Lauf-/Doppelblitz-Muster)
+    if (!this.segMats) this.segMats = [0, 1, 2, 3, 4, 5].map(() => new THREE.MeshBasicMaterial({ color: 0x1030ff, toneMapped: false }));
+    for (let k = 0; k < 6; k++) {
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.11, 0.3), this.segMats[k]);
+      seg.position.set((k - 2.5) * 0.2, G.H + 0.19, -0.1); grp.add(seg);
+    }
+    for (const s of [-1, 1]) {
+      const fl = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.03), s < 0 ? this.blueA : this.blueB); fl.position.set(s * 0.42, 0.62, -G.L / 2 - 0.08); grp.add(fl);
+    }
+    // Lichtschein auf der Straße (additiv, blitzt mit) – billige „Reflexion“ auch ohne echte Lichter
+    if (!this.glowTex) this.glowTex = makeBlobTexture();
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: this.glowTex, color: 0x2050ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -9, polygonOffsetUnits: -9 }));
+    glow.scale.set(11, 1, 11); glow.renderOrder = 2; this.scene.add(glow);
     for (const s of [-1, 1]) {
       const d = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.36), this.decalMat);
       d.position.set(s * (G.W / 2 + 0.025), 0.78, 0.15); d.rotation.y = s * Math.PI / 2; grp.add(d);
-      const lb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.13, 0.3), s < 0 ? this.blueA : this.blueB); lb.position.set(s * 0.36, G.H + 0.19, -0.1); grp.add(lb);
       const hl = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.12, 0.05), this.headMat); hl.position.set(s * 0.75, 0.88, -G.L / 2 - 0.04); grp.add(hl);
       const tl = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.16, 0.05), this.tailMat); tl.position.set(s * 0.8, 0.95, G.L / 2 + 0.03); grp.add(tl);
     }
@@ -3547,7 +3592,7 @@ class PoliceSystem {
     if (!this.blobMat) this.blobMat = new THREE.MeshBasicMaterial({ map: makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), this.blobMat.clone());
     blob.scale.set(this.geo.W + 0.6, 1, this.geo.L + 0.8); blob.visible = false; blob.renderOrder = 1; this.scene.add(blob);
-    return { grp, jets, blob, pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, bank: 0, pitch: 0, mode: 'air', slot: 0, block: null, mass: 2600, flying: true };
+    return { grp, jets, blob, glow, pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, bank: 0, pitch: 0, mode: 'air', slot: 0, block: null, mass: 2600, flying: true };
   }
 
   makeHeli() {
@@ -3617,7 +3662,7 @@ class PoliceSystem {
   stop(result) {
     if (!this.active) return null;
     this.active = false;
-    for (const u of this.units) { u.grp.visible = false; u.active = false; u.blob.visible = false; }
+    for (const u of this.units) { u.grp.visible = false; u.active = false; u.blob.visible = false; if (u.glow) u.glow.visible = false; }
     if (this.heli) { this.heli.grp.visible = false; this.heli.beam.visible = false; this.heli.spot.intensity = 0; }
     for (const l of this.flashLights) l.intensity = 0;
     for (const sp of this.spikes || []) sp.mesh.visible = false;
@@ -3899,10 +3944,20 @@ class PoliceSystem {
 
   updateVisuals(dt, camera) {
     // Blaulicht: Doppelblitz, links/rechts abwechselnd
+    // Muster wie bei echten LED-Balken: Doppelblitz links/rechts, Segmente laufen von innen nach außen,
+    // alle 4 s ein kurzer „Allblitz“; Grillblitzer gegenläufig
     const t = this.time * 2.2 % 1;
     const a = (t < 0.08 || (t > 0.16 && t < 0.24)) ? 1 : 0, b = (t > 0.5 && t < 0.58) || (t > 0.66 && t < 0.74) ? 1 : 0;
-    this.blueA.color.setRGB(0.1 + a * 1.4, 0.2 + a * 2.0, 0.6 + a * 6);
-    this.blueB.color.setRGB(0.1 + b * 1.4, 0.2 + b * 2.0, 0.6 + b * 6);
+    this.blueA.color.setRGB(0.1 + b * 1.4, 0.2 + b * 2.0, 0.6 + b * 6);
+    this.blueB.color.setRGB(0.1 + a * 1.4, 0.2 + a * 2.0, 0.6 + a * 6);
+    const all = (this.time % 4) < 0.35 && Math.sin(this.time * 60) > 0;
+    if (this.segMats) this.segMats.forEach((m, k) => {
+      const left = k < 3, idx = left ? 2 - k : k - 3;                  // 0 = innen
+      const sweep = Math.abs(((this.time * 3.3) % 1) * 3 - idx - 0.5) < 0.5;
+      const on = all || (left ? a : b) || (sweep && (left ? b : a) === 0 && Math.sin(this.time * 30) > 0.3);
+      m.color.setRGB(0.08 + on * 1.4, 0.15 + on * 2.0, 0.5 + on * 6);
+    });
+    const glowK = Math.max(a, b, all ? 1 : 0);
     const night = this.w.night;
     this.headMat.color.setScalar(night ? 4 : 1.4); this.tailMat.color.setRGB(night ? 3 : 1.2, 0.08, 0.08);
     let anyFly = false;
@@ -3915,6 +3970,7 @@ class PoliceSystem {
       if (u.flying) anyFly = true;
       for (const j of u.jets) j.visible = u.flying;
       { const gy = this.w.sample(u.pos.x, u.pos.z, undefined, u.pos.y), alt = u.pos.y - 0.95 - gy;
+        u.glow.visible = alt < 8; u.glow.position.set(u.pos.x, gy + 0.06, u.pos.z); u.glow.material.opacity = glowK * (night ? 0.55 : 0.18) * clamp(1 - alt / 8, 0, 1);
         u.blob.visible = alt < 6; u.blob.position.set(u.pos.x, gy + 0.05, u.pos.z); u.blob.rotation.y = u.yaw; u.blob.material.opacity = 0.6 * clamp(1 - alt / 6, 0, 1); }
     }
     this.jetMat.opacity = anyFly ? 0.55 + Math.sin(this.time * 40) * 0.1 : 0;
@@ -6687,7 +6743,7 @@ const CAR_PAINTS = [[0.92, 0.92, 0.92], [0.66, 0.68, 0.7], [0.1, 0.1, 0.11], [0.
 function makeTrafficVariant(type) {
   const s = TRAFFIC_TYPES[type], L = s.L, W = s.W, Hh = s.H;
   const BODY = [0.93, 0.93, 0.93], GLASS = [0.07, 0.08, 0.1], DARK = [0.06, 0.06, 0.07], RIM = [0.55, 0.56, 0.58];
-  const parts = [], lights = [];
+  const parts = [], lights = [], glassParts = [];
   const extrude = (pts, width, bevel) => {
     const sh = new THREE.Shape(); sh.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) sh.lineTo(pts[i][0], pts[i][1]);
     const depth = width - bevel * 2;
@@ -6735,7 +6791,17 @@ function makeTrafficVariant(type) {
       g.computeVertexNormals(); return g;
     };
     parts.push({ geo: shape(body), color: BODY, paint: true });
-    parts.push({ geo: shape(glass), color: GLASS });
+    glassParts.push({ geo: shape(glass), color: [1, 1, 1] });          // getönt-durchsichtig (eigenes Material)
+    // Innenraum hinter den Scheiben: Boden auf Brüstungshöhe, Sitzlehnen, Fahrer (links), Kopfstützen
+    const zs = -L / 2 + s.hood + 1.25;
+    parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.04, L - s.hood - s.trunk - 0.6).translate(0, 0.82, (-L / 2 + s.hood + L / 2 - s.trunk) / 2), color: [0.08, 0.08, 0.09] });
+    for (const sx of [-1, 1]) {
+      parts.push({ geo: new THREE.BoxGeometry(0.46, 0.5, 0.1).translate(sx * 0.4, 1.0, zs + 0.28), color: [0.12, 0.12, 0.13] });
+      parts.push({ geo: new THREE.BoxGeometry(0.24, 0.14, 0.09).translate(sx * 0.4, Hh - 0.16, zs + 0.3), color: [0.12, 0.12, 0.13] });
+    }
+    parts.push({ geo: new THREE.BoxGeometry(0.42, 0.26, 0.24).translate(-0.4, 0.96, zs + 0.08), color: [0.25, 0.28, 0.34] });   // Fahrer: Oberkörper
+    parts.push({ geo: new THREE.SphereGeometry(0.1, 10, 8).translate(-0.4, Hh - 0.3, zs + 0.06), color: [0.8, 0.62, 0.5] });     // Kopf
+    parts.push({ geo: new THREE.SphereGeometry(0.105, 10, 8).scale(1, 0.6, 1).translate(-0.4, Hh - 0.24, zs + 0.08), color: [0.2, 0.14, 0.1] });   // Haare
     const r0 = -L / 2 + s.hood + 1.0, r1 = L / 2 - s.trunk - 0.7;
     parts.push({ geo: shape(new THREE.BoxGeometry(W - 0.42, 0.05, r1 - r0).translate(0, Hh + 0.015, (r0 + r1) / 2)), color: BODY, paint: true });   // Dach
     parts.push({ geo: shape(new THREE.BoxGeometry(W - 0.2, 0.36, 0.09).translate(0, Hh - 0.24, (r0 + r1) / 2 + 0.1)), color: DARK });                // B-Säule
@@ -6776,7 +6842,7 @@ function makeTrafficVariant(type) {
   o = 0;
   for (const p of lights) { const n = p.geo.index ? p.geo.index.count : p.geo.attributes.position.count; if (p.mask) for (let i = o; i < o + n; i++) lmask.set(p.mask, i * 3); o += n; }
   lm.setAttribute('lmask', new THREE.BufferAttribute(lmask, 3));
-  return { type, ...s, body: merged, lights: lm, inertia: s.mass * (L * L + W * W) / 12 };
+  return { type, ...s, body: merged, lights: lm, glass: glassParts.length ? mergeParts(glassParts) : null, inertia: s.mass * (L * L + W * W) / 12 };
 }
 
 /**
@@ -6810,6 +6876,11 @@ class TrafficSystem {
       const n = Math.max(1, chosen.filter((i) => this.variants[i] === v).length);
       v.bodyMesh = new THREE.InstancedMesh(v.body, this.bodyMat, n);
       v.lightMesh = new THREE.InstancedMesh(v.lights, this.lightMat, n);
+      if (v.glass) {
+        this.glassMat = this.glassMat || new THREE.MeshStandardMaterial({ color: 0x0c1016, roughness: 0.06, metalness: 0.35, transparent: true, opacity: 0.6, envMapIntensity: 1.3 });
+        v.glassMesh = new THREE.InstancedMesh(v.glass, this.glassMat, n); v.glassMesh.renderOrder = 2;
+        v.glassMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); v.glassMesh.frustumCulled = false; v.glassMesh.count = 0; scene.add(v.glassMesh);
+      }
       for (const im of [v.bodyMesh, v.lightMesh]) { im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled = false; im.count = 0; scene.add(im); }
       v.bodyMesh.castShadow = true;
       v.n = 0;
@@ -6828,7 +6899,7 @@ class TrafficSystem {
       this.cars.push(car);
     }
     for (const c of this.cars) if (c.parked) this.placeParked(c, true);
-    for (const v of this.variants) { v.bodyMesh.count = v.n; v.lightMesh.count = v.n; }
+    for (const v of this.variants) { v.bodyMesh.count = v.n; v.lightMesh.count = v.n; if (v.glassMesh) v.glassMesh.count = v.n; }
     this.blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ map: makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }), this.cars.length);
     // Lichthöfe der Scheinwerfer/Rücklichter (nachts), ein Draw-Call für alle
@@ -7075,6 +7146,7 @@ class TrafficSystem {
         this._lc = this._lc || new THREE.Color();
         this._lc.setRGB(drive && car.brakeOn ? 3.2 : 1, drive && car.blink < 0 && on ? 1 : 0, drive && car.blink > 0 && on ? 1 : 0);
         car.v.lightMesh.setColorAt(car.slot, this._lc); }
+      if (car.v.glassMesh) car.v.glassMesh.setMatrixAt(car.slot, m);
       car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, car.state === 'parked' ? this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0)) : m);
       // Kontaktschatten
       const bx = car.body ? car.body.pos.x : car.x, bz = car.body ? car.body.pos.z : car.z;
@@ -7101,7 +7173,7 @@ class TrafficSystem {
       this.glowGeo.setDrawRange(0, k);
       this.glowGeo.attributes.position.needsUpdate = true; this.glowGeo.attributes.color.needsUpdate = true;
     }
-    for (const v of this.variants) { v.bodyMesh.instanceMatrix.needsUpdate = true; v.lightMesh.instanceMatrix.needsUpdate = true; }
+    for (const v of this.variants) { v.bodyMesh.instanceMatrix.needsUpdate = true; v.lightMesh.instanceMatrix.needsUpdate = true; if (v.glassMesh) v.glassMesh.instanceMatrix.needsUpdate = true; }
   }
 
   /** Spieler gegen Verkehr (Draufsicht-Rechtecke, Impuls mit Drehung auf beiden Seiten). */
@@ -8058,6 +8130,11 @@ class Game {
     document.body.classList.toggle('tilt', s.steering === 'tilt');
     this.renderer.shadowMap.enabled = this.q.shadows;
     this.env.sun.castShadow = this.q.shadows;
+    // Hoch: weiche Schatten (PCF mit Radius) und engerer, feinerer Schattenbereich nahe am Auto
+    { const hi = this.q.shadowSize >= 2048, sc = this.env.sun.shadow.camera, R = hi ? 48 : 70;
+      this.renderer.shadowMap.type = hi ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+      this.env.sun.shadow.radius = hi ? 3.5 : 1; this.env.sun.shadow.blurSamples = 12;
+      if (sc.right !== R) { sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.updateProjectionMatrix(); } }
     if (this.q.shadows && this.env.sun.shadow.mapSize.x !== this.q.shadowSize) {
       this.env.sun.shadow.mapSize.set(this.q.shadowSize, this.q.shadowSize);
       this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null;
@@ -8084,6 +8161,7 @@ class Game {
   setFxLevel(n) {
     this.fxLevel = n;
     if (this.grass.mesh) this.grass.mesh.visible = n < 1;
+    if (this.env.ao) this.env.ao.enabled = n < 1;               // AO als Erstes abschalten
     if (this.street.pm) for (const k of ['body', 'head', 'leg', 'arm']) this.street.pm[k].visible = n < 2;
     this.street.hidePeds = n >= 2;
     const sh = this.q.shadows && n < 3;
@@ -8250,6 +8328,7 @@ class Game {
 
     this.world.update(dt, this.camera, this._ip);
     this.env.update(dt, this._ip, this.camera.position);
+    if (this.world.treeSun) this.world.treeSun.value.copy(this.env.sunDir).transformDirection(this.camera.matrixWorldInverse);
     // Häuserschlucht: hohe Gebäude ringsum → weniger Himmelslicht → Auge stellt heller; Tempo → Bewegungsunschärfe
     { const cp = this.camera.position; let tall = 0;
       for (const [dx, dz] of [[14, 0], [-14, 0], [0, 14], [0, -14], [10, 10], [-10, -10]]) {
