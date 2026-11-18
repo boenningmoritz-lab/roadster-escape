@@ -932,6 +932,24 @@ function makeFoliageAtlas() {
   return t;
 }
 
+/** Gehwegplatten (50 cm, Betongrau mit Fugen und leichter Fleckigkeit), Kachel = 3 m. */
+function makePavingTexture() {
+  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const c = cv.getContext('2d'), rng = mulberry32(808), n = 6, cs = S / n;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const v = 150 + rng() * 26;
+    c.fillStyle = `rgb(${v},${v - 2},${v - 6})`; c.fillRect(i * cs, j * cs, cs, cs);
+    for (let k = 0; k < 6; k++) { c.fillStyle = `rgba(${rng() < 0.5 ? '0,0,0' : '255,255,255'},0.05)`; c.beginPath(); c.arc(i * cs + rng() * cs, j * cs + rng() * cs, 4 + rng() * 18, 0, 6.3); c.fill(); }
+  }
+  c.strokeStyle = 'rgba(60,58,54,0.85)'; c.lineWidth = 3;
+  for (let k = 0; k <= n; k++) { c.beginPath(); c.moveTo(k * cs, 0); c.lineTo(k * cs, S); c.stroke(); c.beginPath(); c.moveTo(0, k * cs); c.lineTo(S, k * cs); c.stroke(); }
+  const img = c.getImageData(0, 0, S, S), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const nn = (rng() - 0.5) * 16; d[i] += nn; d[i + 1] += nn; d[i + 2] += nn; }
+  c.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  return t;
+}
+
 /** Feine Asphalt-Körnung als Bump-Map (Glanzpunkte auf dem Splitt im Streiflicht). */
 function makeGrainTexture() {
   const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N;
@@ -1417,8 +1435,13 @@ Object.assign(World.prototype, {
     ground.rotation.x = -Math.PI / 2; ground.position.set(C.cx, C.h + 0.03, C.cz); ground.receiveShadow = true;
     this.wetMats.push(ground.material);
     this.group.add(ground);
-    const slabTex = makeNoiseTexture(128, [150, 150, 146], 22); slabTex.repeat.set(20, 20);
-    const slab = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: slabTex, roughness: 0.9 }), this.blocks.length);
+    const slabMat = new THREE.MeshStandardMaterial({ map: makePavingTexture(), roughness: 0.88 });
+    // Plattenmuster in Weltkoordinaten (gleich große Platten auf jedem Block)
+    slabMat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n vec4 pwp = modelMatrix * instanceMatrix * vec4(position, 1.0); vMapUv = pwp.xz / 3.0;');
+    };
+    this.wetMats.push(slabMat);
+    const slab = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), slabMat, this.blocks.length);
     const m = new THREE.Matrix4(), col = new THREE.Color();
     this.blocks.forEach((b, i) => {
       m.makeScale(b.x1 - b.x0 + 8, 0.12, b.z1 - b.z0 + 8).setPosition((b.x0 + b.x1) / 2, C.h + 0.06, (b.z0 + b.z1) / 2);
@@ -1438,7 +1461,7 @@ Object.assign(World.prototype, {
       const glow = this.windowGlow;
       mat.onBeforeCompile = (sh) => {
         sh.uniforms.uGlow = glow;
-        sh.vertexShader = 'varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        sh.vertexShader = 'varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed; varying vec3 vFW; varying vec3 vFN;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
           mat4 fm = modelMatrix * instanceMatrix;
           vec4 fwp = fm * vec4(position, 1.0);
           vec3 fwn = normalize(mat3(fm) * normal);
@@ -1446,9 +1469,17 @@ Object.assign(World.prototype, {
           vFac = (abs(fwn.x) > 0.5 ? vec2(fwp.z, fwp.y) : vec2(fwp.x, fwp.y)) / 28.0 + vec2(floor(fseed * 8.0) / 8.0, floor(fract(fseed * 13.0) * 8.0) / 8.0);
           vRoof = fwn.y;
           vAO = 0.55 + 0.45 * smoothstep(0.0, 4.5, fwp.y - fm[3].y);
-          vHA = fwp.y - fm[3].y; vSeed = fseed;`);
-        sh.fragmentShader = 'uniform float uGlow; varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed;\n' + sh.fragmentShader
-          .replace('#include <map_fragment>', 'vec4 facCol = texture2D(map, vFac); if (vRoof > 0.5) facCol = vec4(vec3(0.3, 0.3, 0.31), 1.0); diffuseColor *= facCol;' +
+          vHA = fwp.y - fm[3].y; vSeed = fseed; vFW = fwp.xyz; vFN = fwn;`);
+        sh.fragmentShader = 'uniform float uGlow; varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed; varying vec3 vFW; varying vec3 vFN;\n' + sh.fragmentShader
+          .replace('#include <map_fragment>', 'vec4 facCol = texture2D(map, vFac);' +
+            // Parallaxe: Fensterscheibe liegt ~25 cm hinter der Fassade → seitlich sichtbare Laibung (Schattenkante)
+            ' { vec3 V = normalize(cameraPosition - vFW); float vn = max(abs(dot(V, vFN)), 0.25);' +
+            '   vec2 vd = abs(vFN.x) > 0.5 ? vec2(V.z, V.y) : vec2(V.x, V.y);' +
+            '   vec4 inner = texture2D(map, vFac - vd / vn * (0.25 / 28.0));' +
+            '   float gHere = 1.0 - smoothstep(0.06, 0.2, dot(facCol.rgb, vec3(0.299, 0.587, 0.114)));' +
+            '   float gIn = 1.0 - smoothstep(0.06, 0.2, dot(inner.rgb, vec3(0.299, 0.587, 0.114)));' +
+            '   if (vRoof < 0.5 && gHere > 0.5 && gIn < 0.5) facCol.rgb = inner.rgb * 0.45; }' +
+            ' if (vRoof > 0.5) facCol = vec4(vec3(0.3, 0.3, 0.31), 1.0); diffuseColor *= facCol;' +
             // Erdgeschoss: Ladenzeile mit großen Schaufenstern und farbigem Schild
             ' float shop = (1.0 - step(0.5, vRoof)) * (1.0 - step(4.2, vHA)); float bay = fract(vFac.x * 7.0);' +
             ' float glassZ = step(0.35, vHA) * step(vHA, 3.05) * step(0.07, bay) * step(bay, 0.93); float signZ = step(3.3, vHA) * step(vHA, 3.95) * step(0.03, bay) * step(bay, 0.97);' +
@@ -1501,6 +1532,48 @@ Object.assign(World.prototype, {
     const um = new THREE.InstancedMesh(unit, new THREE.MeshStandardMaterial({ color: 0x8a8d90, roughness: 0.7, metalness: 0.3 }), units.length);
     units.forEach(([x, y, z, w, h, d], i) => { m.makeScale(w, h, d).setPosition(x, y, z); um.setMatrixAt(i, m); });
     um.castShadow = true; this.group.add(um);
+
+    // Markisen über Ladenzeilen und Balkone an Wohnhäusern
+    {
+      const rng2 = mulberry32(4711), awn = [], bal = [];
+      const awnCols = [[0.55, 0.1, 0.1], [0.12, 0.3, 0.2], [0.15, 0.2, 0.4], [0.75, 0.6, 0.3], [0.25, 0.25, 0.27], [0.6, 0.35, 0.15]];
+      for (const b of this.buildings) {
+        if (b.y0 !== C.h || b.kind === 2) continue;
+        const sides = [[0, -1, b.x1 - b.x0], [0, 1, b.x1 - b.x0], [-1, 0, b.z1 - b.z0], [1, 0, b.z1 - b.z0]];
+        for (const [nx, nz, len] of sides) {
+          const cx = nx ? (nx < 0 ? b.x0 : b.x1) : (b.x0 + b.x1) / 2, cz = nz ? (nz < 0 ? b.z0 : b.z1) : (b.z0 + b.z1) / 2;
+          if (rng2() < 0.45) {
+            const l = len * (0.3 + rng2() * 0.4), off = (rng2() - 0.5) * (len - l);
+            awn.push({ x: cx + nx * 0.7 + (nz ? off : 0), z: cz + nz * 0.7 + (nx ? off : 0), y: C.h + 3.35, l, nx, nz, col: awnCols[Math.floor(rng2() * awnCols.length)] });
+          }
+          if (b.kind === 1 && b.h > 12 && rng2() < 0.6) {
+            for (let fy = 7.2; fy < b.h - 2.5 && bal.length < 2600; fy += 3.5) {
+              for (let t = 4; t < len - 4; t += 7) bal.push({ x: cx + nx * 0.6 + (nz ? t - len / 2 : 0), z: cz + nz * 0.6 + (nx ? t - len / 2 : 0), y: C.h + fy, nx, nz });
+            }
+          }
+        }
+      }
+      const am = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.08, 1.4), new THREE.MeshStandardMaterial({ roughness: 0.9 }), Math.max(1, awn.length));
+      const cc = new THREE.Color(), dq = new THREE.Quaternion(), de = new THREE.Euler();
+      awn.forEach((a, i) => {
+        // entlang der Fassade ausgerichtet, nach außen um 14° abfallend
+        de.set(0.25, Math.atan2(a.nx, a.nz), 0, 'YXZ'); dq.setFromEuler(de);   // lokale +z zeigt nach außen, Außenkante tiefer
+        m.compose(new THREE.Vector3(a.x, a.y, a.z), dq, new THREE.Vector3(a.l, 1, 1));
+        am.setMatrixAt(i, m); am.setColorAt(i, cc.setRGB(...a.col, THREE.SRGBColorSpace));
+      });
+      am.castShadow = true; am.receiveShadow = true; this.group.add(am);
+      // Balkon: Bodenplatte + Glasbrüstung (eine Geometrie, Brüstung über Vertexfarbe dunkler)
+      const balGeo = mergeParts([
+        { geo: new THREE.BoxGeometry(2.6, 0.16, 1.1).translate(0, 0, 0.55), color: [0.85, 0.84, 0.8] },
+        { geo: new THREE.BoxGeometry(2.6, 0.95, 0.04).translate(0, 0.55, 1.08), color: [0.35, 0.42, 0.48] },
+        { geo: new THREE.BoxGeometry(0.04, 0.95, 1.1).translate(-1.28, 0.55, 0.55), color: [0.35, 0.42, 0.48] },
+        { geo: new THREE.BoxGeometry(0.04, 0.95, 1.1).translate(1.28, 0.55, 0.55), color: [0.35, 0.42, 0.48] },
+        { geo: new THREE.BoxGeometry(2.64, 0.05, 0.06).translate(0, 1.03, 1.08), color: [0.2, 0.2, 0.22] },
+      ]);
+      const bm = new THREE.InstancedMesh(balGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 }), Math.max(1, bal.length));
+      bal.forEach((b, i) => { dq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(b.nx, b.nz)); m.compose(new THREE.Vector3(b.x, b.y, b.z), dq, new THREE.Vector3(1, 1, 1)); bm.setMatrixAt(i, m); });
+      bm.castShadow = true; bm.receiveShadow = true; this.group.add(bm);
+    }
 
     // Ampeln
     const dummy = new THREE.Object3D();

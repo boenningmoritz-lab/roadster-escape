@@ -17,6 +17,7 @@ import { buildCarConfig, Garage } from './garage.js';
 import { Tutorial, DynRes } from './menu.js';
 import { UI } from './ui.js';
 import { Weather, makeMountainRing, Scenery, buildRoadFurniture, makeSunFlare } from './weather.js';
+import { StreetLife } from './world/street.js';
 import { game } from './main.js';
 
 // ============================== Game ==============================
@@ -63,6 +64,7 @@ class Game {
     this.mountains = makeMountainRing(); this.scene.add(this.mountains);
     this.scenery = new Scenery(this.world, this.scene, this.q);
     this.furniture = buildRoadFurniture(this.world, this.scene);
+    this.street = new StreetLife(this.world, this.scene, this.q);     // Bordsteine, Stadtmöbel, Fußgänger
     this.flare = this.q.clouds ? makeSunFlare() : null;
     if (this.flare) this.scene.add(this.flare);
     this.weather = new Weather(this);
@@ -261,6 +263,7 @@ class Game {
       const res = this.police.update(dt, v, this.camera);
       if (res && !this.missions.onPoliceResult(res)) this.showResult(res);
       this.missions.update(dt);
+      this.street.update(dt, v, this.camera.position);
       Tutorial.update(dt, v);
       document.body.classList.toggle('inMission', !!this.missions.active);
       this.trackStats(dt);
@@ -279,6 +282,8 @@ class Game {
     this.car.root.quaternion.copy(this._iq);
     this.car.update(v, this.paused ? 0 : dt);
     this.car.setCockpit(this.rig.mode === 'cockpit');
+    this.updateMirrors();
+    this.car.updateRain(this.paused ? 0 : dt, this.weather.rain, v.speed, this.rig.mode === 'cockpit');
     document.body.classList.toggle('ego', this.rig.mode === 'cockpit');
     Input.drawWheel(v.swAngle);   // Touch-Lenkrad zeigt exakt den Lenkradwinkel des Autos
     for (let i = 0; i < 4; i++) this.skid.track(i, v.wheels[i], v, this.world);
@@ -336,6 +341,25 @@ class Game {
     if (this.fpsTime >= 0.5) { this.fps = Math.round(this.frames / this.fpsTime); this.frames = 0; this.fpsTime = 0; }
     HUD.update(v, this.fps);
     HUD.telemetry(v, this.stats);
+  }
+
+  /** Rück- und Außenspiegel: in der Ego-Sicht jedes 3. Bild eine kleine Rückansicht rendern (nicht auf Grafik Niedrig). */
+  updateMirrors() {
+    if (this.rig.mode !== 'cockpit' || !this.q.shadows) return;
+    if (!this.mirrorRT) {
+      this.mirrorRT = new THREE.WebGLRenderTarget(320, 120, { samples: 0 });
+      this.mirrorCam = new THREE.PerspectiveCamera(32, 320 / 120, 0.3, 900);
+      for (const m of [this.car.mirrorMat, this.car.sideMirrorMat]) { m.map = this.mirrorRT.texture; m.color.set(0xd8dde2); m.needsUpdate = true; }
+    }
+    if ((this.mirrorFrame = (this.mirrorFrame || 0) + 1) % 3) return;
+    const root = this.car.root, cam = this.mirrorCam;
+    cam.position.set(0, 1.12 - CONFIG.car.cgHeight, -0.1).applyMatrix4(root.matrixWorld);
+    this._mt = this._mt || new THREE.Vector3();
+    cam.lookAt(this._mt.set(0, 0.9 - CONFIG.car.cgHeight, 30).applyMatrix4(root.matrixWorld));
+    const r = this.renderer, sh = r.shadowMap.autoUpdate, hands = this.car.hands.visible;
+    r.shadowMap.autoUpdate = false; this.car.hands.visible = false;
+    r.setRenderTarget(this.mirrorRT); r.render(this.scene, cam); r.setRenderTarget(null);
+    r.shadowMap.autoUpdate = sh; this.car.hands.visible = hands;
   }
 
   /** Partikel und Geräusche aus dem Fahrzustand und aus Welt-Ereignissen. */

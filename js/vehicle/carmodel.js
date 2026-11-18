@@ -160,7 +160,10 @@ class CarModel {
       for (const sx of [-1, 1]) tubeM([new THREE.Vector3(sx * 0.66, 0.83, -0.76), new THREE.Vector3(sx * 0.62, 0.95, -0.55), new THREE.Vector3(sx * 0.56, 1.06, -0.3)], 0.013);
       tubeM([new THREE.Vector3(-0.56, 1.06, -0.3), new THREE.Vector3(0, 1.085, -0.3), new THREE.Vector3(0.56, 1.06, -0.3)], 0.016);
       const rv = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.055, 0.025), black); rv.position.set(0, 1.035, -0.29); rv.rotation.x = -0.12; body.add(rv);
-      const rvg = new THREE.Mesh(new THREE.PlaneGeometry(0.185, 0.045), new THREE.MeshStandardMaterial({ color: 0x9fb0c0, metalness: 1, roughness: 0.04 }));
+      // Spiegelglas: zeigt (in der Ego-Sicht) ein echtes Bild nach hinten – Render-Target, siehe Game.updateMirrors
+      this.mirrorMat = new THREE.MeshBasicMaterial({ color: 0x9aa4ae });
+      const rvgGeo = new THREE.PlaneGeometry(0.185, 0.045); { const uv = rvgGeo.attributes.uv; for (let i = 0; i < uv.count; i++) { uv.setX(i, 0.2 + (1 - uv.getX(i)) * 0.6); uv.setY(i, 0.25 + uv.getY(i) * 0.5); } }
+      const rvg = new THREE.Mesh(rvgGeo, this.mirrorMat);
       rvg.position.set(0, 1.035, -0.276); rvg.rotation.x = -0.12; body.add(rvg);
     }
 
@@ -173,7 +176,8 @@ class CarModel {
     // Außenspiegel
     // Außenspiegel: Fuß auf der Tür, Arm, Gehäuse in Wagenfarbe, echtes Spiegelglas nach hinten
     const mirrorGeo = new THREE.SphereGeometry(1, 16, 12);
-    const mirrorGlass = new THREE.MeshStandardMaterial({ color: 0xa8b4c0, metalness: 1, roughness: 0.03 });
+    this.sideMirrorMat = new THREE.MeshBasicMaterial({ color: 0x9aa4ae });
+    const mirrorGlass = this.sideMirrorMat;
     for (const s of [-1, 1]) {
       // Fuß sitzt exakt auf der Türoberkante (per Strahl auf die Karosserie ermittelt)
       const top = surf(s * 0.86, 2, -0.64, 0, -1, 0, 0).y;
@@ -182,7 +186,8 @@ class CarModel {
       const ax = (s * 0.88 + hx) / 2, ay = (top + 0.02 + hy) / 2, len = Math.hypot(hx - s * 0.88, hy - top - 0.02);
       add(new THREE.BoxGeometry(len + 0.02, 0.024, 0.045), carbon, ax, ay, -0.64, 0, 0, Math.atan2(hy - top - 0.02, hx - s * 0.88));   // Arm
       const m = add(mirrorGeo, this.paint, hx, hy, -0.64); m.scale.set(0.085, 0.052, 0.06);
-      const g = add(new THREE.CircleGeometry(1, 20), mirrorGlass, hx, hy, -0.584); g.scale.set(0.072, 0.042, 1); g.castShadow = false;
+      const cgeo = new THREE.CircleGeometry(1, 20); { const uv = cgeo.attributes.uv; for (let i = 0; i < uv.count; i++) { const u = uv.getX(i); uv.setX(i, s < 0 ? 0.62 + (1 - u) * 0.38 : (1 - u) * 0.38); uv.setY(i, 0.2 + uv.getY(i) * 0.6); } }
+      const g = add(cgeo, mirrorGlass, hx, hy, -0.584); g.scale.set(0.072, 0.042, 1); g.castShadow = false;
     }
 
     // ---------- Lichter (auf der Karosserie-Oberfläche platziert) ----------
@@ -336,6 +341,7 @@ class CarModel {
       }
     }
     body.add(this.steeringWheel);
+    this.buildWindshieldRain(body);
     // Hände-Gruppe liegt wie das Lenkrad (gleiche Lage/Neigung), dreht aber selbst
     this.hands.position.copy(this.steeringWheel.position); this.hands.rotation.x = this.steeringWheel.rotation.x; body.add(this.hands);
 
@@ -535,6 +541,77 @@ class CarModel {
   }
 
   /** Dunst/Nebel/Regen machen die Lichtkegel sichtbarer. */
+  /**
+   * Regen auf der Frontscheibe + Scheibenwischer (Ego-Sicht).
+   * Tropfen entstehen prozedural im Shader; wo ein Wischer zuletzt vorbeikam, ist die Scheibe frei
+   * und füllt sich mit der Zeit wieder. Bei Tempo laufen die Tropfen nach oben weg.
+   */
+  buildWindshieldRain(body) {
+    const U = this.rainU = { uTime: { value: 0 }, uRain: { value: 0 }, uSpeed: { value: 0 }, uWipeT: { value: 0 }, uPeriod: { value: 1.3 } };
+    const mat = new THREE.ShaderMaterial({
+      uniforms: U, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `
+        uniform float uTime, uRain, uSpeed, uWipeT, uPeriod; varying vec2 vUv;
+        float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        // Zeit seit der Wischer zuletzt über Winkel phi (0..1 im Wischbereich) gestrichen ist
+        float sinceWipe(float phi){
+          float T = uPeriod, t = mod(uWipeT, T), t1 = phi * T * 0.5, t2 = T - phi * T * 0.5;
+          float a = mod(t - t1, T), b = mod(t - t2, T);
+          return min(a, b) + floor(uWipeT / T) * 0.0;
+        }
+        void main(){
+          vec2 p = vUv * vec2(1.2, 0.51);                         // Meter auf der Scheibe
+          // zwei Wischer, Drehpunkte unten; Wischbereich 0..2,2 rad
+          float age = 99.0;
+          for (int k = 0; k < 2; k++) {
+            vec2 piv = vec2(k == 0 ? 0.33 : 0.85, -0.02);
+            vec2 d = p - piv; float r = length(d);
+            if (r < 0.62 && uWipeT > 0.0) { float ang = atan(d.y, -d.x); float phi = clamp(ang / 2.2, 0.0, 1.0); if (ang > -0.1 && ang < 2.3) age = min(age, sinceWipe(phi)); }
+          }
+          vec2 flow = vec2(0.0, uTime * clamp(uSpeed / 45.0, 0.0, 1.2) * 0.35);   // Fahrtwind schiebt Tropfen nach oben
+          vec2 g = (p - flow) * vec2(20.0, 20.0); vec2 id = floor(g), f = fract(g) - 0.5;
+          float rnd = h21(id), born = h21(id + 7.3) * 2.5 / max(uRain, 0.05);   // dichter bei starkem Regen
+          float on = step(born, age) * step(0.15, rnd);
+          vec2 o = (vec2(h21(id + 1.7), h21(id + 3.1)) - 0.5) * 0.5;
+          float rad = 0.12 + rnd * 0.22, dist = length(f - o);
+          float drop = smoothstep(rad, rad * 0.55, dist) * on;
+          float rim = smoothstep(rad * 0.55, rad * 0.9, dist) * drop;
+          // Tropfen: dunkler Rand, heller Glanzpunkt oben links (wirkt wie Lichtbrechung)
+          float spec = smoothstep(rad * 0.35, 0.0, length(f - o + vec2(rad * 0.3, -rad * 0.3))) * on;
+          vec3 col = mix(vec3(0.7, 0.75, 0.8), vec3(0.08, 0.1, 0.12), rim) + spec * 0.8;
+          float alpha = (drop * 0.55 + spec * 0.5) * clamp(uRain * 1.5, 0.0, 1.0);
+          gl_FragColor = vec4(col, alpha);
+        }`,
+    });
+    const glassRain = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.51), mat);
+    glassRain.position.set(-0.03, 0.985, -0.5); glassRain.rotation.x = 1.124; glassRain.renderOrder = 5;
+    glassRain.visible = false; body.add(glassRain); this.glassRain = glassRain;
+    // Wischerarme (liegen unten auf der Scheibe, schwenken bei Regen)
+    this.wipers = [];
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.5, metalness: 0.4 });
+    for (const px of [0.33, 0.85]) {
+      const piv = new THREE.Group(); piv.position.set(-0.6 + px - 0.03, -0.255 + 0.02, 0.012);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.014, 0.012), armMat); arm.position.x = -0.28; piv.add(arm);
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.02), armMat); blade.position.set(-0.3, 0, 0.012); piv.add(blade);
+      glassRain.add(piv); this.wipers.push(piv);
+    }
+    this.wipeT = 0;
+  }
+
+  /** Pro Bild: Regenstärke, Tempo; Wischer laufen, sobald es regnet. */
+  updateRain(dt, rain, speed, cockpit) {
+    if (!this.rainU) return;
+    const U = this.rainU;
+    U.uTime.value += dt; U.uRain.value = rain; U.uSpeed.value = speed;
+    this.glassRain.visible = cockpit && rain > 0.02;
+    if (rain > 0.05) { U.uPeriod.value = rain > 0.6 ? 1.0 : 1.5; this.wipeT += dt; }
+    else if (this.wipeT % U.uPeriod.value > 0.02) this.wipeT += dt;   // Wischer in Ruhelage fahren
+    U.uWipeT.value = this.wipeT;
+    const T = U.uPeriod.value, t = this.wipeT % T, ph = t < T / 2 ? t / (T / 2) : 2 - t / (T / 2);
+    for (const w of this.wipers) w.rotation.z = -ph * 2.2;
+  }
+
   setBeamHaze(h) { if (this.beamU) this.beamU.uOp.value = (this.beamK || 0) * 0.045 * h; }
 
   /** Fahrer-Display (Tempo, Gang, Leistung) und Mittel-Display (g-Meter). */
