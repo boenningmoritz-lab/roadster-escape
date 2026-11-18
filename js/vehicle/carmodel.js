@@ -389,7 +389,7 @@ class CarModel {
         const c = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.029, 0.03, 12), cuff); c.rotation.x = Math.PI / 2; c.position.set(sx * 0.012, -0.005, 0.06); hand.add(c);
         const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.034, 1, 14).translate(0, 0.5, 0), sleeve);
         this.hands.add(pivot); body.add(arm); arm.visible = false;
-        this.handList.push({ sx, pivot, hand, arm, grip: 0, elbow: new THREE.Vector3(-0.33 + sx * 0.3, 0.6, 0.12) });
+        this.handList.push({ sx, pivot, hand, arm, grip: 0, elbow: new THREE.Vector3(-0.33 + sx * 0.27, 0.66, 0.32) });
       }
     }
     body.add(this.steeringWheel);
