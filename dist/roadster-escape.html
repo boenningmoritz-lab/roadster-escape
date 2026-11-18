@@ -806,10 +806,12 @@ const Input = {
     const left = k.has('KeyA') || k.has('ArrowLeft');
     const right = k.has('KeyD') || k.has('ArrowRight');
     const now = performance.now(), dt = Math.min(0.1, (now - (this._lt || now)) / 1000); this._lt = now;
-    // Losgelassenes Lenkrad stellt sich zurück: im Stand gar nicht, mit dem Tempo immer schneller
+    // Losgelassenes Lenkrad schnellt zurück zur Mitte (Rückstellmoment): je weiter eingeschlagen, desto schneller,
+    // bei Fahrt kräftiger; auch im Stand dreht es zurück (etwas langsamer). Das Auto-Lenkrad folgt mit max. 720°/s.
     if (this.wheel.id === null && this.wheel.angle !== 0) {
-      const rate = this.speed < 0.5 ? 0 : clamp(this.speed * 14, 60, 540);     // Grad pro Sekunde
       const a = this.wheel.angle;
+      const base = this.speed < 0.5 ? 200 : clamp(300 + this.speed * 15, 300, 900);    // Grad pro Sekunde
+      const rate = Math.max(base, Math.abs(a) * (this.speed < 0.5 ? 3 : 7));
       this.wheel.angle = Math.sign(a) * Math.max(0, Math.abs(a) - rate * dt);
     }
     let steer = (left ? 1 : 0) - (right ? 1 : 0);      // +1 = links
