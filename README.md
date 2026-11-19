@@ -220,6 +220,11 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Viel dichterer Verkehr:** Niedrig 45 / Mittel 100 / Hoch 160 fahrende Autos (vorher 12/22/34) plus 40/90/140 geparkte. Neue Autos erscheinen bevorzugt auf Straßen rund um den Spieler (110–400 m, nicht im Blickfeld); ein Auto ohne freien Platz bleibt, wo es ist (vorher konnte es ohne Straße bleiben → Absturz).
 - **Auto:** Fantasie-Kennzeichen vorn/hinten, Türfugen, versenkte Türgriffe, gelbe Keramik-Bremssättel.
 
+## Technik (Umgebung – Gelände & Wasser)
+- **Gelände:** Steilhänge werden automatisch felsig, Hangfüße erdig; großräumiges Rauschen gegen Kachelmuster, in der Ferne grober Texturmaßstab; trockene, gelbliche Wiesenflecken und satte Senken. Wiesen grüner, Waldboden nur unter dichtem Wald.
+- **Gras** dichter und weiter sichtbar (Mittel 6500 Büschel/48 m, Hoch 13000/65 m).
+- **See:** Wassertiefe aus dem Höhenfeld → klares, türkises Flachwasser am Ufer, dunkel in der Tiefe; zweite gegenläufige Wellenlage, pulsierender Uferschaum, Tropfenringe bei Regen.
+
 ## Code-Aufbau
 
 ```

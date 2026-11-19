@@ -359,6 +359,7 @@ class Game {
     this.grass.update(dt, this.camera.position);
     this.scenery.update(this.camera.position);
     this.weather.update(dt, this.camera.position, v);
+    if (this.world.waterU) this.world.waterU.uRain.value = this.weather.rain;   // Tropfenringe auf dem See
     this.car.setBeamHaze(1 + this.weather.rain * 2.5 + (this.weather.type === 'fog' ? 3.5 : 0) + (this.weather.type === 'cloudy' ? 0.5 : 0));
     if (this.flare) {
       this.flare.visible = this.timeOfDay !== 'night' && this.weather.W.cover < 1.8 && this.rig.mode !== 'cockpit';

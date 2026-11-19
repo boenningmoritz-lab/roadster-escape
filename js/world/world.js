@@ -430,7 +430,7 @@ class World {
     const col = new Uint8Array(n * n * 3);
     const WL = this.waterLevel, C = WORLD.city, A = WORLD.air;
     const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-    const LUSH = [70, 98, 40], DRY = [126, 120, 66], FOREST = [50, 62, 30], ROCK = [112, 106, 98], SNOW = [232, 236, 240],
+    const LUSH = [62, 104, 34], DRY = [132, 124, 62], FOREST = [46, 66, 28], ROCK = [112, 106, 98], SNOW = [232, 236, 240],
       SAND = [178, 160, 118], WET = [96, 88, 64], GRAVEL = [112, 104, 88], ASPH = [86, 82, 70], CITY = [88, 88, 90], MOWN = [88, 118, 50];
     this.forestD = new Uint8Array(n * n);
     const splat = this.splat = new Uint8Array(n * n * 4);   // Gras, Waldboden/Erde, Fels, Sand
@@ -458,7 +458,8 @@ class World {
         {
           const verge = smoothstep(0.35, 0.9, roadW[k]);
           const sandW = Math.max(sand, h < WL ? 1 : 0);
-          const dirtW = Math.min(1, fd * 0.85 + verge * 0.8 + (su === 1 ? 1 : 0));
+          // Waldboden nur unter dichtem Wald (vorher wirkte die ganze Landschaft braun)
+          const dirtW = Math.min(1, smoothstep(0.35, 0.9, fd) * 0.75 + verge * 0.8 + (su === 1 ? 1 : 0));
           const grassW = Math.max(0, 1 - rock) * (1 - sandW) * (1 - dirtW * 0.85);
           splat[k * 4] = grassW * 255; splat[k * 4 + 1] = dirtW * 255; splat[k * 4 + 2] = rock * 255; splat[k * 4 + 3] = sandW * 255;
         }
@@ -836,7 +837,7 @@ function makeGroundTextures() {
     const list = Array.from({ length: n }, () => [rng() * S, rng() * S, rMin + rng() * (rMax - rMin), cols[Math.floor(rng() * cols.length)], rng() * 3]);
     wrap((cc) => { for (const [x, y, r, col, a] of list) { cc.fillStyle = col; cc.beginPath(); cc.ellipse(x, y, r, r * 0.6, a, 0, Math.PI * 2); cc.fill(); } });
   };
-  const grass = make([124, 130, 112], 1, (c, rng, wrap) => {
+  const grass = make([116, 132, 98], 1, (c, rng, wrap) => {
     blots(c, rng, wrap, 40, 10, 34, ['rgba(160,165,120,0.18)', 'rgba(80,90,60,0.2)']);
     const blades = Array.from({ length: 2600 }, () => [rng() * S, rng() * S, 3 + rng() * 7, rng() * Math.PI, rng()]);
     wrap((cc) => { cc.lineWidth = 1; for (const [x, y, l, a, t] of blades) { cc.strokeStyle = t < 0.5 ? `rgba(70,${(90 + t * 60) | 0},40,0.55)` : `rgba(${(170 + t * 40) | 0},${(180 + t * 40) | 0},120,0.4)`; cc.beginPath(); cc.moveTo(x, y); cc.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); cc.stroke(); } });
@@ -1185,17 +1186,32 @@ Object.assign(World.prototype, {
     // Texturen nach Untergrund mischen (Gras/Waldboden/Fels/Sand), zwei Maßstäbe gegen sichtbare Kachelung
     this.terrainMat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, { tG: { value: GT.grass }, tD: { value: GT.dirt }, tR: { value: GT.rock }, tS: { value: GT.sand } });
-      sh.vertexShader = 'attribute vec4 splat; varying vec4 vSplat; varying vec2 vWXZ;\n' + sh.vertexShader
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\n vSplat = splat; vWXZ = position.xz;');
-      sh.fragmentShader = 'uniform sampler2D tG; uniform sampler2D tD; uniform sampler2D tR; uniform sampler2D tS; varying vec4 vSplat; varying vec2 vWXZ;\n' + sh.fragmentShader
+      sh.vertexShader = 'attribute vec4 splat; varying vec4 vSplat; varying vec2 vWXZ; varying float vNY; varying float vHY;\n' + sh.vertexShader
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n vSplat = splat; vWXZ = position.xz; vNY = normal.y; vHY = position.y;');
+      sh.fragmentShader = 'uniform sampler2D tG; uniform sampler2D tD; uniform sampler2D tR; uniform sampler2D tS; varying vec4 vSplat; varying vec2 vWXZ; varying float vNY; varying float vHY;\n' + sh.fragmentShader
         .replace('#include <map_fragment>', `
           vec2 ua = vWXZ / 4.5, ub = vWXZ / 17.0 + 0.37;
           vec4 w = vSplat / max(vSplat.x + vSplat.y + vSplat.z + vSplat.w, 0.001);
+          // Steilhänge werden felsig, Hangfüße erdig; großräumiges Rauschen bricht die Kachelung in der Ferne
+          float slope = 1.0 - vNY;
+          float mac = texture2D(tD, vWXZ / 210.0).r * 0.6 + texture2D(tG, vWXZ / 77.0 + 0.5).g * 0.4;
+          float rk = smoothstep(0.2, 0.42, slope + (mac - 0.5) * 0.15);
+          float er = smoothstep(0.1, 0.22, slope) * (1.0 - rk) * 0.6;
+          w = vec4(w.x * (1.0 - rk - er), w.y * (1.0 - rk) + er, w.z * (1.0 - rk) + rk, w.w * (1.0 - rk));
+          // trockene Grasflecken
+          w.x *= 1.0; vec4 wDry = w;
           vec3 tg = texture2D(tG, ua).rgb * 0.6 + texture2D(tG, ub).rgb * 0.4;
           vec3 td = texture2D(tD, ua).rgb * 0.6 + texture2D(tD, ub).rgb * 0.4;
           vec3 tr = texture2D(tR, ua * 0.55).rgb * 0.6 + texture2D(tR, ub * 0.8).rgb * 0.4;
           vec3 ts = texture2D(tS, ua).rgb * 0.6 + texture2D(tS, ub).rgb * 0.4;
-          diffuseColor.rgb *= (tg * w.x + td * w.y + tr * w.z + ts * w.w) * 2.0;`);
+          // Ferne: großer Maßstab dominiert (keine sichtbaren Wiederholungen)
+          float far = smoothstep(60.0, 220.0, length(vWXZ - cameraPosition.xz));
+          tg = mix(tg, texture2D(tG, ub * 0.35).rgb, far * 0.6); td = mix(td, texture2D(tD, ub * 0.35).rgb, far * 0.6);
+          vec3 base = (tg * w.x + td * w.y + tr * w.z + ts * w.w) * 2.0;
+          // Farbvariation: trockene, gelbliche Wiesenflecken und satte, dunkle Senken
+          float dry = smoothstep(0.55, 0.75, mac);
+          base *= mix(vec3(1.0), vec3(1.18, 1.08, 0.78), dry * w.x) * mix(1.0, 0.82, smoothstep(0.42, 0.25, mac) * w.x);
+          diffuseColor.rgb *= base;`);
     };
     this.chunkCells = 100;
     const cnum = (this.n - 1) / this.chunkCells;
@@ -1260,8 +1276,40 @@ Object.assign(World.prototype, {
     this.waterNormal.repeat.set(60, 60);
     this.waterMat = new THREE.MeshStandardMaterial({
       color: 0x1b4250, roughness: 0.07, metalness: 0.0, transparent: true, opacity: 0.9,
-      normalMap: this.waterNormal, normalScale: new THREE.Vector2(0.25, 0.25), envMapIntensity: 1.3,
+      normalMap: this.waterNormal, normalScale: new THREE.Vector2(0.25, 0.25), envMapIntensity: 0.9,
     });
+    // Wassertiefe als Textur (aus dem Höhenfeld): flach = klar türkis mit Uferschaum, tief = dunkel blaugrün
+    const DN = 256, depth = new Uint8Array(DN * DN);
+    for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) {
+      const x = L.cx - 600 + (i + 0.5) / DN * 1200, z = L.cz - 600 + (j + 0.5) / DN * 1200;
+      depth[j * DN + i] = clamp((this.waterLevel - this.sample(x, z)) / 12, 0, 1) * 255;
+    }
+    const depthTex = new THREE.DataTexture(depth, DN, DN, THREE.RedFormat); depthTex.magFilter = depthTex.minFilter = THREE.LinearFilter; depthTex.needsUpdate = true;
+    this.waterU = { uTime: { value: 0 }, uDepth: { value: depthTex }, uRain: { value: 0 }, uOrigin: { value: new THREE.Vector2(L.cx - 600, L.cz - 600) } };
+    const WU = this.waterU;
+    this.waterMat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, WU);
+      sh.vertexShader = 'varying vec2 vWP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vWP = (modelMatrix * vec4(position, 1.0)).xz;');
+      sh.fragmentShader = 'uniform float uTime; uniform sampler2D uDepth; uniform float uRain; uniform vec2 uOrigin; varying vec2 vWP;\n' + sh.fragmentShader
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          // zweite, gegenläufige Wellenlage + Regentropfen-Ringe
+          { vec3 n2 = texture2D(normalMap, vWP / 9.0 + vec2(-uTime * 0.021, uTime * 0.013)).xyz * 2.0 - 1.0;
+            normal = normalize(normal + vec3(n2.xy * 0.22, 0.0));
+            if (uRain > 0.02) { vec2 g = vWP * 1.4; vec2 id = floor(g), f = fract(g) - 0.5;
+              float ph = fract(uTime * 0.8 + fract(sin(dot(id, vec2(12.9, 78.2))) * 437.5));
+              float r = length(f), ring = sin((r - ph * 0.5) * 40.0) * smoothstep(0.5 * ph + 0.05, 0.5 * ph, r) * (1.0 - ph);
+              normal = normalize(normal + vec3(f / max(r, 0.01) * ring * 0.35 * uRain, 0.0)); } }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          float wd = texture2D(uDepth, (vWP - uOrigin) / 1200.0).r;
+          vec3 shallow = vec3(0.07, 0.24, 0.24), deep = vec3(0.012, 0.05, 0.075);
+          diffuseColor.rgb = mix(shallow, deep, smoothstep(0.0, 0.18, wd));
+          diffuseColor.a = mix(0.7, 0.96, smoothstep(0.0, 0.12, wd));
+          // Uferschaum: schmaler, pulsierender Streifen an der Wasserkante
+          float foamN = fract(sin(dot(floor(vWP * 3.0), vec2(12.98, 78.23))) * 43758.5);
+          float foam = smoothstep(0.02, 0.0, wd) * (0.55 + 0.45 * sin(uTime * 1.7 + vWP.x * 0.6 + vWP.y * 0.4)) * (0.6 + 0.4 * foamN);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.95), foam * 0.85); diffuseColor.a = max(diffuseColor.a, foam);`)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.6, foam);');
+    };
     const water = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), this.waterMat);
     water.rotation.x = -Math.PI / 2; water.position.set(L.cx, this.waterLevel, L.cz);
     water.receiveShadow = true; water.renderOrder = 1;
@@ -1774,6 +1822,7 @@ Object.assign(World.prototype, {
     const T = this.updateTimers;
     // Wasser bewegt sich
     this.waterNormal.offset.x += dt * 0.006; this.waterNormal.offset.y += dt * 0.004;
+    if (this.waterU) this.waterU.uTime.value += dt;
     if ((T.lod -= dt) <= 0) { T.lod = 0.25; this.updateTerrainLod(camera); }
     if ((T.sig -= dt) <= 0) { T.sig = 0.3; this.updateSignals(); }
     this.updateFallers(dt);
