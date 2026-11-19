@@ -1462,14 +1462,14 @@ Object.assign(World.prototype, {
     const bulbs = this.lamps.flatMap((l) => l.bulbs);
     this.bulbMat = new THREE.MeshBasicMaterial({ color: 0x555048, toneMapped: false });
     const bm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.38, 0.03, 0.2), this.bulbMat, bulbs.length);
-    this.poolMat = new THREE.MeshBasicMaterial({ map: radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), color: 0xffc78a, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 });
-    const pg = new THREE.PlaneGeometry(22, 22); pg.rotateX(-Math.PI / 2);
+    this.poolMat = new THREE.MeshBasicMaterial({ map: radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), color: 0xffc078, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 });
+    const pg = new THREE.PlaneGeometry(19, 19); pg.rotateX(-Math.PI / 2);   // Lichtkegel der Laterne auf Straße und Gehweg
     this.pools = new THREE.InstancedMesh(pg, this.poolMat, bulbs.length);
     bulbs.forEach((b, i) => {
       m.makeTranslation(b[0], b[1] - 0.09, b[2]); bm.setMatrixAt(i, m);
       m.makeTranslation(b[0], this.sample(b[0], b[2]) + 0.14, b[2]); this.pools.setMatrixAt(i, m);
     });
-    this.pools.visible = false; this.pools.renderOrder = 2;
+    this.pools.visible = false; this.pools.renderOrder = 2; this.pools.frustumCulled = false;   // Instanzen weit vom Ursprung: nicht per Hüllkugel wegschneiden
     this.group.add(bm, this.pools);
     // Lichthöfe um die Leuchten (nachts): alle Laternen in einem einzigen Punkt-Draw-Call
     const hp = new Float32Array(bulbs.length * 3);
@@ -1915,6 +1915,7 @@ Object.assign(World.prototype, {
     this.halos.visible = on;
     this.bulbMat.color.set(on ? 0xffd9a6 : 0x6a655c);
     if (on) this.bulbMat.color.multiplyScalar(4);
+    this.poolMat.color.setRGB(0.95, 0.66, 0.36);   // kräftiger, warmer Lichtkegel auf dem Asphalt
     this.pools.visible = on;
     for (const l of this.lampLights) l.intensity = 0;
     this.waterMat.color.set(on ? 0x0a1a22 : 0x1b4250);

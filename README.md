@@ -223,6 +223,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 ## Technik (Umgebung – Gelände & Wasser)
 - **Gelände:** Steilhänge werden automatisch felsig, Hangfüße erdig; großräumiges Rauschen gegen Kachelmuster, in der Ferne grober Texturmaßstab; trockene, gelbliche Wiesenflecken und satte Senken. Wiesen grüner, Waldboden nur unter dichtem Wald.
 - **Gras** dichter und weiter sichtbar (Mittel 6500 Büschel/48 m, Hoch 13000/65 m).
+- **Stadt bei Nacht:** Laternen werfen sichtbare, warme Lichtkegel auf Straße, Gehweg und Wiese (vorher wurden die Lichtflecken wegen falscher Hüllkugel nie gezeichnet).
 - **See:** Wassertiefe aus dem Höhenfeld → klares, türkises Flachwasser am Ufer, dunkel in der Tiefe; zweite gegenläufige Wellenlage, pulsierender Uferschaum, Tropfenringe bei Regen.
 
 ## Code-Aufbau
