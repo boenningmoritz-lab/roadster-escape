@@ -983,12 +983,12 @@ class Environment {
 
     this.uniforms = {
       uTop: { value: new THREE.Color(0x2f6fd0) }, uHorizon: { value: new THREE.Color(0xbcd6ea) },
-      uSunDir: { value: this.sunDir.clone() }, uNight: { value: 0 }, uTime: { value: 0 }, uClouds: { value: this.q.clouds ? 1 : 0 }, uCover: { value: 1 },
+      uSunDir: { value: this.sunDir.clone() }, uNight: { value: 0 }, uTime: { value: 0 }, uClouds: { value: this.q.clouds ? (this.q.physicalPaint ? 2 : 1) : 0 }, uCover: { value: 1 }, uGrey: { value: 0 },
     };
     const mat = new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false, uniforms: this.uniforms,
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w; }`,
-      fragmentShader: `uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform float uNight; uniform float uTime; uniform float uClouds; uniform float uCover;
+      fragmentShader: `uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform float uNight; uniform float uTime; uniform float uClouds; uniform float uCover; uniform float uGrey;
         varying vec3 vDir;
         float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -999,6 +999,23 @@ class Environment {
           float h = max(d.y, 0.0);
           vec3 col = mix(uHorizon, uTop, pow(h, 0.48));
           if (d.y < 0.0) col = mix(uHorizon, uHorizon * 0.6, clamp(-d.y * 4.0, 0.0, 1.0));
+          // Physikalisch angelehnter Taghimmel: Rayleigh- (blau) und Mie-Streuung (Dunst um die Sonne) mit Luftmassen-
+          // Näherung; tiefe Sonne → längerer Lichtweg → orange-roter Horizont. Wetter mischt Richtung Grau.
+          if (uNight < 0.5) {
+            vec3 sdir = normalize(uSunDir);
+            vec3 bR = vec3(5.8e-3, 13.5e-3, 33.1e-3) * 1.0, bM = vec3(4e-3);
+            float zv = max(d.y, 0.0) + 0.02, zs = max(sdir.y, 0.0) + 0.02;
+            float mV = 1.0 / (zv + 0.15 * pow(max(93.885 - degrees(acos(clamp(zv, 0.0, 1.0))), 0.01), -1.253));
+            float mS = 1.0 / (zs + 0.15 * pow(max(93.885 - degrees(acos(clamp(zs, 0.0, 1.0))), 0.01), -1.253));
+            float cosT = dot(d, sdir);
+            float pR = 0.0596831 * (1.0 + cosT * cosT);
+            float g = 0.76, pM = 0.0795775 * (1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * cosT, 1.5);
+            vec3 extV = exp(-(bR * 8.4 + bM * 1.25) * mV), extS = exp(-(bR * 8.4 + bM * 1.25) * mS);
+            vec3 sky = (bR * pR + bM * pM) / (bR + bM) * (1.0 - extV) * extS * 14.0;
+            sky += vec3(0.02, 0.025, 0.035);                                       // Mehrfachstreuung (Grundhelligkeit)
+            if (d.y < 0.0) sky = mix(sky, uHorizon * 0.6, clamp(-d.y * 4.0, 0.0, 1.0));
+            col = mix(sky, col, clamp(uGrey, 0.0, 1.0));
+          }
           float sd = max(dot(d, normalize(uSunDir)), 0.0);
           if (uNight < 0.5) {
             col += vec3(1.0, 0.92, 0.75) * (pow(sd, 1200.0) * 40.0 + pow(sd, 10.0) * 0.22 + pow(sd, 2.0) * 0.05);
@@ -1008,7 +1025,27 @@ class Environment {
             float st = step(0.9968, h21(floor(sp))) * smoothstep(0.03, 0.25, d.y);
             col += vec3(st) * (0.55 + 0.45 * sin(uTime * 2.0 + h21(floor(sp) + 3.1) * 40.0));
           }
-          if (uClouds > 0.0 && d.y > 0.0) {
+          if (uClouds > 1.5 && d.y > 0.02) {
+            // Volumetrisch wirkende Wolken (Grafik Hoch): Strahl durch eine Wolkenschicht, 6 Schritte Dichte,
+            // je Schritt eine Lichtprobe Richtung Sonne → helle, sonnenbeschienene Ränder, dunkle Unterseiten
+            float cv = uCover - 1.0, T = 1.0; vec3 acc = vec3(0.0);
+            vec3 sdir2 = normalize(uSunDir);
+            for (int i = 0; i < 6; i++) {
+              float hh = 0.6 + float(i) * 0.18;                                  // Höhe in der Schicht
+              vec2 cp = d.xz / d.y * hh * 1.4 + vec2(uTime * 0.004, uTime * 0.0016);
+              float den = smoothstep(0.52 - 0.3 * cv - float(i) * 0.012, 0.9, fbm(cp) + 0.08 * (1.0 - abs(float(i) - 2.5) / 2.5));
+              if (den > 0.01) {
+                float lt = fbm(cp + sdir2.xz * 0.35);
+                float shade = exp(-max(lt - 0.45, 0.0) * 4.0);
+                vec3 lc = uNight > 0.5 ? vec3(0.03, 0.035, 0.05) : mix(vec3(0.55, 0.6, 0.68), vec3(1.08, 1.02, 0.95), shade) * (1.0 - 0.45 * clamp(cv, 0.0, 1.0));
+                lc += (uNight > 0.5 ? 0.0 : 1.0) * vec3(0.35, 0.22, 0.1) * pow(max(dot(d, sdir2), 0.0), 8.0);
+                lc *= mix(vec3(1.0), uHorizon * 1.35, 0.55);                     // Wolken nehmen die Himmelsfarbe an (abends rosa-orange)
+                float a = den * 0.38;
+                acc += T * a * lc; T *= 1.0 - a;
+              }
+            }
+            col = col * mix(1.0, T, smoothstep(0.02, 0.16, d.y)) + acc * smoothstep(0.02, 0.16, d.y);
+          } else if (uClouds > 0.0 && d.y > 0.0) {
             vec2 cp = d.xz / (d.y + 0.1) * 1.4 + vec2(uTime * 0.004, uTime * 0.0016);
             float cv = uCover - 1.0;
             float c = smoothstep(0.5 - 0.3 * cv, 0.82 - 0.12 * cv, fbm(cp));
@@ -2438,6 +2475,30 @@ function makeFacadeTextures(kind) {
       c.fillStyle = 'rgba(30,34,40,0.9)'; c.fillRect(x, y + cs - 10, cs, 6);              // Brüstung
       if (rng() < 0.34) { e.fillStyle = rng() < 0.6 ? '#ffd79a' : '#cfe0f5'; e.globalAlpha = 0.25 + rng() * 0.6; e.fillRect(x + 3, y + 6, cs - 6, cs - 16); }
     }
+  } else if (kind === 3) {     // Altbau (Gründerzeit): Putz, Stuckgesimse, Fensterverdachungen, Pilaster
+    c.fillStyle = '#e8dcc4'; c.fillRect(0, 0, S, S);
+    const img = c.getImageData(0, 0, S, S), d = img.data;
+    for (let i = 0; i < d.length; i += 4) { const nn = (rng() - 0.5) * 12; d[i] += nn; d[i + 1] += nn; d[i + 2] += nn; }
+    c.putImageData(img, 0, 0);
+    for (let j = 0; j < cells; j++) {
+      const y = j * cs;
+      c.fillStyle = '#f6efe0'; c.fillRect(0, y + cs - 9, S, 6);                 // Stockwerksgesims
+      c.fillStyle = 'rgba(80,60,40,0.35)'; c.fillRect(0, y + cs - 3, S, 2);     // Schattenkante darunter
+      for (let i = 0; i < cells; i++) {
+        const x = i * cs;
+        c.fillStyle = 'rgba(255,250,240,0.6)'; c.fillRect(x, y, 5, cs);       // Pilaster
+        c.fillStyle = '#f7f1e4'; c.fillRect(x + 14, y + 10, cs - 28, cs - 22);   // Fensterumrahmung (Stuck)
+        c.fillStyle = '#2a2d31'; c.fillRect(x + 18, y + 16, cs - 36, cs - 32);   // Glas
+        c.fillStyle = '#f7f1e4'; c.fillRect(x + cs / 2 - 1, y + 16, 2, cs - 32); c.fillRect(x + 18, y + 16 + (cs - 32) * 0.35, cs - 36, 2);   // Sprossen
+        // Verdachung: abwechselnd Dreiecksgiebel und gerader Sturz
+        c.fillStyle = '#fbf6ea';
+        if ((i + j) % 2) { c.beginPath(); c.moveTo(x + 11, y + 11); c.lineTo(x + cs / 2, y + 2); c.lineTo(x + cs - 11, y + 11); c.closePath(); c.fill(); }
+        else c.fillRect(x + 11, y + 6, cs - 22, 5);
+        c.fillStyle = 'rgba(70,50,30,0.3)'; c.fillRect(x + 12, y + 11, cs - 24, 2);
+        c.fillStyle = '#efe6d2'; c.fillRect(x + 12, y + cs - 13, cs - 24, 4);    // Fensterbank
+        if (rng() < 0.3) { e.fillStyle = rng() < 0.75 ? '#ffc070' : '#c8dcf5'; e.globalAlpha = 0.3 + rng() * 0.6; e.fillRect(x + 18, y + 16, cs - 36, cs - 32); }
+      }
+    }
   } else {                     // Wohnhaus / Halle: helle Wand, Lochfenster
     c.fillStyle = '#e4e0d8'; c.fillRect(0, 0, S, S);
     const img = c.getImageData(0, 0, S, S), d = img.data;
@@ -2918,10 +2979,12 @@ Object.assign(World.prototype, {
       return mat;
     };
     const unit = new THREE.BoxGeometry(1, 1, 1); unit.translate(0, 0.5, 0);
-    const offices = this.buildings.filter((b) => b.kind === 0), others = this.buildings.filter((b) => b.kind !== 0);
+    // Altbauten: niedrige Wohnhäuser zur Hälfte als Gründerzeit-Bauten mit Stuck
+    const isAlt = (b) => b.kind === 1 && b.h < 30 && b.tint < 0.5;
+    const offices = this.buildings.filter((b) => b.kind === 0), others = this.buildings.filter((b) => b.kind !== 0 && !isAlt(b)), altbau = this.buildings.filter(isAlt);
     const glassPal = [[0.82, 0.88, 0.95], [1.0, 0.86, 0.68], [0.8, 0.95, 0.88], [0.95, 0.95, 0.95], [0.72, 0.78, 0.9]];
     const pal = [[0.95, 0.92, 0.86], [0.86, 0.78, 0.68], [0.78, 0.55, 0.45], [0.7, 0.72, 0.74], [0.93, 0.9, 0.78], [0.62, 0.66, 0.7]];
-    for (const [list, kind] of [[offices, 0], [others, 1]]) {
+    for (const [list, kind] of [[offices, 0], [others, 1], [altbau, 3]]) {
       const im = new THREE.InstancedMesh(unit, facadeMat(kind), list.length);
       list.forEach((b, i) => {
         m.makeScale(b.x1 - b.x0, b.h, b.z1 - b.z0).setPosition((b.x0 + b.x1) / 2, b.y0, (b.z0 + b.z1) / 2);
@@ -7953,6 +8016,7 @@ class Weather {
     this.type = type;
     const night = g.timeOfDay === 'night';
     env.uniforms.uCover.value = W.cover;
+    env.uniforms.uGrey.value = Math.max(W.grey, g.timeOfDay === 'dusk' ? 0.55 : 0);   // physikalischer Himmel ↔ Wettergrau (abends warmer Verlauf dazu)
     // Himmel grauer, Licht weicher, Nebel dichter
     const greyTop = new THREE.Color(night ? 0x05070b : 0x7d8792), greyHor = new THREE.Color(night ? 0x0b0e14 : 0xa9b0b8);
     env.uniforms.uTop.value.lerp(greyTop, W.grey);

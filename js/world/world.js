@@ -1088,6 +1088,30 @@ function makeFacadeTextures(kind) {
       c.fillStyle = 'rgba(30,34,40,0.9)'; c.fillRect(x, y + cs - 10, cs, 6);              // Brüstung
       if (rng() < 0.34) { e.fillStyle = rng() < 0.6 ? '#ffd79a' : '#cfe0f5'; e.globalAlpha = 0.25 + rng() * 0.6; e.fillRect(x + 3, y + 6, cs - 6, cs - 16); }
     }
+  } else if (kind === 3) {     // Altbau (Gründerzeit): Putz, Stuckgesimse, Fensterverdachungen, Pilaster
+    c.fillStyle = '#e8dcc4'; c.fillRect(0, 0, S, S);
+    const img = c.getImageData(0, 0, S, S), d = img.data;
+    for (let i = 0; i < d.length; i += 4) { const nn = (rng() - 0.5) * 12; d[i] += nn; d[i + 1] += nn; d[i + 2] += nn; }
+    c.putImageData(img, 0, 0);
+    for (let j = 0; j < cells; j++) {
+      const y = j * cs;
+      c.fillStyle = '#f6efe0'; c.fillRect(0, y + cs - 9, S, 6);                 // Stockwerksgesims
+      c.fillStyle = 'rgba(80,60,40,0.35)'; c.fillRect(0, y + cs - 3, S, 2);     // Schattenkante darunter
+      for (let i = 0; i < cells; i++) {
+        const x = i * cs;
+        c.fillStyle = 'rgba(255,250,240,0.6)'; c.fillRect(x, y, 5, cs);       // Pilaster
+        c.fillStyle = '#f7f1e4'; c.fillRect(x + 14, y + 10, cs - 28, cs - 22);   // Fensterumrahmung (Stuck)
+        c.fillStyle = '#2a2d31'; c.fillRect(x + 18, y + 16, cs - 36, cs - 32);   // Glas
+        c.fillStyle = '#f7f1e4'; c.fillRect(x + cs / 2 - 1, y + 16, 2, cs - 32); c.fillRect(x + 18, y + 16 + (cs - 32) * 0.35, cs - 36, 2);   // Sprossen
+        // Verdachung: abwechselnd Dreiecksgiebel und gerader Sturz
+        c.fillStyle = '#fbf6ea';
+        if ((i + j) % 2) { c.beginPath(); c.moveTo(x + 11, y + 11); c.lineTo(x + cs / 2, y + 2); c.lineTo(x + cs - 11, y + 11); c.closePath(); c.fill(); }
+        else c.fillRect(x + 11, y + 6, cs - 22, 5);
+        c.fillStyle = 'rgba(70,50,30,0.3)'; c.fillRect(x + 12, y + 11, cs - 24, 2);
+        c.fillStyle = '#efe6d2'; c.fillRect(x + 12, y + cs - 13, cs - 24, 4);    // Fensterbank
+        if (rng() < 0.3) { e.fillStyle = rng() < 0.75 ? '#ffc070' : '#c8dcf5'; e.globalAlpha = 0.3 + rng() * 0.6; e.fillRect(x + 18, y + 16, cs - 36, cs - 32); }
+      }
+    }
   } else {                     // Wohnhaus / Halle: helle Wand, Lochfenster
     c.fillStyle = '#e4e0d8'; c.fillRect(0, 0, S, S);
     const img = c.getImageData(0, 0, S, S), d = img.data;
@@ -1568,10 +1592,12 @@ Object.assign(World.prototype, {
       return mat;
     };
     const unit = new THREE.BoxGeometry(1, 1, 1); unit.translate(0, 0.5, 0);
-    const offices = this.buildings.filter((b) => b.kind === 0), others = this.buildings.filter((b) => b.kind !== 0);
+    // Altbauten: niedrige Wohnhäuser zur Hälfte als Gründerzeit-Bauten mit Stuck
+    const isAlt = (b) => b.kind === 1 && b.h < 30 && b.tint < 0.5;
+    const offices = this.buildings.filter((b) => b.kind === 0), others = this.buildings.filter((b) => b.kind !== 0 && !isAlt(b)), altbau = this.buildings.filter(isAlt);
     const glassPal = [[0.82, 0.88, 0.95], [1.0, 0.86, 0.68], [0.8, 0.95, 0.88], [0.95, 0.95, 0.95], [0.72, 0.78, 0.9]];
     const pal = [[0.95, 0.92, 0.86], [0.86, 0.78, 0.68], [0.78, 0.55, 0.45], [0.7, 0.72, 0.74], [0.93, 0.9, 0.78], [0.62, 0.66, 0.7]];
-    for (const [list, kind] of [[offices, 0], [others, 1]]) {
+    for (const [list, kind] of [[offices, 0], [others, 1], [altbau, 3]]) {
       const im = new THREE.InstancedMesh(unit, facadeMat(kind), list.length);
       list.forEach((b, i) => {
         m.makeScale(b.x1 - b.x0, b.h, b.z1 - b.z0).setPosition((b.x0 + b.x1) / 2, b.y0, (b.z0 + b.z1) / 2);

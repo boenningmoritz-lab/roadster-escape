@@ -233,6 +233,9 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Tankstelle** an der Landstraße (Dach auf Stützen, Zapfsäulen, Shop mit Schaufenster, Preismast) und **Parkhaus** am Flugplatz (4 offene Decks, Stützen, Brüstungen, Treppenhaus, geparkte Autos) – beide mit Kollision.
 - **Tageszeit „Ablauf“:** Tag (5 min) → Abend (1,5 min) → Nacht (3 min) → Tag, mit Hinweis.
 - **Talnebel** über dem See: abends rosa, bei Nebel/Regen dichter, am Tag kaum.
+- **Altbauten:** etwa die Hälfte der niedrigen Wohnhäuser als Gründerzeit-Bauten – warmer Putz, Stockwerksgesimse, Pilaster, Stuck-Fensterumrahmungen mit Sprossen, abwechselnd Dreiecksgiebel und gerade Verdachungen.
+- **Physikalischer Himmel:** Rayleigh- und Mie-Streuung mit Luftmassen-Näherung (blau oben, heller Dunst am Horizont und um die Sonne, Rötung bei tiefer Sonne); Wetter mischt Richtung Grau.
+- **Volumetrisch wirkende Wolken** (Grafik Hoch): 6 Schritte durch eine Wolkenschicht mit Lichtprobe zur Sonne – helle Ränder, dunkle Unterseiten, Himmelsfarbe abends.
 - **See:** Wassertiefe aus dem Höhenfeld → klares, türkises Flachwasser am Ufer, dunkel in der Tiefe; zweite gegenläufige Wellenlage, pulsierender Uferschaum, Tropfenringe bei Regen.
 
 ## Code-Aufbau

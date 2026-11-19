@@ -29,12 +29,12 @@ class Environment {
 
     this.uniforms = {
       uTop: { value: new THREE.Color(0x2f6fd0) }, uHorizon: { value: new THREE.Color(0xbcd6ea) },
-      uSunDir: { value: this.sunDir.clone() }, uNight: { value: 0 }, uTime: { value: 0 }, uClouds: { value: this.q.clouds ? 1 : 0 }, uCover: { value: 1 },
+      uSunDir: { value: this.sunDir.clone() }, uNight: { value: 0 }, uTime: { value: 0 }, uClouds: { value: this.q.clouds ? (this.q.physicalPaint ? 2 : 1) : 0 }, uCover: { value: 1 }, uGrey: { value: 0 },
     };
     const mat = new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false, uniforms: this.uniforms,
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w; }`,
-      fragmentShader: `uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform float uNight; uniform float uTime; uniform float uClouds; uniform float uCover;
+      fragmentShader: `uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform float uNight; uniform float uTime; uniform float uClouds; uniform float uCover; uniform float uGrey;
         varying vec3 vDir;
         float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -45,6 +45,23 @@ class Environment {
           float h = max(d.y, 0.0);
           vec3 col = mix(uHorizon, uTop, pow(h, 0.48));
           if (d.y < 0.0) col = mix(uHorizon, uHorizon * 0.6, clamp(-d.y * 4.0, 0.0, 1.0));
+          // Physikalisch angelehnter Taghimmel: Rayleigh- (blau) und Mie-Streuung (Dunst um die Sonne) mit Luftmassen-
+          // Näherung; tiefe Sonne → längerer Lichtweg → orange-roter Horizont. Wetter mischt Richtung Grau.
+          if (uNight < 0.5) {
+            vec3 sdir = normalize(uSunDir);
+            vec3 bR = vec3(5.8e-3, 13.5e-3, 33.1e-3) * 1.0, bM = vec3(4e-3);
+            float zv = max(d.y, 0.0) + 0.02, zs = max(sdir.y, 0.0) + 0.02;
+            float mV = 1.0 / (zv + 0.15 * pow(max(93.885 - degrees(acos(clamp(zv, 0.0, 1.0))), 0.01), -1.253));
+            float mS = 1.0 / (zs + 0.15 * pow(max(93.885 - degrees(acos(clamp(zs, 0.0, 1.0))), 0.01), -1.253));
+            float cosT = dot(d, sdir);
+            float pR = 0.0596831 * (1.0 + cosT * cosT);
+            float g = 0.76, pM = 0.0795775 * (1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * cosT, 1.5);
+            vec3 extV = exp(-(bR * 8.4 + bM * 1.25) * mV), extS = exp(-(bR * 8.4 + bM * 1.25) * mS);
+            vec3 sky = (bR * pR + bM * pM) / (bR + bM) * (1.0 - extV) * extS * 14.0;
+            sky += vec3(0.02, 0.025, 0.035);                                       // Mehrfachstreuung (Grundhelligkeit)
+            if (d.y < 0.0) sky = mix(sky, uHorizon * 0.6, clamp(-d.y * 4.0, 0.0, 1.0));
+            col = mix(sky, col, clamp(uGrey, 0.0, 1.0));
+          }
           float sd = max(dot(d, normalize(uSunDir)), 0.0);
           if (uNight < 0.5) {
             col += vec3(1.0, 0.92, 0.75) * (pow(sd, 1200.0) * 40.0 + pow(sd, 10.0) * 0.22 + pow(sd, 2.0) * 0.05);
@@ -54,7 +71,27 @@ class Environment {
             float st = step(0.9968, h21(floor(sp))) * smoothstep(0.03, 0.25, d.y);
             col += vec3(st) * (0.55 + 0.45 * sin(uTime * 2.0 + h21(floor(sp) + 3.1) * 40.0));
           }
-          if (uClouds > 0.0 && d.y > 0.0) {
+          if (uClouds > 1.5 && d.y > 0.02) {
+            // Volumetrisch wirkende Wolken (Grafik Hoch): Strahl durch eine Wolkenschicht, 6 Schritte Dichte,
+            // je Schritt eine Lichtprobe Richtung Sonne → helle, sonnenbeschienene Ränder, dunkle Unterseiten
+            float cv = uCover - 1.0, T = 1.0; vec3 acc = vec3(0.0);
+            vec3 sdir2 = normalize(uSunDir);
+            for (int i = 0; i < 6; i++) {
+              float hh = 0.6 + float(i) * 0.18;                                  // Höhe in der Schicht
+              vec2 cp = d.xz / d.y * hh * 1.4 + vec2(uTime * 0.004, uTime * 0.0016);
+              float den = smoothstep(0.52 - 0.3 * cv - float(i) * 0.012, 0.9, fbm(cp) + 0.08 * (1.0 - abs(float(i) - 2.5) / 2.5));
+              if (den > 0.01) {
+                float lt = fbm(cp + sdir2.xz * 0.35);
+                float shade = exp(-max(lt - 0.45, 0.0) * 4.0);
+                vec3 lc = uNight > 0.5 ? vec3(0.03, 0.035, 0.05) : mix(vec3(0.55, 0.6, 0.68), vec3(1.08, 1.02, 0.95), shade) * (1.0 - 0.45 * clamp(cv, 0.0, 1.0));
+                lc += (uNight > 0.5 ? 0.0 : 1.0) * vec3(0.35, 0.22, 0.1) * pow(max(dot(d, sdir2), 0.0), 8.0);
+                lc *= mix(vec3(1.0), uHorizon * 1.35, 0.55);                     // Wolken nehmen die Himmelsfarbe an (abends rosa-orange)
+                float a = den * 0.38;
+                acc += T * a * lc; T *= 1.0 - a;
+              }
+            }
+            col = col * mix(1.0, T, smoothstep(0.02, 0.16, d.y)) + acc * smoothstep(0.02, 0.16, d.y);
+          } else if (uClouds > 0.0 && d.y > 0.0) {
             vec2 cp = d.xz / (d.y + 0.1) * 1.4 + vec2(uTime * 0.004, uTime * 0.0016);
             float cv = uCover - 1.0;
             float c = smoothstep(0.5 - 0.3 * cv, 0.82 - 0.12 * cv, fbm(cp));

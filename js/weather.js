@@ -69,6 +69,7 @@ class Weather {
     this.type = type;
     const night = g.timeOfDay === 'night';
     env.uniforms.uCover.value = W.cover;
+    env.uniforms.uGrey.value = Math.max(W.grey, g.timeOfDay === 'dusk' ? 0.55 : 0);   // physikalischer Himmel ↔ Wettergrau (abends warmer Verlauf dazu)
     // Himmel grauer, Licht weicher, Nebel dichter
     const greyTop = new THREE.Color(night ? 0x05070b : 0x7d8792), greyHor = new THREE.Color(night ? 0x0b0e14 : 0xa9b0b8);
     env.uniforms.uTop.value.lerp(greyTop, W.grey);
