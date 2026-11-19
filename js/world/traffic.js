@@ -221,14 +221,16 @@ class TrafficSystem {
   }
 
   respawn(car, focus, rMin, rMax, camera) {
-    for (let t = 0; t < 60; t++) {
-      const e = this.randomEdge();
+    // Kanten in der Nähe des Spielers bevorzugen (bei hoher Dichte findet zufälliges Suchen auf der ganzen Karte sonst nichts)
+    const near = this.nearEdges(focus, rMax);
+    for (let t = 0; t < 90; t++) {
+      const e = near.length && t < 70 ? near[Math.floor(this.rng() * near.length)] : this.randomEdge();
       if (car.v.type === 'truck' && e.cls === 'city') continue;
       const s = 10 + this.rng() * Math.max(e.len - 20, 1);
       const p = this.w.pointOnEdge(e, s, this._p);
       const d = Math.hypot(p.x - focus.x, p.z - focus.z);
       if (d < rMin || d > rMax || p.y < this.w.waterLevel - 1) continue;
-      if (camera && d < 260 && this.inView(camera, p)) continue;     // nicht vor den Augen erscheinen
+      if (camera && d < 200 && this.inView(camera, p)) continue;     // nicht vor den Augen erscheinen
       const dir = this.rng() < 0.5 ? 1 : -1, lane = Math.floor(this.rng() * e.C.lanes.length);
       let free = true;
       for (const o of this.cars) if (o !== car && o.e === e && Math.abs(o.s - s) < 18) { free = false; break; }
@@ -237,7 +239,23 @@ class TrafficSystem {
       this.place(car, 0, true);
       return true;
     }
+    // nichts frei: Auto bleibt, wo es war; hatte es noch keine Straße, eine beliebige nehmen (nie ohne Kante lassen)
+    if (!car.e) {
+      const e = this.randomEdge();
+      Object.assign(car, { e, s: e.len / 2, dir: 1, lane: 0, state: 'drive', speed: 0, cleared: false, waitT: 0, stopT: 0, latOff: 0, bx: 0, bz: 0, yawRate: 0 });
+      this.place(car, 0, true);
+    }
     return false;
+  }
+
+  /** Straßenkanten im Umkreis (gecacht, solange sich der Spieler kaum bewegt). */
+  nearEdges(focus, r) {
+    const c = this._ne;
+    if (c && Math.hypot(c.x - focus.x, c.z - focus.z) < 60 && c.r === r) return c.list;
+    const set = new Set();
+    this.w.roadPointHash.near(focus.x, focus.z, r, (it) => set.add(it.e));
+    this._ne = { x: focus.x, z: focus.z, r, list: [...set] };
+    return this._ne.list;
   }
 
   inView(camera, p) {
@@ -246,7 +264,7 @@ class TrafficSystem {
     return (dx * f.x + dz * f.z) / Math.hypot(dx, dz) > 0.5;
   }
 
-  spawnAll(focus) { for (const c of this.cars) if (!c.parked) this.respawn(c, focus, 40, 600); }
+  spawnAll(focus) { for (const c of this.cars) if (!c.parked) this.respawn(c, focus, 15, 320); }
 
   /** Weltposition aus Kante/Spur berechnen (mit weicher Überblendung bei Kantenwechseln). */
   place(car, dt, snap) {
@@ -375,7 +393,7 @@ class TrafficSystem {
       } else this.place(car, dt, false);
       // weit weg → woanders neu einsetzen
       const dpx = car.x - player.pos.x, dpz = car.z - player.pos.z;
-      if (dpx * dpx + dpz * dpz > 720 * 720) this.respawn(car, player.pos, 250, 650, camera);
+      if (dpx * dpx + dpz * dpz > 440 * 440) this.respawn(car, player.pos, 110, 400, camera);   // dichter Verkehr rund um den Spieler
     }
     this.writeInstances();
   }
@@ -403,7 +421,7 @@ class TrafficSystem {
     const hidden = !this.inView(camera, car);
     if ((car.stopT > 6 && d > 60 && hidden) || (car.stopT > 25 && d > 25) || d > 700 || car.y < this.w.waterLevel - 6) {
       car.body = null;
-      if (car.parked) this.placeParked(car, false); else this.respawn(car, player.pos, 250, 650, camera);
+      if (car.parked) this.placeParked(car, false); else this.respawn(car, player.pos, 110, 400, camera);
     }
   }
 

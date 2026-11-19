@@ -285,6 +285,31 @@ class CarModel {
       add(new THREE.BoxGeometry(0.04, 0.11, 0.4), black, si.x, si.y, si.z, 0, 0, 0);
     }
 
+    // Kennzeichen vorn/hinten (Fantasie-Kennzeichen), Türfugen, versenkte Türgriffe
+    {
+      const plateTex = (() => {
+        const cv = document.createElement('canvas'); cv.width = 256; cv.height = 56; const c = cv.getContext('2d');
+        c.fillStyle = '#f4f4f0'; c.fillRect(0, 0, 256, 56); c.strokeStyle = '#222'; c.lineWidth = 3; c.strokeRect(2, 2, 252, 52);
+        c.fillStyle = '#1d3f9a'; c.fillRect(4, 4, 22, 48); c.fillStyle = '#ffd400'; c.font = 'bold 10px sans-serif'; c.fillText('VE', 8, 46);
+        c.fillStyle = '#111'; c.font = 'bold 34px sans-serif'; c.textBaseline = 'middle'; c.fillText('VA·AR 2026', 34, 30);
+        const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+      })();
+      const plateMat = new THREE.MeshStandardMaterial({ map: plateTex, roughness: 0.4, metalness: 0.1 });
+      const pf = surf(0, 0.36, -5, 0, 0, 1, 0.004), pr = surf(0, 0.5, 5, 0, 0, -1, 0.004);
+      add(new THREE.PlaneGeometry(0.52, 0.114), plateMat, pf.x, pf.y, pf.z, 0, Math.PI, 0).castShadow = false;
+      add(new THREE.PlaneGeometry(0.52, 0.114), plateMat, pr.x, pr.y, pr.z).castShadow = false;
+      const gap = new THREE.MeshBasicMaterial({ color: 0x0a0a0c });
+      for (const sx of [-1, 1]) {
+        // Türfuge vorn und hinten (dünne dunkle Linie auf der Flanke)
+        for (const z of [-0.62, 0.62]) {
+          const pts = []; for (let y = 0.32; y <= 0.78; y += 0.04) pts.push(surf(sx * 3, y, z, -sx, 0, 0, -0.001));
+          const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.0035, 4, false), gap); body.add(m);
+        }
+        const gp = surf(sx * 3, 0.7, 0.3, -sx, 0, 0, -0.002);
+        add(new THREE.BoxGeometry(0.012, 0.025, 0.16), black, gp.x, gp.y, gp.z).castShadow = false;     // Türgriff
+      }
+    }
+
     // Scheinwerfer-Lichtkegel (Phase 4 nutzt sie für die Nacht)
     this.headLights = [];
     {
@@ -500,7 +525,7 @@ class CarModel {
     // Bremsscheiben: glühen nach harten Bremsungen orange-rot (Wärmemodell in update)
     const discMat = this.discMat = new THREE.MeshStandardMaterial({ color: 0x777b80, metalness: 0.8, roughness: 0.4, emissive: 0xff3300, emissiveIntensity: 0 });
     this.discHeat = 0;
-    const calMat = new THREE.MeshStandardMaterial({ color: 0x36e0ff, roughness: 0.4, emissive: 0x062030 });
+    const calMat = new THREE.MeshStandardMaterial({ color: 0xd9a01e, roughness: 0.35, metalness: 0.3 });   // gelbe Keramik-Bremssättel
 
     for (const wd of cfg.wheels) {
       const side = wd.x < 0 ? -1 : 1;
