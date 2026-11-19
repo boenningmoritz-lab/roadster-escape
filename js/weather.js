@@ -115,24 +115,54 @@ class Weather {
 // ============================== Bergkulisse ==============================
 /** Ring aus dunstigen Bergen weit hinter dem Kartenrand (kein Nebel, eigene Luftperspektive). */
 function makeMountainRing() {
-  const segs = 220, R = 3050, pos = [], col = [], idx = [];
-  const far = new THREE.Color(0x8ea3b8), base = new THREE.Color(0x56677a), snow = new THREE.Color(0xe8eef4);
-  for (let i = 0; i <= segs; i++) {
-    const a = (i / segs) * Math.PI * 2, x = Math.cos(a), z = Math.sin(a);
-    const h = 170 + fbm(Math.cos(a) * 3 + 10, Math.sin(a) * 3, 5, 77) * 260 + Math.max(0, fbm(a * 6, 1, 3, 3)) * 160;
-    const r2 = R + fbm(a * 4, 2, 2, 5) * 150;
-    pos.push(x * (R + 300), -60, z * (R + 300), x * r2, h, z * r2);
-    const top = base.clone().lerp(snow, smoothstep(330, 430, h)).lerp(far, 0.45);
-    col.push(...far.clone().lerp(base, 0.3).toArray(), ...top.toArray());
-    if (i < segs) { const k = i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setIndex(idx);
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, side: THREE.DoubleSide }));
-  m.frustumCulled = false; m.renderOrder = -0.5;
-  return m;
+  // Zwei Ketten: nahe, bewaldete Vorberge und dahinter hohe, zerklüftete Gipfel mit Schnee.
+  // Echte Flächen (mehrere Höhenreihen) mit Licht → Grate und Täler sind sichtbar; Dunst nach hinten.
+  const grp = new THREE.Group();
+  const hazeCol = new THREE.Color(0x9fb3c6);
+  const layer = (R, depth, segs, rows, hMax, hBase, seed, forest, haze) => {
+    const pos = [], col = [], idx = [];
+    const rock = new THREE.Color(0x6b6d70), snow = new THREE.Color(0xf2f5f8), wood = new THREE.Color(0x2c4426), meadow = new THREE.Color(0x5d7a3a);
+    const c = new THREE.Color();
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      for (let r = 0; r <= rows; r++) {
+        const t = r / rows;                                     // 0 = vorderer Fuß, 1 = hinterer Kamm
+        const rr = R + t * depth + fbm(a * 5, t * 2, 2, seed) * depth * 0.25;
+        // ridged noise: scharfe Grate
+        const n = 1 - Math.abs(fbm(ca * 4 + seed, sa * 4 + t * 1.5, 5, seed + 1));
+        const peak = Math.pow(Math.max(0, n), 1.6) * hMax + Math.max(0, fbm(a * 9, t * 3, 3, seed + 2)) * hMax * 0.35;
+        const prof = Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.5);          // vorne flach ansteigend
+        const h = hBase + peak * prof;
+        pos.push(ca * rr, h, sa * rr);
+        // Farbe: unten Wald/Wiese, oben Fels, Gipfel Schnee
+        const rel = h / (hBase + hMax);
+        if (forest) c.copy(meadow).lerp(wood, smoothstep(0.1, 0.35, rel)).lerp(rock, smoothstep(0.55, 0.85, rel));
+        else c.copy(wood).lerp(rock, smoothstep(0.2, 0.45, rel));
+        c.lerp(snow, smoothstep(forest ? 0.9 : 0.55, forest ? 1.0 : 0.72, rel + fbm(a * 20, t * 5, 2, seed + 3) * 0.08));
+        c.lerp(hazeCol, Math.min(0.85, haze + t * 0.15));
+        col.push(c.r, c.g, c.b);
+      }
+    }
+    const W = rows + 1;
+    for (let i = 0; i < segs; i++) for (let r = 0; r < rows; r++) {
+      const k = i * W + r; idx.push(k, k + W, k + 1, k + 1, k + W, k + W + 1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx); g.computeVertexNormals();
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false, side: THREE.DoubleSide, flatShading: true });
+    mat.emissive.setScalar(0.35); mat.emissiveIntensity = 1;   // Schattenseiten nicht schwarz (Streulicht der Atmosphäre)
+    mat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= vColor.rgb;'); };
+    const m = new THREE.Mesh(g, mat);
+    m.frustumCulled = false; m.renderOrder = -0.5;
+    // Vorhang nach unten, damit keine Lücke zum Gelände sichtbar ist
+    grp.add(m);
+  };
+  layer(2300, 450, 260, 6, 160, -40, 31, true, 0.5);      // Vorberge mit Wald (Luftperspektive: bläulicher Dunst)
+  layer(2900, 600, 300, 8, 520, 40, 77, false, 0.62);     // Hochgebirge mit Schnee
+  grp.userData.setTint = () => {};
+  return grp;
 }
 
 // ============================== Felsen & Büsche ==============================

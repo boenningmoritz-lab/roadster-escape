@@ -30,7 +30,7 @@ class Game {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 3400);
+    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 3700);   // reicht bis zur Hochgebirgskette
     this.env = new Environment(this);
     this.paused = true; this.ready = false;
   }
@@ -138,7 +138,8 @@ class Game {
     this.car.setHeadlights(true, lights ? (this.q.headlights ? 320 : 480) * (night ? 1 : 0.6) : 0);
     this.car.setBeams(night ? 1 : lights ? 0.4 : 0);
     this.furniture.setNight(lights);
-    if (mode === 'dusk') this.mountains.material.color.setRGB(1.0, 0.72, 0.62); else this.mountains.material.color.setScalar(night ? 0.09 : 1);
+    // Bergkulisse: Abendrot bzw. Nacht-Abdunklung (Lambert-Material reagiert zusätzlich auf Sonne/Himmelslicht)
+    this.mountains.traverse((o) => { if (o.material) { if (mode === 'dusk') o.material.color.setRGB(1.0, 0.78, 0.68); else o.material.color.setScalar(night ? 0.35 : 1); } });
     this.weather.apply(Settings.data.weather || 'clear');   // nach der Tageszeit, da es Licht/Nebel/Himmel anpasst
   }
 

@@ -1346,6 +1346,7 @@ Object.assign(World.prototype, {
     const roadMat = (tex) => {
       const bump = grain.clone(); bump.repeat.set(tex.userData.w / 3, tex.userData.len / 3); bump.needsUpdate = true;
       const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, bumpMap: bump, bumpScale: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+      this.addPuddles(m);
       this.wetMats.push(m); return m;
     };
     const byCls = (c) => this.edges.filter((e) => e.cls === c);
@@ -1903,9 +1904,34 @@ Object.assign(World.prototype, {
   },
 
   /** Nasse Fahrbahn: dunkler und glatter → spiegelt Himmel und Lichter. */
+  /**
+   * Pfützen bei Nässe: in Weltkoordinaten verteilte Flecken (v. a. in Spurrinnen und am Rand),
+   * dort spiegelglatt und dunkel – zeigen Himmel, Lichter und Häuser. Füllen sich mit der Nässe.
+   */
+  addPuddles(m) {
+    this.puddleU = this.puddleU || { value: 0 };
+    const U = this.puddleU, prev = m.onBeforeCompile;
+    m.onBeforeCompile = (sh, r) => {
+      prev?.call(m, sh, r);
+      sh.uniforms.uPuddle = U;
+      sh.vertexShader = 'varying vec3 vPW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vPW = (modelMatrix * vec4(position, 1.0)).xyz;');
+      sh.fragmentShader = 'uniform float uPuddle; varying vec3 vPW;\n'
+        + 'float pn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5); float b = fract(sin(dot(i + vec2(1, 0), vec2(127.1, 311.7))) * 43758.5); float c = fract(sin(dot(i + vec2(0, 1), vec2(127.1, 311.7))) * 43758.5); float d = fract(sin(dot(i + vec2(1, 1), vec2(127.1, 311.7))) * 43758.5); return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }\n'
+        + sh.fragmentShader
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          float pdl = 0.0;
+          if (uPuddle > 0.01) { float nz = pn(vPW.xz * 0.23) * 0.65 + pn(vPW.xz * 0.9) * 0.35;
+            pdl = smoothstep(0.78 - uPuddle * 0.22, 0.83 - uPuddle * 0.2, nz) * uPuddle; }
+          diffuseColor.rgb *= 1.0 - pdl * 0.55;`)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.02, pdl);')
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n normal = normalize(mix(normal, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz), pdl));');
+    };
+  },
+
   setWet(w) {
     this.wet = w;
-    for (const m of this.wetMats || []) { m.roughness = lerp(0.82, 0.22, w); m.color.setScalar(lerp(1, 0.6, w)); m.envMapIntensity = 1 + w * 0.6; }
+    if (this.puddleU) this.puddleU.value = w;
+    for (const m of this.wetMats || []) { m.roughness = lerp(0.82, 0.3, w); m.color.setScalar(lerp(1, 0.55, w)); m.envMapIntensity = 1 + w * 0.9; }
     if (this.terrainMat) this.terrainMat.color.setScalar(lerp(1, 0.82, w));
   },
 
