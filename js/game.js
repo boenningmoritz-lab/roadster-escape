@@ -332,6 +332,7 @@ class Game {
     this.car.update(v, this.paused ? 0 : dt);
     this.car.setCockpit(this.rig.mode === 'cockpit');
     this.updateMirrors();
+    this.updateCarReflections();
     this.car.updateRain(this.paused ? 0 : dt, this.weather.rain, v.speed, this.rig.mode === 'cockpit');
     document.body.classList.toggle('ego', this.rig.mode === 'cockpit');
     Input.drawWheel(v.swAngle);   // Touch-Lenkrad zeigt exakt den Lenkradwinkel des Autos
@@ -346,6 +347,7 @@ class Game {
 
     this.world.update(dt, this.camera, this._ip);
     this.env.update(dt, this._ip, this.camera.position);
+    this.env.updateRays(this.camera);
     if (this.world.treeSun) this.world.treeSun.value.copy(this.env.sunDir).transformDirection(this.camera.matrixWorldInverse);
     // Häuserschlucht: hohe Gebäude ringsum → weniger Himmelslicht → Auge stellt heller; Tempo → Bewegungsunschärfe
     { const cp = this.camera.position; let tall = 0;
@@ -399,6 +401,39 @@ class Game {
     HUD.telemetry(v, this.stats);
   }
 
+  /**
+   * Echte Umgebungsspiegelung im Lack (Häuser, Straße, Bäume, andere Autos) statt nur Himmel:
+   * kleine Würfelkamera am Auto, nur alle paar Bilder neu (Mittel: 64 px / 40 Bilder, Hoch: 128 px / 20 Bilder).
+   */
+  updateCarReflections() {
+    if (!this.q.shadows || (this.fxLevel || 0) >= 2) return;
+    const hi = this.q.physicalPaint;
+    if (!this.reflRT) {
+      // 8-Bit-Würfel: begrenzt die Helligkeit (die Sonnenscheibe würde in Halbgenauigkeit überlaufen → Inf/NaN → schwarzes/leeres Bild über Bloom)
+      this.reflRT = new THREE.WebGLCubeRenderTarget(hi ? 128 : 64);
+      this.reflCam = new THREE.CubeCamera(0.5, 600, this.reflRT);
+      this.reflCam.coordinateSystem = this.renderer.coordinateSystem; this.reflCam.updateCoordinateSystem();   // Blickrichtungen der 6 Seiten setzen
+      this.reflFrame = 0; this.reflPM = null;
+    }
+    // Pro Bild nur EINE Würfelseite rendern (gleichmäßige Last, keine Ruckler); nach 6 Seiten vorfiltern, dann Pause
+    const period = hi ? 24 : 48, ph = (this.reflFrame++) % period;
+    if (ph >= 6) return;
+    if (ph === 0) this.reflCam.position.copy(this._ip).y += 0.9;
+    this.reflCam.updateMatrixWorld();
+    const r = this.renderer, sh = r.shadowMap.autoUpdate, vis = this.car.root.visible, fl = this.flare?.visible;
+    // Linsenreflex liest den Bildpuffer aus → in Würfel-/Spiegelaufnahmen nicht mitzeichnen
+    r.shadowMap.autoUpdate = false; this.car.root.visible = false; if (this.flare) this.flare.visible = false;
+    const prevRT = r.getRenderTarget(), tm = r.toneMapping;
+    r.toneMapping = THREE.NoToneMapping;
+    r.setRenderTarget(this.reflRT, ph); r.render(this.scene, this.reflCam.children[ph]); r.setRenderTarget(prevRT);
+    r.toneMapping = tm;
+    let first = false;
+    // Vorfiltern (PMREM) hier selbst – nicht während eines laufenden Renderdurchgangs
+    if (ph === 5) { first = !this.reflPM; this.reflPM = this.env.pmrem.fromCubemap(this.reflRT.texture, this.reflPM); }
+    r.shadowMap.autoUpdate = sh; this.car.root.visible = vis; if (this.flare) this.flare.visible = fl;
+    if (first) for (const m of [this.car.paint, this.car.rimMat]) if (m) { m.envMap = this.reflPM.texture; m.envMapIntensity = m === this.car.paint ? 1.0 : 1.2; m.needsUpdate = true; }
+  }
+
   /** Rück- und Außenspiegel: in der Ego-Sicht jedes 3. Bild eine kleine Rückansicht rendern (nicht auf Grafik Niedrig). */
   updateMirrors() {
     if (this.rig.mode !== 'cockpit' || !this.q.shadows || (this.fxLevel || 0) >= 2) return;
@@ -413,9 +448,10 @@ class Game {
     this._mt = this._mt || new THREE.Vector3();
     cam.lookAt(this._mt.set(0, 0.9 - CONFIG.car.cgHeight, 30).applyMatrix4(root.matrixWorld));
     const r = this.renderer, sh = r.shadowMap.autoUpdate, hands = this.car.hands.visible;
-    r.shadowMap.autoUpdate = false; this.car.hands.visible = false;
+    const fl = this.flare?.visible;
+    r.shadowMap.autoUpdate = false; this.car.hands.visible = false; if (this.flare) this.flare.visible = false;
     r.setRenderTarget(this.mirrorRT); r.render(this.scene, cam); r.setRenderTarget(null);
-    r.shadowMap.autoUpdate = sh; this.car.hands.visible = hands;
+    r.shadowMap.autoUpdate = sh; this.car.hands.visible = hands; if (this.flare) this.flare.visible = fl;
   }
 
   /** Partikel und Geräusche aus dem Fahrzustand und aus Welt-Ereignissen. */

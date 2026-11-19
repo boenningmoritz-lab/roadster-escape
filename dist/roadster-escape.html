@@ -1045,6 +1045,17 @@ class Environment {
       const ao = this.ao = new GTAOPass(this.scene, this.g.camera, size.x / 2, size.y / 2);
       const setSz = ao.setSize.bind(ao); ao.setSize = (w, h) => setSz(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
       ao.blendIntensity = 0.85;
+      // Durchsichtige Effekte (Flammen, Partikel, Lichtschein, Glas, Regen) dürfen nicht in die AO-Tiefe/Normalen –
+      // sonst erscheinen sie als dunkle Kästen. Für den AO-Durchgang kurz ausblenden.
+      const aoRender = ao.render.bind(ao), hidden = [];
+      ao.render = (...args) => {
+        this.scene.traverse((o) => {
+          if (!o.visible) return;
+          const m = o.material;
+          if (o.isSprite || o.isPoints || o.isLine || (m && (Array.isArray(m) ? m.some((x) => x.transparent) : m.transparent))) { o.visible = false; hidden.push(o); }
+        });
+        try { aoRender(...args); } finally { for (const o of hidden) o.visible = true; hidden.length = 0; }
+      };
       ao.updateGtaoMaterial({ radius: 1.6, distanceExponent: 1.4, thickness: 1.2, scale: 1, samples: 10, distanceFallOff: 1, screenSpaceRadius: false });
       ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 8 });
       this.composer.addPass(ao);
@@ -1054,9 +1065,9 @@ class Environment {
     this.composer.addPass(new OutputPass());
     // Filmische Farbkorrektur: leichte S-Kurve, warme Lichter/kühle Schatten, feines Korn, minimale Farbsäume am Rand
     this.grade = new ShaderPass({
-      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 1 }, uBlur: { value: 0 }, uFilm: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1024, 1 / 768) } },
+      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 1 }, uBlur: { value: 0 }, uFilm: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1024, 1 / 768) }, uSunUV: { value: new THREE.Vector2(0.5, 0.8) }, uRays: { value: 0 }, uRayCol: { value: new THREE.Color(1, 0.92, 0.75) } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uWarm; uniform float uBlur; uniform float uFilm; uniform vec2 uTexel; varying vec2 vUv;
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uWarm; uniform float uBlur; uniform float uFilm; uniform vec2 uTexel; uniform vec2 uSunUV; uniform float uRays; uniform vec3 uRayCol; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
         void main(){
           vec2 d = vUv - 0.5; float r = dot(d, d);
@@ -1067,6 +1078,14 @@ class Environment {
           vec3 nb = texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb
                   + texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb;
           c = max(c + (c - nb * 0.25) * 0.35, 0.0);
+          // Lichtstrahlen der Sonne (Crepuscular Rays): helle Bildteile (Himmel zwischen Ästen/Häusern)
+          // werden zur Sonnenposition hin verschmiert – wirkt wie Licht in leicht dunstiger Luft
+          if (uRays > 0.001) {
+            vec2 dlt = (uSunUV - vUv) / 18.0; vec2 sp = vUv; float ill = 0.0, dec = 1.0;
+            for (int i = 0; i < 18; i++) { sp += dlt; vec3 s = texture2D(tDiffuse, sp).rgb; float l = dot(s, vec3(0.3, 0.59, 0.11));
+              ill += smoothstep(0.72, 1.0, l) * dec; dec *= 0.93; }
+            c += uRayCol * ill / 18.0 * uRays * smoothstep(1.2, 0.0, length(uSunUV - vUv));
+          }
           // Bewegungsunschärfe bei hohem Tempo: radial vom Bildzentrum, Mitte bleibt scharf
           if (uBlur > 0.001) { vec2 st = d * uBlur * smoothstep(0.02, 0.2, r) * 0.06; vec3 acc = c;
             for (int i = 1; i <= 4; i++) acc += texture2D(tDiffuse, vUv - st * float(i)).rgb;
@@ -1140,6 +1159,18 @@ class Environment {
   setAdapt(k, blur) {
     this.adaptK = k;
     if (this.grade) { const U = this.grade.uniforms; U.uBlur.value = Settings.data.blurFx ? blur : 0; U.uFilm.value = Settings.data.filmLook ? 1 : 0; }
+  }
+
+  /** Sonnenposition auf dem Bildschirm für die Lichtstrahlen (pro Bild, nur Grafik Hoch). */
+  updateRays(camera) {
+    if (!this.grade) return;
+    const U = this.grade.uniforms, p = this._sunP || (this._sunP = new THREE.Vector3());
+    p.copy(camera.position).addScaledVector(this.sunDir, 1000).project(camera);
+    const inFront = p.z < 1, on = inFront && !this.night && Math.abs(p.x) < 1.6 && Math.abs(p.y) < 1.6;
+    U.uSunUV.value.set(p.x * 0.5 + 0.5, p.y * 0.5 + 0.5);
+    const tgt = on ? (this.sunDir.y < 0.25 ? 0.9 : 0.55) * (1 - Math.min(1, Math.hypot(p.x, p.y) / 1.6)) : 0;
+    U.uRays.value += (tgt - U.uRays.value) * 0.1;
+    U.uRayCol.value.set(this.sunDir.y < 0.25 ? 0xffb070 : 0xfff0d0);
   }
 
   update(dt, focus, camPos) {
@@ -4735,6 +4766,23 @@ class Vehicle {
  * Karosserie = extrudierte Seitenprofile (Seitenteile + Mitte mit Cockpit-Ausschnitt),
  * Glaskuppel, Innenraum, Räder mit Felgen/Bremsen, Licht vorne/hinten.
  */
+/** Weiche Flammen-Textur (radial, mit ausgefranstem Rand); einmal erzeugt, von allen Sprites geteilt. */
+let _flameTex = null;
+function flameTex() {
+  if (_flameTex) return _flameTex;
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const c = cv.getContext('2d'), img = c.createImageData(S, S), d = img.data;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const dx = (x - S / 2) / (S / 2), dy = (y - S / 2) / (S / 2), r = Math.hypot(dx, dy);
+    const a = Math.atan2(dy, dx), edge = 0.75 + 0.18 * Math.sin(a * 5) + 0.08 * Math.sin(a * 11 + 1);
+    const v = Math.max(0, 1 - r / edge) ** 1.6;
+    const k = (y * S + x) * 4; d[k] = d[k + 1] = d[k + 2] = 255; d[k + 3] = Math.round(v * 255);
+  }
+  c.putImageData(img, 0, 0);
+  _flameTex = new THREE.CanvasTexture(cv);
+  return _flameTex;
+}
+
 /** Reifenprofil: vier Längsrillen und schräge Lamellen (u = Umfang, v = Breite). */
 function makeTreadTexture() {
   const W = 512, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -5164,6 +5212,15 @@ class CarModel {
       const fl = new THREE.Mesh(new THREE.ConeGeometry(0.14, 1.7, 16, 1, true).translate(0, 0.85, 0).rotateX(Math.PI / 2), this.boostMat);
       fl.position.set(sx, 0.4, 2.27); fl.visible = false; fl.renderOrder = 6; body.add(fl);
       this.flames.push(fl); this.nozzles.push(fl);
+      // Volumetrisch wirkende Flamme: Kette kamera-zugewandter Sprites (von hinten voll sichtbar),
+      // weißblauer Kern → blaue Stoßdiamanten → orange-rote Spitze; flackert pro Bild
+      const stack = [];
+      for (let k = 0; k < 9; k++) {
+        const sm = new THREE.SpriteMaterial({ map: flameTex(), color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, opacity: 0 });
+        const sp = new THREE.Sprite(sm); sp.position.set(sx, 0.4, 2.32 + k * 0.2); sp.renderOrder = 7; sp.visible = false; body.add(sp);
+        stack.push(sp);
+      }
+      this.flameStacks = this.flameStacks || []; this.flameStacks.push(stack);
     }
     this.jets = []; this.jetPads = [];
     this.jetGlow = new THREE.MeshBasicMaterial({ color: 0x0a2018, toneMapped: false });
@@ -5289,6 +5346,26 @@ class CarModel {
     const bp = this.boostBlend * (0.85 + 0.15 * Math.sin(this.fxTime.value * 50));
     this.boostMat.uniforms.uPower.value = bp;
     for (const f of this.flames) { f.visible = bp > 0.02; f.scale.set(1, 1, 0.5 + bp * 1.1); }
+    if (this.flameStacks) {
+      const t = this.fxTime.value, len = 0.75 + bp * 0.6 + clamp((vehicle.speed || 0) / 80, 0, 0.5);
+      this.flameStacks.forEach((stack, si) => stack.forEach((sp, k) => {
+        const u = k / (stack.length - 1);                          // 0 = Düse, 1 = Spitze
+        sp.visible = bp > 0.02;
+        if (!sp.visible) return;
+        const flick = 0.75 + 0.25 * Math.sin(t * (41 + k * 7) + si * 2.1 + k) + (Math.random() - 0.5) * 0.25;
+        const diamond = 0.6 + 0.4 * Math.max(0, Math.cos(u * Math.PI * 7));            // Stoßdiamanten
+        sp.position.z = 2.3 + u * 1.9 * len + (Math.random() - 0.5) * 0.04;
+        sp.position.y = 0.4 + u * u * 0.08 * Math.sin(t * 9 + si);                     // Spitze züngelt
+        const sz = (0.34 - u * 0.12 + u * u * 0.22) * (0.8 + bp * 0.4) * flick;
+        sp.scale.set(sz, sz, 1);
+        // Farbe: Kern weißblau, Mitte kräftig blau, Spitze orange-rot (Verbrennung an der Luft)
+        const c = sp.material.color;
+        if (u < 0.35) c.setRGB(lerp(1.6, 0.5, u / 0.35), lerp(1.8, 1.1, u / 0.35), 2.2);
+        else if (u < 0.7) c.setRGB(lerp(0.5, 1.2, (u - 0.35) / 0.35), lerp(1.1, 0.55, (u - 0.35) / 0.35), lerp(2.2, 0.5, (u - 0.35) / 0.35));
+        else c.setRGB(lerp(1.2, 0.9, (u - 0.7) / 0.3), lerp(0.55, 0.18, (u - 0.7) / 0.3), lerp(0.5, 0.05, (u - 0.7) / 0.3));
+        sp.material.opacity = bp * diamond * (1 - u * 0.65) * flick;
+      }));
+    }
     this.nozzleGlow.color.setRGB(0.06 + bp * 1.2, 0.18 + bp * 2.4, 0.25 + bp * 3.2);
     const jp = vehicle.flying ? (0.55 + vehicle.throttle * 0.25 + Math.max(0, vehicle.climbIn) * 0.3) * this.flyBlend : 0;
     this.jetMat.uniforms.uPower.value = jp;
@@ -8364,6 +8441,7 @@ class Game {
     this.car.update(v, this.paused ? 0 : dt);
     this.car.setCockpit(this.rig.mode === 'cockpit');
     this.updateMirrors();
+    this.updateCarReflections();
     this.car.updateRain(this.paused ? 0 : dt, this.weather.rain, v.speed, this.rig.mode === 'cockpit');
     document.body.classList.toggle('ego', this.rig.mode === 'cockpit');
     Input.drawWheel(v.swAngle);   // Touch-Lenkrad zeigt exakt den Lenkradwinkel des Autos
@@ -8378,6 +8456,7 @@ class Game {
 
     this.world.update(dt, this.camera, this._ip);
     this.env.update(dt, this._ip, this.camera.position);
+    this.env.updateRays(this.camera);
     if (this.world.treeSun) this.world.treeSun.value.copy(this.env.sunDir).transformDirection(this.camera.matrixWorldInverse);
     // Häuserschlucht: hohe Gebäude ringsum → weniger Himmelslicht → Auge stellt heller; Tempo → Bewegungsunschärfe
     { const cp = this.camera.position; let tall = 0;
@@ -8431,6 +8510,39 @@ class Game {
     HUD.telemetry(v, this.stats);
   }
 
+  /**
+   * Echte Umgebungsspiegelung im Lack (Häuser, Straße, Bäume, andere Autos) statt nur Himmel:
+   * kleine Würfelkamera am Auto, nur alle paar Bilder neu (Mittel: 64 px / 40 Bilder, Hoch: 128 px / 20 Bilder).
+   */
+  updateCarReflections() {
+    if (!this.q.shadows || (this.fxLevel || 0) >= 2) return;
+    const hi = this.q.physicalPaint;
+    if (!this.reflRT) {
+      // 8-Bit-Würfel: begrenzt die Helligkeit (die Sonnenscheibe würde in Halbgenauigkeit überlaufen → Inf/NaN → schwarzes/leeres Bild über Bloom)
+      this.reflRT = new THREE.WebGLCubeRenderTarget(hi ? 128 : 64);
+      this.reflCam = new THREE.CubeCamera(0.5, 600, this.reflRT);
+      this.reflCam.coordinateSystem = this.renderer.coordinateSystem; this.reflCam.updateCoordinateSystem();   // Blickrichtungen der 6 Seiten setzen
+      this.reflFrame = 0; this.reflPM = null;
+    }
+    // Pro Bild nur EINE Würfelseite rendern (gleichmäßige Last, keine Ruckler); nach 6 Seiten vorfiltern, dann Pause
+    const period = hi ? 24 : 48, ph = (this.reflFrame++) % period;
+    if (ph >= 6) return;
+    if (ph === 0) this.reflCam.position.copy(this._ip).y += 0.9;
+    this.reflCam.updateMatrixWorld();
+    const r = this.renderer, sh = r.shadowMap.autoUpdate, vis = this.car.root.visible, fl = this.flare?.visible;
+    // Linsenreflex liest den Bildpuffer aus → in Würfel-/Spiegelaufnahmen nicht mitzeichnen
+    r.shadowMap.autoUpdate = false; this.car.root.visible = false; if (this.flare) this.flare.visible = false;
+    const prevRT = r.getRenderTarget(), tm = r.toneMapping;
+    r.toneMapping = THREE.NoToneMapping;
+    r.setRenderTarget(this.reflRT, ph); r.render(this.scene, this.reflCam.children[ph]); r.setRenderTarget(prevRT);
+    r.toneMapping = tm;
+    let first = false;
+    // Vorfiltern (PMREM) hier selbst – nicht während eines laufenden Renderdurchgangs
+    if (ph === 5) { first = !this.reflPM; this.reflPM = this.env.pmrem.fromCubemap(this.reflRT.texture, this.reflPM); }
+    r.shadowMap.autoUpdate = sh; this.car.root.visible = vis; if (this.flare) this.flare.visible = fl;
+    if (first) for (const m of [this.car.paint, this.car.rimMat]) if (m) { m.envMap = this.reflPM.texture; m.envMapIntensity = m === this.car.paint ? 1.0 : 1.2; m.needsUpdate = true; }
+  }
+
   /** Rück- und Außenspiegel: in der Ego-Sicht jedes 3. Bild eine kleine Rückansicht rendern (nicht auf Grafik Niedrig). */
   updateMirrors() {
     if (this.rig.mode !== 'cockpit' || !this.q.shadows || (this.fxLevel || 0) >= 2) return;
@@ -8445,9 +8557,10 @@ class Game {
     this._mt = this._mt || new THREE.Vector3();
     cam.lookAt(this._mt.set(0, 0.9 - CONFIG.car.cgHeight, 30).applyMatrix4(root.matrixWorld));
     const r = this.renderer, sh = r.shadowMap.autoUpdate, hands = this.car.hands.visible;
-    r.shadowMap.autoUpdate = false; this.car.hands.visible = false;
+    const fl = this.flare?.visible;
+    r.shadowMap.autoUpdate = false; this.car.hands.visible = false; if (this.flare) this.flare.visible = false;
     r.setRenderTarget(this.mirrorRT); r.render(this.scene, cam); r.setRenderTarget(null);
-    r.shadowMap.autoUpdate = sh; this.car.hands.visible = hands;
+    r.shadowMap.autoUpdate = sh; this.car.hands.visible = hands; if (this.flare) this.flare.visible = fl;
   }
 
   /** Partikel und Geräusche aus dem Fahrzustand und aus Welt-Ereignissen. */

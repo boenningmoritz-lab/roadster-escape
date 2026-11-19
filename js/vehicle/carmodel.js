@@ -9,6 +9,23 @@ import { smoothNormals } from '../environment.js';
  * Karosserie = extrudierte Seitenprofile (Seitenteile + Mitte mit Cockpit-Ausschnitt),
  * Glaskuppel, Innenraum, Räder mit Felgen/Bremsen, Licht vorne/hinten.
  */
+/** Weiche Flammen-Textur (radial, mit ausgefranstem Rand); einmal erzeugt, von allen Sprites geteilt. */
+let _flameTex = null;
+function flameTex() {
+  if (_flameTex) return _flameTex;
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const c = cv.getContext('2d'), img = c.createImageData(S, S), d = img.data;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const dx = (x - S / 2) / (S / 2), dy = (y - S / 2) / (S / 2), r = Math.hypot(dx, dy);
+    const a = Math.atan2(dy, dx), edge = 0.75 + 0.18 * Math.sin(a * 5) + 0.08 * Math.sin(a * 11 + 1);
+    const v = Math.max(0, 1 - r / edge) ** 1.6;
+    const k = (y * S + x) * 4; d[k] = d[k + 1] = d[k + 2] = 255; d[k + 3] = Math.round(v * 255);
+  }
+  c.putImageData(img, 0, 0);
+  _flameTex = new THREE.CanvasTexture(cv);
+  return _flameTex;
+}
+
 /** Reifenprofil: vier Längsrillen und schräge Lamellen (u = Umfang, v = Breite). */
 function makeTreadTexture() {
   const W = 512, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -438,6 +455,15 @@ class CarModel {
       const fl = new THREE.Mesh(new THREE.ConeGeometry(0.14, 1.7, 16, 1, true).translate(0, 0.85, 0).rotateX(Math.PI / 2), this.boostMat);
       fl.position.set(sx, 0.4, 2.27); fl.visible = false; fl.renderOrder = 6; body.add(fl);
       this.flames.push(fl); this.nozzles.push(fl);
+      // Volumetrisch wirkende Flamme: Kette kamera-zugewandter Sprites (von hinten voll sichtbar),
+      // weißblauer Kern → blaue Stoßdiamanten → orange-rote Spitze; flackert pro Bild
+      const stack = [];
+      for (let k = 0; k < 9; k++) {
+        const sm = new THREE.SpriteMaterial({ map: flameTex(), color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, opacity: 0 });
+        const sp = new THREE.Sprite(sm); sp.position.set(sx, 0.4, 2.32 + k * 0.2); sp.renderOrder = 7; sp.visible = false; body.add(sp);
+        stack.push(sp);
+      }
+      this.flameStacks = this.flameStacks || []; this.flameStacks.push(stack);
     }
     this.jets = []; this.jetPads = [];
     this.jetGlow = new THREE.MeshBasicMaterial({ color: 0x0a2018, toneMapped: false });
@@ -563,6 +589,26 @@ class CarModel {
     const bp = this.boostBlend * (0.85 + 0.15 * Math.sin(this.fxTime.value * 50));
     this.boostMat.uniforms.uPower.value = bp;
     for (const f of this.flames) { f.visible = bp > 0.02; f.scale.set(1, 1, 0.5 + bp * 1.1); }
+    if (this.flameStacks) {
+      const t = this.fxTime.value, len = 0.75 + bp * 0.6 + clamp((vehicle.speed || 0) / 80, 0, 0.5);
+      this.flameStacks.forEach((stack, si) => stack.forEach((sp, k) => {
+        const u = k / (stack.length - 1);                          // 0 = Düse, 1 = Spitze
+        sp.visible = bp > 0.02;
+        if (!sp.visible) return;
+        const flick = 0.75 + 0.25 * Math.sin(t * (41 + k * 7) + si * 2.1 + k) + (Math.random() - 0.5) * 0.25;
+        const diamond = 0.6 + 0.4 * Math.max(0, Math.cos(u * Math.PI * 7));            // Stoßdiamanten
+        sp.position.z = 2.3 + u * 1.9 * len + (Math.random() - 0.5) * 0.04;
+        sp.position.y = 0.4 + u * u * 0.08 * Math.sin(t * 9 + si);                     // Spitze züngelt
+        const sz = (0.34 - u * 0.12 + u * u * 0.22) * (0.8 + bp * 0.4) * flick;
+        sp.scale.set(sz, sz, 1);
+        // Farbe: Kern weißblau, Mitte kräftig blau, Spitze orange-rot (Verbrennung an der Luft)
+        const c = sp.material.color;
+        if (u < 0.35) c.setRGB(lerp(1.6, 0.5, u / 0.35), lerp(1.8, 1.1, u / 0.35), 2.2);
+        else if (u < 0.7) c.setRGB(lerp(0.5, 1.2, (u - 0.35) / 0.35), lerp(1.1, 0.55, (u - 0.35) / 0.35), lerp(2.2, 0.5, (u - 0.35) / 0.35));
+        else c.setRGB(lerp(1.2, 0.9, (u - 0.7) / 0.3), lerp(0.55, 0.18, (u - 0.7) / 0.3), lerp(0.5, 0.05, (u - 0.7) / 0.3));
+        sp.material.opacity = bp * diamond * (1 - u * 0.65) * flick;
+      }));
+    }
     this.nozzleGlow.color.setRGB(0.06 + bp * 1.2, 0.18 + bp * 2.4, 0.25 + bp * 3.2);
     const jp = vehicle.flying ? (0.55 + vehicle.throttle * 0.25 + Math.max(0, vehicle.climbIn) * 0.3) * this.flyBlend : 0;
     this.jetMat.uniforms.uPower.value = jp;

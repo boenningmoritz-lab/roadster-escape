@@ -91,6 +91,17 @@ class Environment {
       const ao = this.ao = new GTAOPass(this.scene, this.g.camera, size.x / 2, size.y / 2);
       const setSz = ao.setSize.bind(ao); ao.setSize = (w, h) => setSz(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
       ao.blendIntensity = 0.85;
+      // Durchsichtige Effekte (Flammen, Partikel, Lichtschein, Glas, Regen) dürfen nicht in die AO-Tiefe/Normalen –
+      // sonst erscheinen sie als dunkle Kästen. Für den AO-Durchgang kurz ausblenden.
+      const aoRender = ao.render.bind(ao), hidden = [];
+      ao.render = (...args) => {
+        this.scene.traverse((o) => {
+          if (!o.visible) return;
+          const m = o.material;
+          if (o.isSprite || o.isPoints || o.isLine || (m && (Array.isArray(m) ? m.some((x) => x.transparent) : m.transparent))) { o.visible = false; hidden.push(o); }
+        });
+        try { aoRender(...args); } finally { for (const o of hidden) o.visible = true; hidden.length = 0; }
+      };
       ao.updateGtaoMaterial({ radius: 1.6, distanceExponent: 1.4, thickness: 1.2, scale: 1, samples: 10, distanceFallOff: 1, screenSpaceRadius: false });
       ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 8 });
       this.composer.addPass(ao);
@@ -100,9 +111,9 @@ class Environment {
     this.composer.addPass(new OutputPass());
     // Filmische Farbkorrektur: leichte S-Kurve, warme Lichter/kühle Schatten, feines Korn, minimale Farbsäume am Rand
     this.grade = new ShaderPass({
-      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 1 }, uBlur: { value: 0 }, uFilm: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1024, 1 / 768) } },
+      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uWarm: { value: 1 }, uBlur: { value: 0 }, uFilm: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1024, 1 / 768) }, uSunUV: { value: new THREE.Vector2(0.5, 0.8) }, uRays: { value: 0 }, uRayCol: { value: new THREE.Color(1, 0.92, 0.75) } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uWarm; uniform float uBlur; uniform float uFilm; uniform vec2 uTexel; varying vec2 vUv;
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uWarm; uniform float uBlur; uniform float uFilm; uniform vec2 uTexel; uniform vec2 uSunUV; uniform float uRays; uniform vec3 uRayCol; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
         void main(){
           vec2 d = vUv - 0.5; float r = dot(d, d);
@@ -113,6 +124,14 @@ class Environment {
           vec3 nb = texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb
                   + texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb;
           c = max(c + (c - nb * 0.25) * 0.35, 0.0);
+          // Lichtstrahlen der Sonne (Crepuscular Rays): helle Bildteile (Himmel zwischen Ästen/Häusern)
+          // werden zur Sonnenposition hin verschmiert – wirkt wie Licht in leicht dunstiger Luft
+          if (uRays > 0.001) {
+            vec2 dlt = (uSunUV - vUv) / 18.0; vec2 sp = vUv; float ill = 0.0, dec = 1.0;
+            for (int i = 0; i < 18; i++) { sp += dlt; vec3 s = texture2D(tDiffuse, sp).rgb; float l = dot(s, vec3(0.3, 0.59, 0.11));
+              ill += smoothstep(0.72, 1.0, l) * dec; dec *= 0.93; }
+            c += uRayCol * ill / 18.0 * uRays * smoothstep(1.2, 0.0, length(uSunUV - vUv));
+          }
           // Bewegungsunschärfe bei hohem Tempo: radial vom Bildzentrum, Mitte bleibt scharf
           if (uBlur > 0.001) { vec2 st = d * uBlur * smoothstep(0.02, 0.2, r) * 0.06; vec3 acc = c;
             for (int i = 1; i <= 4; i++) acc += texture2D(tDiffuse, vUv - st * float(i)).rgb;
@@ -186,6 +205,18 @@ class Environment {
   setAdapt(k, blur) {
     this.adaptK = k;
     if (this.grade) { const U = this.grade.uniforms; U.uBlur.value = Settings.data.blurFx ? blur : 0; U.uFilm.value = Settings.data.filmLook ? 1 : 0; }
+  }
+
+  /** Sonnenposition auf dem Bildschirm für die Lichtstrahlen (pro Bild, nur Grafik Hoch). */
+  updateRays(camera) {
+    if (!this.grade) return;
+    const U = this.grade.uniforms, p = this._sunP || (this._sunP = new THREE.Vector3());
+    p.copy(camera.position).addScaledVector(this.sunDir, 1000).project(camera);
+    const inFront = p.z < 1, on = inFront && !this.night && Math.abs(p.x) < 1.6 && Math.abs(p.y) < 1.6;
+    U.uSunUV.value.set(p.x * 0.5 + 0.5, p.y * 0.5 + 0.5);
+    const tgt = on ? (this.sunDir.y < 0.25 ? 0.9 : 0.55) * (1 - Math.min(1, Math.hypot(p.x, p.y) / 1.6)) : 0;
+    U.uRays.value += (tgt - U.uRays.value) * 0.1;
+    U.uRayCol.value.set(this.sunDir.y < 0.25 ? 0xffb070 : 0xfff0d0);
   }
 
   update(dt, focus, camPos) {

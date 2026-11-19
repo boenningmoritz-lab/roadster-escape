@@ -209,6 +209,13 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Leistungstest** (Einstellungen): 15 s automatische Fahrt durch die Innenstadt, zeigt Ø-FPS, 1-%-Tief, Pixeldichte und ob das Ziel (iPad 60 / iPhone 30 FPS) erreicht ist.
 - **Grafik Hoch:** Umgebungsverdeckung (GTAO, halbe Auflösung), weiche Schatten (PCF mit Radius, engerer Bereich am Auto), leichter Dunst. Bäume: rissige Borke mit Furchen, Querrissen und Moos, dichtere Kronen, Blätterflattern, Durchscheinen gegen die Sonne.
 
+## Technik (Grafik-Paket – AAA-Look)
+- **Boost-Flammen neu:** Kette aus kamera-zugewandten Flammen-Sprites je Düse (von hinten voll sichtbar) mit weißblauem Kern, blauen Stoßdiamanten und orange-roter, züngelnder Spitze; Länge wächst mit Tempo.
+- **Fehler behoben (Grafik Hoch):** Durchsichtiges (Flammen, Partikel, Glas, Regen, Lichtschein) wird nicht mehr in die Umgebungsverdeckung gerechnet – vorher erschienen dort dunkle Kästen.
+- **Echte Umgebungsspiegelung im Lack und auf den Felgen** (Mittel/Hoch): Würfelkamera am Auto, eine Seite pro Bild (keine Ruckler), danach vorgefiltert; 8-Bit-Würfel, damit die Sonnenscheibe nicht überläuft (sonst leeres Bild über Bloom).
+- **Lichtstrahlen der Sonne** (Hoch): helle Himmelsbereiche zwischen Bäumen/Häusern werden zur Sonne hin verschmiert, abends warm-orange.
+- Linsenreflex wird in Spiegel-/Würfelaufnahmen nicht mitgezeichnet.
+
 ## Code-Aufbau
 
 ```
