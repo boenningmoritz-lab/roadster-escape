@@ -15,6 +15,8 @@ const WEATHER = {
   cloudy: { name: 'Bewölkt',  cover: 1.7, fog: 0.75, wet: 0,   rain: 0, light: 0.55, grey: 0.45 },
   rain:   { name: 'Regen',    cover: 2.0, fog: 0.42, wet: 1,   rain: 1, light: 0.4,  grey: 0.75 },
   fog:    { name: 'Nebel',    cover: 1.4, fog: 0.16, wet: 0.35, rain: 0, light: 0.55, grey: 0.6 },
+  storm:  { name: 'Gewitter', cover: 2.2, fog: 0.35, wet: 1,   rain: 1.4, light: 0.28, grey: 0.9, bolts: [2.5, 7] },
+  snow:   { name: 'Schnee',   cover: 1.8, fog: 0.45, wet: 0.25, rain: 0, snow: 1, light: 0.75, grey: 0.5 },
 };
 
 class Weather {
@@ -32,17 +34,34 @@ class Weather {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('aEnd', new THREE.BufferAttribute(end, 1));
-    this.rainU = { uTime: { value: 0 }, uCam: { value: new THREE.Vector3() }, uBox: { value: B }, uVel: { value: new THREE.Vector3(1.5, -17, 0.8) }, uAlpha: { value: 0 } };
+    this.rainU = { uTime: { value: 0 }, uCam: { value: new THREE.Vector3() }, uBox: { value: B }, uVel: { value: new THREE.Vector3(1.5, -17, 0.8) }, uAlpha: { value: 0 }, uLen: { value: 0.75 }, uCol: { value: new THREE.Color(0.75, 0.82, 0.9) } };
     const mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, uniforms: this.rainU,
-      vertexShader: `attribute float aEnd; uniform float uTime; uniform vec3 uCam; uniform float uBox; uniform vec3 uVel;
+      vertexShader: `attribute float aEnd; uniform float uTime; uniform vec3 uCam; uniform float uBox; uniform vec3 uVel; uniform float uLen;
         void main(){ vec3 p = position + uVel * uTime; p = mod(p - uCam + uBox * 0.5, uBox) + uCam - uBox * 0.5;
-          p -= normalize(uVel) * aEnd * 0.75; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
-      fragmentShader: `uniform float uAlpha; void main(){ gl_FragColor = vec4(0.75, 0.82, 0.9, uAlpha); }`,
+          p.x += sin(uTime * 1.3 + position.y * 0.7) * 0.6 * step(uLen, 0.2);   // Schneeflocken taumeln
+          p -= normalize(uVel) * aEnd * uLen; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
+      fragmentShader: `uniform float uAlpha; uniform vec3 uCol; void main(){ gl_FragColor = vec4(uCol, uAlpha); }`,
     });
     this.drops = new THREE.LineSegments(g, mat);
     this.drops.frustumCulled = false; this.drops.visible = false; this.drops.renderOrder = 7;
     game.scene.add(this.drops);
+    // Blitzstrahl (gezackte Linie vom Himmel zum Boden), nur während des Blitzes sichtbar
+    this.boltGeo = new THREE.BufferGeometry(); this.boltGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(40 * 3), 3));
+    this.bolt = new THREE.Line(this.boltGeo, new THREE.LineBasicMaterial({ color: 0xe8f0ff, transparent: true, opacity: 0, toneMapped: false }));
+    this.bolt.frustumCulled = false; this.bolt.renderOrder = 8; game.scene.add(this.bolt);
+  }
+
+  /** Neuen Blitz ein Stück vor der Kamera erzeugen. */
+  makeBolt(camPos, camDir) {
+    const a = Math.atan2(camDir.z, camDir.x) + (Math.random() - 0.5) * 1.2, d = 350 + Math.random() * 700;
+    let x = camPos.x + Math.cos(a) * d, z = camPos.z + Math.sin(a) * d;
+    const g = this.g.world.sample(x, z), top = g + 420, arr = this.boltGeo.attributes.position.array;
+    for (let i = 0; i < 40; i++) {
+      const t = i / 39; x += (Math.random() - 0.5) * 22; z += (Math.random() - 0.5) * 22;
+      arr[i * 3] = x; arr[i * 3 + 1] = top - t * (top - g); arr[i * 3 + 2] = z;
+    }
+    this.boltGeo.attributes.position.needsUpdate = true;
   }
 
   apply(type) {
@@ -63,7 +82,14 @@ class Weather {
     const old = env.scene.environment;
     env.scene.environment = env.pmrem.fromScene(env.envScene, 0.03).texture; old?.dispose?.();
     g.world.setWet(W.wet);
-    this.drops.visible = W.rain > 0;
+    this.drops.visible = W.rain > 0 || W.snow > 0;
+    // Regen: lange bläuliche Striche; Schnee: kurze weiße, langsam fallende Flocken
+    const u = this.rainU;
+    if (W.snow) { u.uVel.value.set(0.6, -1.6, 0.3); u.uLen.value = 0.14; u.uCol.value.setRGB(1, 1, 1); }
+    else { u.uVel.value.set(1.5, -17 * (W.rain > 1 ? 1.2 : 1), 0.8 + (W.rain > 1 ? 3 : 0)); u.uLen.value = 0.75; u.uCol.value.setRGB(0.75, 0.82, 0.9); }
+    g.world.setSnow?.(W.snow || 0);
+    if (g.grass?.mesh) g.grass.mesh.visible = !W.snow && (g.fxLevel || 0) < 1;   // Gras liegt unter dem Schnee
+    g.world.setCloudShadow?.(type === 'clear' ? 0.22 : type === 'cloudy' ? 0.38 : 0);
     if (g.mountains) g.mountains.visible = W.fog > 0.3;
   }
 
@@ -72,7 +98,8 @@ class Weather {
     this.rain = damp(this.rain, W.rain, 1.5, dt);
     const u = this.rainU;
     u.uTime.value += dt; u.uCam.value.copy(camPos);
-    u.uAlpha.value = 0.38 * this.rain;
+    this.snow = damp(this.snow || 0, W.snow || 0, 1.5, dt);
+    u.uAlpha.value = 0.38 * Math.min(1, this.rain) + 0.85 * this.snow;
     // Regengeräusch
     const s = g.sound;
     if (s.ctx && !this.noiseG && s.noiseBuf) {
@@ -90,7 +117,9 @@ class Weather {
     // Blitz und Donner bei Regen
     if (W.rain > 0) {
       if ((this.nextBolt -= dt) <= 0) {
-        this.nextBolt = 9 + Math.random() * 16; this.flash = 1;
+        const B = W.bolts || [9, 25];
+        this.nextBolt = B[0] + Math.random() * (B[1] - B[0]); this.flash = 1;
+        this.makeBolt(camPos, this.g.camera.getWorldDirection(this._cd || (this._cd = new THREE.Vector3())));
         const dist = 0.6 + Math.random() * 3;
         setTimeout(() => this.thunder(1 / dist), dist * 1000);
       }
@@ -98,6 +127,7 @@ class Weather {
       const f = this.flash > 0.5 ? 1 : this.flash > 0.25 ? 0 : this.flash * 3;
       g.env.hemi.intensity = this.baseHemi + f * 2.5;
       g.env.sun.intensity = this.baseSun + f * 1.5;
+      this.bolt.material.opacity = this.flash > 0.25 ? 1 : 0;
     }
   }
 

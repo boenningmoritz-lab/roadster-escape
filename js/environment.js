@@ -227,6 +227,19 @@ class Environment {
     this.sun.target.position.copy(focus);
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 200);
     this.sky.position.copy(camPos);
+    // Mond: helle Scheibe mit Mondmeeren und Lichthof in Richtung des Mondlichts (nur nachts)
+    if (!this.moon) {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d');
+      const hg = c.createRadialGradient(64, 64, 18, 64, 64, 64); hg.addColorStop(0, 'rgba(200,215,255,0.35)'); hg.addColorStop(1, 'rgba(200,215,255,0)');
+      c.fillStyle = hg; c.fillRect(0, 0, 128, 128);
+      c.fillStyle = '#eef1f6'; c.beginPath(); c.arc(64, 64, 20, 0, 6.3); c.fill();
+      c.fillStyle = 'rgba(150,158,172,0.55)'; for (const [x, y, r] of [[58, 58, 6], [70, 66, 5], [62, 72, 3.5], [72, 55, 3]]) { c.beginPath(); c.arc(x, y, r, 0, 6.3); c.fill(); }
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+      this.moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, fog: false, depthWrite: false, transparent: true, toneMapped: false }));
+      this.moon.scale.setScalar(260); this.moon.renderOrder = -0.4; this.scene.add(this.moon);
+    }
+    this.moon.visible = !!this.night;
+    if (this.night) this.moon.position.copy(camPos).addScaledVector(this.sunDir, 3000);
   }
 
   render(camera) {

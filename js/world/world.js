@@ -1182,13 +1182,14 @@ Object.assign(World.prototype, {
     const det = makeDetailTexture();
     void det;
     const GT = makeGroundTextures();
+    this.snowU = { value: 0 }; this.cloudU = { value: 0 }; this.cloudT = { value: 0 };
     this.terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
     // Texturen nach Untergrund mischen (Gras/Waldboden/Fels/Sand), zwei Maßstäbe gegen sichtbare Kachelung
     this.terrainMat.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, { tG: { value: GT.grass }, tD: { value: GT.dirt }, tR: { value: GT.rock }, tS: { value: GT.sand } });
+      Object.assign(sh.uniforms, { tG: { value: GT.grass }, tD: { value: GT.dirt }, tR: { value: GT.rock }, tS: { value: GT.sand }, uSnow: this.snowU, uCloud: this.cloudU, uCT: this.cloudT });
       sh.vertexShader = 'attribute vec4 splat; varying vec4 vSplat; varying vec2 vWXZ; varying float vNY; varying float vHY;\n' + sh.vertexShader
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n vSplat = splat; vWXZ = position.xz; vNY = normal.y; vHY = position.y;');
-      sh.fragmentShader = 'uniform sampler2D tG; uniform sampler2D tD; uniform sampler2D tR; uniform sampler2D tS; varying vec4 vSplat; varying vec2 vWXZ; varying float vNY; varying float vHY;\n' + sh.fragmentShader
+      sh.fragmentShader = 'uniform float uSnow; uniform float uCloud; uniform float uCT; uniform sampler2D tG; uniform sampler2D tD; uniform sampler2D tR; uniform sampler2D tS; varying vec4 vSplat; varying vec2 vWXZ; varying float vNY; varying float vHY;\n' + sh.fragmentShader
         .replace('#include <map_fragment>', `
           vec2 ua = vWXZ / 4.5, ub = vWXZ / 17.0 + 0.37;
           vec4 w = vSplat / max(vSplat.x + vSplat.y + vSplat.z + vSplat.w, 0.001);
@@ -1211,7 +1212,15 @@ Object.assign(World.prototype, {
           // Farbvariation: trockene, gelbliche Wiesenflecken und satte, dunkle Senken
           float dry = smoothstep(0.55, 0.75, mac);
           base *= mix(vec3(1.0), vec3(1.18, 1.08, 0.78), dry * w.x) * mix(1.0, 0.82, smoothstep(0.42, 0.25, mac) * w.x);
-          diffuseColor.rgb *= base;`);
+          diffuseColor.rgb *= base;
+          float snw = uSnow * smoothstep(0.55, 0.85, vNY) * (0.85 + 0.15 * mac);
+          // ziehende Wolkenschatten (großflächig, weich)
+          if (uCloud > 0.001) { vec2 cp = vWXZ / 900.0 + vec2(uCT * 0.006, uCT * 0.0035);
+            float cl = texture2D(tD, cp).r * 0.6 + texture2D(tG, cp * 2.3 + 0.3).g * 0.4;
+            diffuseColor.rgb *= 1.0 - uCloud * smoothstep(0.5, 0.62, cl); }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          // Schnee liegt auf flachen Flächen, Steilhänge bleiben felsig (nach der Vertexfarbe, sonst grün getönt)
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.89, 0.93), snw);`);
     };
     this.chunkCells = 100;
     const cnum = (this.n - 1) / this.chunkCells;
@@ -1912,6 +1921,7 @@ Object.assign(World.prototype, {
     // Wasser bewegt sich
     this.waterNormal.offset.x += dt * 0.006; this.waterNormal.offset.y += dt * 0.004;
     if (this.waterU) this.waterU.uTime.value += dt;
+    if (this.cloudT) this.cloudT.value += dt;
     if ((T.lod -= dt) <= 0) { T.lod = 0.25; this.updateTerrainLod(camera); }
     if ((T.sig -= dt) <= 0) { T.sig = 0.3; this.updateSignals(); }
     this.updateFallers(dt);
@@ -2015,6 +2025,9 @@ Object.assign(World.prototype, {
         .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n normal = normalize(mix(normal, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz), pdl));');
     };
   },
+
+  setSnow(k) { this.snowU.value = k; for (const m of this.wetMats || []) if (k > 0) m.color.setScalar(lerp(1, 1.35, k)); if (this.treeMat) this.treeMat.color.setScalar(lerp(1, 1.5, k)); },
+  setCloudShadow(k) { this.cloudU.value = k; },
 
   setWet(w) {
     this.wet = w;
