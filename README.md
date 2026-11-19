@@ -230,6 +230,9 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Stadt:** Wassertanks auf Stelzen und Antennenmasten auf den Dächern, Leuchtreklamen an den Fassaden (Fantasie-Namen, nachts hell), Bushaltestellen mit Glas-Wartehäuschen und Haltestellenschild, Baustelle mit gelbem Turmdrehkran, Last am Seil und Bauzaun. Nachts verschwinden die Berge im Dunkel.
 - **Wetter neu:** „Gewitter“ (Starkregen mit Wind, Blitze alle 2–7 s mit sichtbarem, gezacktem Blitzstrahl, Donner verzögert nach Entfernung) und „Schnee“ (taumelnde Flocken, Schnee liegt auf flachem Gelände, Hänge bleiben felsig, Gras verschwindet unter der Decke).
 - **Himmel:** Mond mit Mondmeeren und Lichthof bei Nacht; ziehende Wolkenschatten auf dem Gelände bei Sonne/Bewölkung.
+- **Tankstelle** an der Landstraße (Dach auf Stützen, Zapfsäulen, Shop mit Schaufenster, Preismast) und **Parkhaus** am Flugplatz (4 offene Decks, Stützen, Brüstungen, Treppenhaus, geparkte Autos) – beide mit Kollision.
+- **Tageszeit „Ablauf“:** Tag (5 min) → Abend (1,5 min) → Nacht (3 min) → Tag, mit Hinweis.
+- **Talnebel** über dem See: abends rosa, bei Nebel/Regen dichter, am Tag kaum.
 - **See:** Wassertiefe aus dem Höhenfeld → klares, türkises Flachwasser am Ufer, dunkel in der Tiefe; zweite gegenläufige Wellenlage, pulsierender Uferschaum, Tropfenringe bei Regen.
 
 ## Code-Aufbau

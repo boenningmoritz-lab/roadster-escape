@@ -124,7 +124,11 @@ class Game {
       this.env.sun.shadow.mapSize.set(this.q.shadowSize, this.q.shadowSize);
       this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null;
     }
-    if (s.timeOfDay !== this.timeOfDay || s.weather !== this.weather.type) this.setTimeOfDay(s.timeOfDay);
+    // „Ablauf“: Tageszeit läuft von selbst (Tag → Abend → Nacht → Tag, je Phase einige Minuten)
+    this.todCycle = s.timeOfDay === 'cycle';
+    const tod = this.todCycle ? (this.timeOfDay && this.timeOfDay !== 'cycle' ? this.timeOfDay : 'day') : s.timeOfDay;
+    if (tod !== this.timeOfDay || s.weather !== this.weather.type) this.setTimeOfDay(tod);
+    this.todT = 0;
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
     this.resize();
   }
@@ -360,6 +364,11 @@ class Game {
     this.grass.update(dt, this.camera.position);
     this.scenery.update(this.camera.position);
     this.weather.update(dt, this.camera.position, v);
+    if (this.todCycle && !this.paused && (this.todT = (this.todT || 0) + dt) > ({ day: 300, dusk: 90, night: 180 })[this.timeOfDay]) {
+      this.todT = 0; this.setTimeOfDay({ day: 'dusk', dusk: 'night', night: 'day' }[this.timeOfDay]);
+      toast({ day: 'Ein neuer Tag beginnt', dusk: 'Die Sonne geht unter', night: 'Es wird Nacht' }[this.timeOfDay], 1800);
+      this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+    }
     if (this.world.waterU) this.world.waterU.uRain.value = this.weather.rain;   // Tropfenringe auf dem See
     this.car.setBeamHaze(1 + this.weather.rain * 2.5 + (this.weather.type === 'fog' ? 3.5 : 0) + (this.weather.type === 'cloudy' ? 0.5 : 0));
     if (this.flare) {

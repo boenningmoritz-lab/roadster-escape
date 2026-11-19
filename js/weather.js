@@ -88,6 +88,8 @@ class Weather {
     if (W.snow) { u.uVel.value.set(0.6, -1.6, 0.3); u.uLen.value = 0.14; u.uCol.value.setRGB(1, 1, 1); }
     else { u.uVel.value.set(1.5, -17 * (W.rain > 1 ? 1.2 : 1), 0.8 + (W.rain > 1 ? 3 : 0)); u.uLen.value = 0.75; u.uCol.value.setRGB(0.75, 0.82, 0.9); }
     g.world.setSnow?.(W.snow || 0);
+    // Talnebel: morgens/abends und bei Nebel sichtbar über dem See, am Tag bei Sonne kaum
+    if (g.world.valleyFogMat) { const vf = g.world.valleyFogMat; vf.opacity = type === 'fog' ? 0.85 : g.timeOfDay === 'dusk' ? 0.7 : g.timeOfDay === 'night' ? 0.25 : type === 'rain' || type === 'storm' ? 0.5 : 0.2; vf.color.set(g.timeOfDay === 'dusk' ? 0xffd2b8 : g.timeOfDay === 'night' ? 0x3a4660 : 0xe8eef4); }
     if (g.grass?.mesh) g.grass.mesh.visible = !W.snow && (g.fxLevel || 0) < 1;   // Gras liegt unter dem Schnee
     g.world.setCloudShadow?.(type === 'clear' ? 0.22 : type === 'cloudy' ? 0.38 : 0);
     if (g.mountains) g.mountains.visible = W.fog > 0.3;

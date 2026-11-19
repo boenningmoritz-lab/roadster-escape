@@ -399,7 +399,7 @@
     <div class="row"><div>Polizei-Modus<small>Start/Stopp mit 🚨. Normal 2, Schwer 4, Extrem 6 + Hubschrauber, Insane 10 Wagen</small></div>
       <div class="seg" data-key="policeLevel"><button data-v="easy">Leicht</button><button data-v="normal">Normal</button><button data-v="hard">Schwer</button><button data-v="extreme">Extrem</button><button data-v="insane">Insane</button></div></div>
     <div class="row"><div>Tageszeit<small>Nachts: Scheinwerfer, Laternen, beleuchtete Fenster</small></div>
-      <div class="seg" data-key="timeOfDay"><button data-v="day">Tag</button><button data-v="dusk">Abend</button><button data-v="night">Nacht</button></div></div>
+      <div class="seg" data-key="timeOfDay"><button data-v="day">Tag</button><button data-v="dusk">Abend</button><button data-v="night">Nacht</button><button data-v="cycle">Ablauf</button></div></div>
     <div class="row"><div>Wetter<small>Regen: nasse, spiegelnde Straßen und weniger Grip</small></div>
       <div class="seg" data-key="weather"><button data-v="clear">Sonnig</button><button data-v="cloudy">Bewölkt</button><button data-v="rain">Regen</button><button data-v="fog">Nebel</button><button data-v="storm">Gewitter</button><button data-v="snow">Schnee</button></div></div>
     <div class="row"><div>Lenkung<small>Neigen: Gerät wie ein Lenkrad drehen</small></div>
@@ -3030,6 +3030,72 @@ Object.assign(World.prototype, {
         const crane = new THREE.Mesh(mergeParts(parts), metal); crane.position.set(kx, C.h, kz); crane.castShadow = true; this.group.add(crane);
         this.craneRig = crane;
       }
+    }
+
+    // ---------- Tankstelle an der Landstraße und Parkhaus am Flugplatz ----------
+    {
+      const metal2 = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.3 });
+      const addSolid = (x0, x1, z0, z1, y0, h) => { const b = { x0, x1, z0, z1, y0, top: y0 + h, h, kind: 9, tint: 0 }; this.buildings.push(b); this.buildingHash.insert(x0, z0, x1, z1, b); };
+      // Tankstelle: flachen Platz neben einer Landstraße suchen
+      const ce = this.edges.filter((e) => e.cls === 'country' && e.len > 300);
+      let placed = false;
+      for (const e of ce) {
+        for (let sAt = 80; sAt < e.len - 80 && !placed; sAt += 60) {
+          const p0 = this.pointOnEdge(e, sAt), rx = -p0.tz, rz = p0.tx, off = 22;
+          const cx = p0.x + rx * off, cz = p0.z + rz * off, y = this.sample(cx, cz);
+          let flat = true; for (const [dx, dz] of [[12, 12], [-12, 12], [12, -12], [-12, -12]]) if (Math.abs(this.sample(cx + dx, cz + dz) - y) > 1.5 || this.sample(cx + dx, cz + dz) < this.waterLevel + 1) flat = false;
+          if (!flat || this.buildingHash.at(cx, cz).length) continue;
+          const yaw = Math.atan2(p0.tx, p0.tz), red = [0.75, 0.1, 0.1], wht = [0.93, 0.93, 0.92], grey = [0.35, 0.36, 0.38];
+          const parts = [
+            { geo: new THREE.BoxGeometry(18, 0.12, 22).translate(0, 0.06, 0), color: [0.42, 0.42, 0.42] },          // Betonplatte
+            { geo: new THREE.BoxGeometry(16, 0.8, 11).translate(0, 5.6, -2), color: wht },                          // Dach
+            { geo: new THREE.BoxGeometry(16.1, 0.35, 11.1).translate(0, 5.2, -2), color: red },                     // Dachkante rot
+            ...[[-6, -6], [6, -6], [-6, 2], [6, 2]].map(([px, pz]) => ({ geo: new THREE.BoxGeometry(0.45, 5.2, 0.45).translate(px, 2.6, pz), color: wht })),
+            ...[-3, 3].map((px) => ({ geo: new THREE.BoxGeometry(0.9, 1.7, 0.6).translate(px, 0.85, -2), color: red })),   // Zapfsäulen
+            ...[-3, 3].map((px) => ({ geo: new THREE.BoxGeometry(0.7, 0.4, 0.62).translate(px, 1.35, -2), color: [0.1, 0.12, 0.14] })),
+            { geo: new THREE.BoxGeometry(12, 3.8, 6).translate(0, 1.9, 7.5), color: wht },                          // Shop
+            { geo: new THREE.BoxGeometry(11, 2.2, 0.1).translate(0, 1.6, 4.45), color: [0.18, 0.26, 0.32] },        // Schaufenster
+            { geo: new THREE.BoxGeometry(12.1, 0.6, 6.1).translate(0, 3.6, 7.5), color: red },
+            { geo: new THREE.BoxGeometry(0.3, 8, 0.3).translate(8.5, 4, -9), color: grey },                         // Preismast
+            { geo: new THREE.BoxGeometry(2.4, 3.2, 0.3).translate(8.5, 8.5, -9), color: red },
+            { geo: new THREE.BoxGeometry(2.1, 2.2, 0.32).translate(8.5, 8.2, -9), color: wht },
+          ];
+          const st = new THREE.Mesh(mergeParts(parts), metal2);
+          st.position.set(cx, y, cz); st.rotation.y = yaw; st.castShadow = true; st.receiveShadow = true; this.group.add(st);
+          // Kollision für den Shop (achsparallel genähert)
+          const sx = cx + Math.sin(yaw) * 7.5, sz = cz + Math.cos(yaw) * 7.5;
+          addSolid(sx - 6, sx + 6, sz - 6, sz + 6, y, 3.8);
+          this.gasStation = { x: cx, z: cz }; placed = true;
+        }
+        if (placed) break;
+      }
+      // Parkhaus: offene Decks mit Stützen, Rampe, Brüstungen und geparkten Autos-Silhouetten
+      const A = WORLD.air, px = A.cx - 260, pz = A.cz - A.hz - 70, py = A.h, W2 = 40, D2 = 30, decks = 4, dh = 3.2;
+      const pp = [];
+      for (let k = 0; k <= decks; k++) {
+        pp.push({ geo: new THREE.BoxGeometry(W2, 0.35, D2).translate(0, k * dh + 0.15, 0), color: [0.62, 0.62, 0.6] });
+        if (k > 0) for (const [ox, oz, w, d] of [[0, D2 / 2, W2, 0.25], [0, -D2 / 2, W2, 0.25], [W2 / 2, 0, 0.25, D2], [-W2 / 2, 0, 0.25, D2]])
+          pp.push({ geo: new THREE.BoxGeometry(w, 1.0, d).translate(ox, k * dh + 0.8, oz), color: [0.72, 0.72, 0.7] });
+      }
+      for (let ix = -2; ix <= 2; ix++) for (const iz of [-1, 1]) pp.push({ geo: new THREE.BoxGeometry(0.6, decks * dh, 0.6).translate(ix * 9.5, decks * dh / 2, iz * 13), color: [0.6, 0.6, 0.58] });
+      pp.push({ geo: new THREE.BoxGeometry(6, decks * dh + 3, 6).translate(-W2 / 2 - 3, (decks * dh + 3) / 2, -D2 / 2 + 3), color: [0.3, 0.45, 0.6] });   // Treppenhaus
+      pp.push({ geo: new THREE.BoxGeometry(5, 2, 0.3).translate(-W2 / 2 - 3, decks * dh + 4, -D2 / 2 + 0.1), color: [0.1, 0.25, 0.65] });     // „P“-Schild
+      const cols = [[0.7, 0.1, 0.1], [0.15, 0.2, 0.4], [0.85, 0.85, 0.85], [0.1, 0.1, 0.1], [0.5, 0.52, 0.55]];
+      for (let k = 0; k < decks; k++) for (let j = 0; j < 8; j++) if ((k * 8 + j) % 3) pp.push({ geo: new THREE.BoxGeometry(1.9, 1.3, 4.4).translate(-15 + j * 4.3, k * dh + 0.95, (j % 2 ? 1 : -1) * 8), color: cols[(k + j) % cols.length] });
+      const ph = new THREE.Mesh(mergeParts(pp), metal2); ph.position.set(px, py, pz); ph.castShadow = true; ph.receiveShadow = true; this.group.add(ph);
+      addSolid(px - W2 / 2 - 6, px + W2 / 2, pz - D2 / 2, pz + D2 / 2, py, decks * dh + 1);
+      // Talnebel über dem See und in Senken (weiche, flache Schichten) – Sichtbarkeit steuert das Wetter
+      const ft = radialTexture('rgba(255,255,255,0.9)', 'rgba(255,255,255,0)');
+      this.valleyFogMat = new THREE.MeshBasicMaterial({ map: ft, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, fog: false });
+      this.valleyFog = new THREE.Group();
+      const L2 = WORLD.lake, rngF = mulberry32(4242);
+      for (let k = 0; k < 28; k++) {
+        const a = rngF() * Math.PI * 2, r = Math.sqrt(rngF()) * L2.r * 1.05, size = 160 + rngF() * 200;
+        const fm = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), this.valleyFogMat);
+        fm.position.set(L2.cx + Math.cos(a) * r, this.waterLevel + 3 + rngF() * 7, L2.cz + Math.sin(a) * r); fm.renderOrder = 3;
+        this.valleyFog.add(fm);
+      }
+      this.group.add(this.valleyFog);
     }
 
     // Markisen über Ladenzeilen und Balkone an Wohnhäusern
@@ -7906,6 +7972,8 @@ class Weather {
     if (W.snow) { u.uVel.value.set(0.6, -1.6, 0.3); u.uLen.value = 0.14; u.uCol.value.setRGB(1, 1, 1); }
     else { u.uVel.value.set(1.5, -17 * (W.rain > 1 ? 1.2 : 1), 0.8 + (W.rain > 1 ? 3 : 0)); u.uLen.value = 0.75; u.uCol.value.setRGB(0.75, 0.82, 0.9); }
     g.world.setSnow?.(W.snow || 0);
+    // Talnebel: morgens/abends und bei Nebel sichtbar über dem See, am Tag bei Sonne kaum
+    if (g.world.valleyFogMat) { const vf = g.world.valleyFogMat; vf.opacity = type === 'fog' ? 0.85 : g.timeOfDay === 'dusk' ? 0.7 : g.timeOfDay === 'night' ? 0.25 : type === 'rain' || type === 'storm' ? 0.5 : 0.2; vf.color.set(g.timeOfDay === 'dusk' ? 0xffd2b8 : g.timeOfDay === 'night' ? 0x3a4660 : 0xe8eef4); }
     if (g.grass?.mesh) g.grass.mesh.visible = !W.snow && (g.fxLevel || 0) < 1;   // Gras liegt unter dem Schnee
     g.world.setCloudShadow?.(type === 'clear' ? 0.22 : type === 'cloudy' ? 0.38 : 0);
     if (g.mountains) g.mountains.visible = W.fog > 0.3;
@@ -8568,7 +8636,11 @@ class Game {
       this.env.sun.shadow.mapSize.set(this.q.shadowSize, this.q.shadowSize);
       this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null;
     }
-    if (s.timeOfDay !== this.timeOfDay || s.weather !== this.weather.type) this.setTimeOfDay(s.timeOfDay);
+    // „Ablauf“: Tageszeit läuft von selbst (Tag → Abend → Nacht → Tag, je Phase einige Minuten)
+    this.todCycle = s.timeOfDay === 'cycle';
+    const tod = this.todCycle ? (this.timeOfDay && this.timeOfDay !== 'cycle' ? this.timeOfDay : 'day') : s.timeOfDay;
+    if (tod !== this.timeOfDay || s.weather !== this.weather.type) this.setTimeOfDay(tod);
+    this.todT = 0;
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
     this.resize();
   }
@@ -8804,6 +8876,11 @@ class Game {
     this.grass.update(dt, this.camera.position);
     this.scenery.update(this.camera.position);
     this.weather.update(dt, this.camera.position, v);
+    if (this.todCycle && !this.paused && (this.todT = (this.todT || 0) + dt) > ({ day: 300, dusk: 90, night: 180 })[this.timeOfDay]) {
+      this.todT = 0; this.setTimeOfDay({ day: 'dusk', dusk: 'night', night: 'day' }[this.timeOfDay]);
+      toast({ day: 'Ein neuer Tag beginnt', dusk: 'Die Sonne geht unter', night: 'Es wird Nacht' }[this.timeOfDay], 1800);
+      this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+    }
     if (this.world.waterU) this.world.waterU.uRain.value = this.weather.rain;   // Tropfenringe auf dem See
     this.car.setBeamHaze(1 + this.weather.rain * 2.5 + (this.weather.type === 'fog' ? 3.5 : 0) + (this.weather.type === 'cloudy' ? 0.5 : 0));
     if (this.flare) {
