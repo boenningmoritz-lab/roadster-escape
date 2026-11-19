@@ -1596,6 +1596,83 @@ Object.assign(World.prototype, {
     units.forEach(([x, y, z, w, h, d], i) => { m.makeScale(w, h, d).setPosition(x, y, z); um.setMatrixAt(i, m); });
     um.castShadow = true; this.group.add(um);
 
+    // ---------- Dachlandschaft, Leuchtreklame, Haltestellen, Baustelle ----------
+    {
+      const rng3 = mulberry32(9090), tanks = [], ants = [], signs = [], stops = [];
+      for (const b of this.buildings) {
+        const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+        if (b.kind === 1 && rng3() < 0.45) tanks.push([lerp(b.x0 + 3, b.x1 - 3, rng3()), b.top, lerp(b.z0 + 3, b.z1 - 3, rng3())]);      // Wassertank auf Stelzen
+        if (b.h > 30 && rng3() < 0.6) ants.push([cx + (rng3() - 0.5) * 4, b.top, cz + (rng3() - 0.5) * 4, 6 + rng3() * 12]);            // Antennenmast
+        if (b.y0 === C.h && b.kind !== 2 && rng3() < 0.35) {                                                                           // Leuchtreklame an der Fassade
+          const side = Math.floor(rng3() * 4), nx = [0, 0, -1, 1][side], nz = [-1, 1, 0, 0][side];
+          const fx = nx ? (nx < 0 ? b.x0 : b.x1) : cx, fz = nz ? (nz < 0 ? b.z0 : b.z1) : cz;
+          signs.push({ x: fx + nx * 0.35, z: fz + nz * 0.35, y: C.h + 5.5 + rng3() * Math.min(12, b.h - 8), yaw: Math.atan2(nx, nz), w: 3 + rng3() * 4, k: Math.floor(rng3() * 6) });
+        }
+      }
+      for (const e of this.edges) if (e.cls === 'city' && rng3() < 0.4) {
+        const pnt = this.pointOnEdge(e, e.len * 0.5), sd = rng3() < 0.5 ? -1 : 1;
+        stops.push([pnt.x - pnt.tz * sd * (C.streetHalf + 2.2), pnt.z + pnt.tx * sd * (C.streetHalf + 2.2), Math.atan2(-pnt.tz * sd, pnt.tx * sd)]);
+      }
+      const mk = (geo, mat, list, fn) => { const im = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)); list.forEach((it, i) => { fn(it); im.setMatrixAt(i, m); }); im.count = list.length; im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; this.group.add(im); return im; };
+      const metal = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.4 });
+      const tankGeo = mergeParts([
+        { geo: new THREE.CylinderGeometry(1.6, 1.6, 3, 14).translate(0, 4.3, 0), color: [0.42, 0.33, 0.25] },
+        { geo: new THREE.ConeGeometry(1.75, 0.9, 14).translate(0, 6.25, 0), color: [0.3, 0.27, 0.24] },
+        ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a2, b2]) => ({ geo: new THREE.CylinderGeometry(0.08, 0.08, 2.8, 6).translate(a2 * 1.1, 1.4, b2 * 1.1), color: [0.2, 0.2, 0.22] })),
+      ]);
+      mk(tankGeo, metal, tanks, (t) => m.makeTranslation(t[0], t[1], t[2]));
+      const antGeo = mergeParts([
+        { geo: new THREE.CylinderGeometry(0.06, 0.12, 1, 6).translate(0, 0.5, 0), color: [0.55, 0.56, 0.58] },
+        { geo: new THREE.BoxGeometry(1.6, 0.04, 0.04).translate(0, 0.75, 0), color: [0.55, 0.56, 0.58] },
+        { geo: new THREE.BoxGeometry(1.0, 0.04, 0.04).translate(0, 0.88, 0), color: [0.55, 0.56, 0.58] },
+      ]);
+      mk(antGeo, metal, ants, (a2) => m.makeScale(1, a2[3], 1).setPosition(a2[0], a2[1], a2[2]));
+      // Leuchtreklame: farbige, nachts leuchtende Tafeln (Fantasie-Schriftzüge)
+      const signTex = (() => {
+        const cv = document.createElement('canvas'); cv.width = 512; cv.height = 384; const c = cv.getContext('2d');
+        const names = [['NOVA', '#ff3b6b'], ['CAFÉ LUNA', '#ffd24a'], ['HOTEL', '#4af0ff'], ['APOTHEKE', '#3dff7a'], ['PIZZA', '#ff8a2b'], ['KINO', '#c96bff']];
+        names.forEach(([t, col], i) => { const y = i * 64; c.fillStyle = '#0b0d12'; c.fillRect(0, y, 512, 64); c.strokeStyle = col; c.lineWidth = 4; c.strokeRect(6, y + 6, 500, 52);
+          c.fillStyle = col; c.font = 'bold 40px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, 256, y + 34); });
+        const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+      })();
+      this.signMat = new THREE.MeshStandardMaterial({ map: signTex, emissiveMap: signTex, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.5 });
+      const signGeo = new THREE.PlaneGeometry(1, 1);
+      const sm = new THREE.InstancedMesh(signGeo, this.signMat, Math.max(1, signs.length));
+      const sq = new THREE.Quaternion(), sv = new THREE.Vector3(), ss = new THREE.Vector3();
+      signs.forEach((g2, i) => { sq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), g2.yaw); m.compose(sv.set(g2.x, g2.y, g2.z), sq, ss.set(g2.w, g2.w / 8 * 1.0, 1)); sm.setMatrixAt(i, m); });
+      // Textur-Zeile je Schild: UV-Offset über Instanz-Attribut
+      const rowA = new Float32Array(Math.max(1, signs.length)); signs.forEach((g2, i) => { rowA[i] = g2.k; });
+      signGeo.setAttribute('row', new THREE.InstancedBufferAttribute(rowA, 1));
+      this.signMat.onBeforeCompile = (sh) => { sh.vertexShader = 'attribute float row;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n vMapUv = vec2(vMapUv.x, (5.0 - row + vMapUv.y) / 6.0); vEmissiveMapUv = vMapUv;'); };
+      sm.count = signs.length; sm.frustumCulled = false; this.group.add(sm);
+      // Bushaltestelle: Wartehäuschen aus Glas mit Dach und Werbevitrine
+      const stopGeo = mergeParts([
+        { geo: new THREE.BoxGeometry(3.6, 0.08, 1.5).translate(0, 2.5, 0), color: [0.25, 0.27, 0.3] },
+        { geo: new THREE.BoxGeometry(3.6, 2.3, 0.05).translate(0, 1.25, -0.7), color: [0.55, 0.65, 0.7] },
+        { geo: new THREE.BoxGeometry(0.05, 2.3, 1.4).translate(1.78, 1.25, 0), color: [0.95, 0.9, 0.75] },
+        { geo: new THREE.BoxGeometry(0.08, 2.5, 0.08).translate(-1.75, 1.25, 0.68), color: [0.25, 0.27, 0.3] },
+        { geo: new THREE.BoxGeometry(2.4, 0.08, 0.4).translate(-0.3, 0.5, -0.45), color: [0.4, 0.3, 0.2] },
+        { geo: new THREE.CylinderGeometry(0.05, 0.05, 2.9, 6).translate(2.3, 1.45, 0.6), color: [0.3, 0.3, 0.32] },
+        { geo: new THREE.CylinderGeometry(0.28, 0.28, 0.04, 16).rotateX(Math.PI / 2).translate(2.3, 2.75, 0.6), color: [0.95, 0.8, 0.1] },
+      ]);
+      mk(stopGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.3, transparent: true, opacity: 0.92 }), stops, (st) => m.makeRotationY(st[2]).setPosition(st[0], C.h + 0.12, st[1]));
+      // Baustelle mit Turmdrehkran (in einem freien Park-/Baublock)
+      const site = this.blocks.find((b) => b.park) || this.blocks[3];
+      if (site) {
+        const kx = (site.x0 + site.x1) / 2, kz = (site.z0 + site.z1) / 2, yel = [0.95, 0.72, 0.08];
+        const parts = [];
+        for (let k = 0; k < 14; k++) parts.push({ geo: new THREE.BoxGeometry(1.6, 4, 1.6).translate(0, 2 + k * 4, 0), color: yel });
+        parts.push({ geo: new THREE.BoxGeometry(48, 1.4, 1.4).translate(14, 57, 0), color: yel });
+        parts.push({ geo: new THREE.BoxGeometry(6, 3, 2.4).translate(-9, 55.5, 0), color: [0.6, 0.6, 0.62] });              // Gegengewicht
+        parts.push({ geo: new THREE.BoxGeometry(3, 2.5, 2.4).translate(0, 54.5, 0), color: [0.85, 0.85, 0.8] });            // Führerhaus
+        parts.push({ geo: new THREE.CylinderGeometry(0.04, 0.04, 30, 4).translate(30, 41.5, 0), color: [0.1, 0.1, 0.1] }); // Seil
+        parts.push({ geo: new THREE.BoxGeometry(3, 1.2, 1.2).translate(30, 26, 0), color: [0.45, 0.45, 0.47] });         // Last
+        parts.push({ geo: new THREE.BoxGeometry(site.x1 - site.x0 - 6, 2, 0.15).translate(0, 1, (site.z1 - site.z0) / 2 - 3), color: [0.85, 0.85, 0.85] });  // Bauzaun
+        const crane = new THREE.Mesh(mergeParts(parts), metal); crane.position.set(kx, C.h, kz); crane.castShadow = true; this.group.add(crane);
+        this.craneRig = crane;
+      }
+    }
+
     // Markisen über Ladenzeilen und Balkone an Wohnhäusern
     {
       const rng2 = mulberry32(4711), awn = [], bal = [];
@@ -1949,6 +2026,7 @@ Object.assign(World.prototype, {
   setNight(on) {
     this.night = on;
     this.windowGlow.value = on ? 1.1 : 0;
+    if (this.signMat) this.signMat.emissiveIntensity = on ? 2.4 : 0.25;
     this.halos.visible = on;
     this.bulbMat.color.set(on ? 0xffd9a6 : 0x6a655c);
     if (on) this.bulbMat.color.multiplyScalar(4);
