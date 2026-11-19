@@ -226,6 +226,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Stadt bei Nacht:** Laternen werfen sichtbare, warme Lichtkegel auf Straße, Gehweg und Wiese (vorher wurden die Lichtflecken wegen falscher Hüllkugel nie gezeichnet).
 - **Regen:** Pfützen auf Straßen (in Weltkoordinaten verteilt, füllen sich mit der Nässe) – dort spiegelglatt und dunkel; nasse Fahrbahn dunkler und stärker spiegelnd.
 - **Fernkulisse:** zwei echte Gebirgsketten statt einer flachen Silhouette – bewaldete Vorberge und dahinter zerklüftetes Hochgebirge mit Schneegipfeln, Grate durch Licht sichtbar, bläulicher Dunst (Luftperspektive), Abendrot.
+- **Wald:** Unterholz aus Farnen (fächerförmige Wedel) und bemoosten, umgestürzten Stämmen; Mischwald mit hell-, satt- und gelbgrünen Laubbäumen, vereinzelt Herbstlaub, blaugrünen bis dunklen Nadelbäumen.
 - **See:** Wassertiefe aus dem Höhenfeld → klares, türkises Flachwasser am Ufer, dunkel in der Tiefe; zweite gegenläufige Wellenlage, pulsierender Uferschaum, Tropfenringe bei Regen.
 
 ## Code-Aufbau

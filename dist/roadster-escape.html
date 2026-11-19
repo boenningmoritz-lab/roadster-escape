@@ -3132,7 +3132,18 @@ Object.assign(World.prototype, {
       q.setFromAxisAngle(up, T.r[i]); p.set(T.x[i], T.y[i], T.z[i]); s.set(sc, sc * (0.9 + (T.c[i] - 0.82) * 0.7), sc);
       m.compose(p, q, s); m.toArray(this.treeM, i * 16);
       const c = T.c[i];
-      this.treeC[i * 3] = c * (T.t[i] ? 1.02 : 0.95); this.treeC[i * 3 + 1] = c; this.treeC[i * 3 + 2] = c * 0.9;
+      // Mischwald: Laubbäume in mehreren Grüntönen (Buche hell, Eiche dunkel, Birke gelbgrün), vereinzelt erstes Herbstlaub;
+      // Nadelbäume blaugrün bis dunkel. Kleine Ortsabhängigkeit, damit Bestände zusammengehören.
+      { const hsh = Math.abs(Math.sin(T.x[i] * 12.9898 + T.z[i] * 78.233) * 43758.5453) % 1, patch = Math.sin(T.x[i] * 0.013) * Math.cos(T.z[i] * 0.011) * 0.5 + 0.5;
+        let r = c, g = c, b = c * 0.9;
+        if (T.t[i]) {
+          const k = (hsh + patch * 0.5) % 1;
+          if (k < 0.3) { r *= 1.08; g *= 1.12; b *= 0.75; }          // hellgrün (Buche/Birke)
+          else if (k < 0.75) { r *= 0.9; g *= 0.95; b *= 0.85; }     // sattgrün (Eiche)
+          else if (k < 0.92) { r *= 1.15; g *= 1.08; b *= 0.6; }     // gelbgrün
+          else { r *= 1.5; g *= 0.95; b *= 0.5; }                    // erste Herbstfärbung
+        } else { r *= 0.85 + hsh * 0.15; g *= 0.95 + hsh * 0.1; b *= 0.95 + patch * 0.15; }
+        this.treeC[i * 3] = r; this.treeC[i * 3 + 1] = g; this.treeC[i * 3 + 2] = b; }
       const ci = clamp(Math.floor((T.x[i] + this.half) / CS), 0, cn - 1), cj = clamp(Math.floor((T.z[i] + this.half) / CS), 0, cn - 1);
       const ch = this.treeChunks[cj * cn + ci];
       ch.lists[T.t[i]].push(i);
@@ -7894,6 +7905,29 @@ class Scenery {
       im.castShadow = q.shadows; im.receiveShadow = true; scene.add(im);
     }
     this.bushes.setColorAt(0, new THREE.Color(1, 1, 1));
+    // Unterholz im Wald: Farne (fächerförmige Wedel) und umgestürzte, bemooste Stämme
+    {
+      const S = 256, cv = document.createElement('canvas'); cv.width = 64; cv.height = S; const c = cv.getContext('2d');
+      c.strokeStyle = '#3f5f22'; c.lineWidth = 2; c.beginPath(); c.moveTo(32, S); c.lineTo(32, 6); c.stroke();
+      for (let y = 12; y < S - 6; y += 7) {                     // Fiederblättchen links/rechts, nach oben kürzer
+        const L = 26 * (1 - y / S) ** 0.3 * Math.min(1, (S - y) / 30), g = 70 + (y / S) * 40;
+        c.fillStyle = `rgb(${40 + y / S * 30},${g + 30},${30})`;
+        for (const sd of [-1, 1]) { c.beginPath(); c.ellipse(32 + sd * L / 2, y, L / 2, 3, sd * -0.35, 0, 6.3); c.fill(); }
+      }
+      const ft = new THREE.CanvasTexture(cv); ft.colorSpace = THREE.SRGBColorSpace;
+      const fparts = [];
+      for (let k = 0; k < 7; k++) {
+        const g = new THREE.PlaneGeometry(0.32, 1.1).translate(0, 0.55, 0).rotateX(-0.9 - rng() * 0.35).rotateY(k / 7 * Math.PI * 2 + rng() * 0.3);
+        fparts.push(g.toNonIndexed());
+      }
+      const fg = new THREE.BufferGeometry(); const cnt = fparts.reduce((a2, g2) => a2 + g2.attributes.position.count, 0);
+      for (const key of ['position', 'normal', 'uv']) { const sz = key === 'uv' ? 2 : 3, arr = new Float32Array(cnt * sz); let o = 0; for (const g2 of fparts) { arr.set(g2.attributes[key].array, o); o += g2.attributes[key].array.length; } fg.setAttribute(key, new THREE.BufferAttribute(arr, sz)); }
+      { const n = fg.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, n.getX(i) * 0.3, 0.95, n.getZ(i) * 0.3); }
+      this.ferns = new THREE.InstancedMesh(fg, new THREE.MeshStandardMaterial({ map: ft, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.85 }), this.cap);
+      const log = gradientColors(new THREE.CylinderGeometry(0.22, 0.28, 5, 9, 1).rotateZ(Math.PI / 2), [0.22, 0.17, 0.12], [0.3, 0.36, 0.18], -0.25, 0.3);
+      this.logs = new THREE.InstancedMesh(mergeParts([{ geo: log }]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }), Math.max(1, Math.round(this.cap / 6)));
+      for (const im of [this.ferns, this.logs]) { im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.count = 0; im.frustumCulled = false; im.castShadow = q.shadows; im.receiveShadow = true; scene.add(im); }
+    }
     this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._p = new THREE.Vector3(); this._s = new THREE.Vector3(); this._e = new THREE.Euler(); this._c = new THREE.Color();
   }
 
@@ -7901,10 +7935,10 @@ class Scenery {
     if (!this.cap || cam.distanceToSquared(this.last) < 400) return;
     this.last.copy(cam);
     const w = this.w, C = this.cell, R = this.R, C0 = WORLD_CITY_BOUNDS(w);
-    let nr = 0, nb = 0;
+    let nr = 0, nb = 0, nf = 0, nl = 0;
     for (let j = Math.floor((cam.z - R) / C); j <= Math.floor((cam.z + R) / C); j++) {
       for (let i = Math.floor((cam.x - R) / C); i <= Math.floor((cam.x + R) / C); i++) {
-        if (nr + nb >= this.cap * 2 - 2) break;
+        if (nr + nb >= this.cap * 2 - 2 && nf >= this.cap) break;
         const h1 = hash2(i, j, 301) * 0.5 + 0.5, h2 = hash2(i, j, 302) * 0.5 + 0.5, h3 = hash2(i, j, 303) * 0.5 + 0.5;
         const x = (i + h1) * C, z = (j + h2) * C;
         if (Math.hypot(x - cam.x, z - cam.z) > R) continue;
@@ -7916,7 +7950,24 @@ class Scenery {
         const y = w.sample(x, z);
         if (y < w.waterLevel + 0.5) continue;
         const pRock = su === 4 ? 0.45 : su === 2 ? 0.1 : su === 3 ? 0.04 : 0.03;
-        const pBush = su === 2 ? 0.28 : su === 0 ? 0.07 : 0;
+        const pBush = su === 2 ? 0.34 : su === 0 ? 0.07 : 0;
+        // Wald: zusätzlich Farne (dicht) und gelegentlich ein umgestürzter Stamm
+        if (su === 2) {
+          const f1 = hash2(i, j, 304) * 0.5 + 0.5, f2 = hash2(i, j, 305) * 0.5 + 0.5;
+          if (f1 < 0.7 && nf < this.ferns.count + this.cap && nf < this.cap) {
+            for (let k = 0; k < 2 && nf < this.cap; k++) {
+              const fx = x + (f2 - 0.5) * 5 + k * 1.7, fz = z + (f1 - 0.5) * 5 - k * 1.3, fs = 0.7 + ((f1 * 7 + k) % 1) * 0.7;
+              this._e.set(0, f2 * 6.28 + k, 0);
+              this._m.compose(this._p.set(fx, w.sample(fx, fz) - 0.05, fz), this._q.setFromEuler(this._e), this._s.set(fs, fs, fs));
+              this.ferns.setMatrixAt(nf++, this._m);
+            }
+          }
+          if (f2 > 0.93 && nl < this.logs.instanceMatrix.count) {
+            this._e.set(0, f1 * 6.28, (f2 - 0.95) * 2);
+            this._m.compose(this._p.set(x, y + 0.15, z), this._q.setFromEuler(this._e), this._s.set(0.8 + f1 * 0.6, 1, 1));
+            this.logs.setMatrixAt(nl++, this._m);
+          }
+        }
         if (h3 < pRock && nr < this.cap) {
           const s = 0.35 + h2 * h2 * 1.8;
           this._e.set(h1 * 0.6, h2 * 6.28, h3 * 0.4);
@@ -7931,7 +7982,8 @@ class Scenery {
         }
       }
     }
-    this.rocks.count = nr; this.bushes.count = nb;
+    this.rocks.count = nr; this.bushes.count = nb; this.ferns.count = nf; this.logs.count = nl;
+    this.ferns.instanceMatrix.needsUpdate = true; this.logs.instanceMatrix.needsUpdate = true;
     this.rocks.instanceMatrix.needsUpdate = true; this.bushes.instanceMatrix.needsUpdate = true;
     if (this.bushes.instanceColor) this.bushes.instanceColor.needsUpdate = true;
   }

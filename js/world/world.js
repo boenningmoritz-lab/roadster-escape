@@ -1795,7 +1795,18 @@ Object.assign(World.prototype, {
       q.setFromAxisAngle(up, T.r[i]); p.set(T.x[i], T.y[i], T.z[i]); s.set(sc, sc * (0.9 + (T.c[i] - 0.82) * 0.7), sc);
       m.compose(p, q, s); m.toArray(this.treeM, i * 16);
       const c = T.c[i];
-      this.treeC[i * 3] = c * (T.t[i] ? 1.02 : 0.95); this.treeC[i * 3 + 1] = c; this.treeC[i * 3 + 2] = c * 0.9;
+      // Mischwald: Laubbäume in mehreren Grüntönen (Buche hell, Eiche dunkel, Birke gelbgrün), vereinzelt erstes Herbstlaub;
+      // Nadelbäume blaugrün bis dunkel. Kleine Ortsabhängigkeit, damit Bestände zusammengehören.
+      { const hsh = Math.abs(Math.sin(T.x[i] * 12.9898 + T.z[i] * 78.233) * 43758.5453) % 1, patch = Math.sin(T.x[i] * 0.013) * Math.cos(T.z[i] * 0.011) * 0.5 + 0.5;
+        let r = c, g = c, b = c * 0.9;
+        if (T.t[i]) {
+          const k = (hsh + patch * 0.5) % 1;
+          if (k < 0.3) { r *= 1.08; g *= 1.12; b *= 0.75; }          // hellgrün (Buche/Birke)
+          else if (k < 0.75) { r *= 0.9; g *= 0.95; b *= 0.85; }     // sattgrün (Eiche)
+          else if (k < 0.92) { r *= 1.15; g *= 1.08; b *= 0.6; }     // gelbgrün
+          else { r *= 1.5; g *= 0.95; b *= 0.5; }                    // erste Herbstfärbung
+        } else { r *= 0.85 + hsh * 0.15; g *= 0.95 + hsh * 0.1; b *= 0.95 + patch * 0.15; }
+        this.treeC[i * 3] = r; this.treeC[i * 3 + 1] = g; this.treeC[i * 3 + 2] = b; }
       const ci = clamp(Math.floor((T.x[i] + this.half) / CS), 0, cn - 1), cj = clamp(Math.floor((T.z[i] + this.half) / CS), 0, cn - 1);
       const ch = this.treeChunks[cj * cn + ci];
       ch.lists[T.t[i]].push(i);
