@@ -1890,6 +1890,41 @@ Object.assign(World.prototype, {
       const bm = new THREE.InstancedMesh(balGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 }), Math.max(1, bal.length));
       bal.forEach((b, i) => { dq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(b.nx, b.nz)); m.compose(new THREE.Vector3(b.x, b.y, b.z), dq, new THREE.Vector3(1, 1, 1)); bm.setMatrixAt(i, m); });
       bm.castShadow = false; bm.receiveShadow = true; this.group.add(bm);
+      // Erker (über mehrere Geschosse vorspringende Fenstererker) und Hauseingänge mit Vordach und Stufen
+      const erk = [], ent = [];
+      for (const b of this.buildings) {
+        if (b.y0 !== C.h || b.kind !== 1) continue;
+        const sides = [[0, -1, b.x1 - b.x0], [0, 1, b.x1 - b.x0], [-1, 0, b.z1 - b.z0], [1, 0, b.z1 - b.z0]];
+        for (const [nx, nz, len] of sides) {
+          const cx = nx ? (nx < 0 ? b.x0 : b.x1) : (b.x0 + b.x1) / 2, cz = nz ? (nz < 0 ? b.z0 : b.z1) : (b.z0 + b.z1) / 2;
+          if (len > 14 && b.h > 12 && rng2() < 0.55) {
+            const off = (rng2() - 0.5) * (len - 8), fl = Math.min(Math.floor((b.h - 6) / 3.5), 4);
+            erk.push({ x: cx + (nz ? off : 0), z: cz + (nx ? off : 0), y: C.h + 4.2, h: fl * 3.5, nx, nz });
+          }
+          if (len > 10 && rng2() < 0.7) ent.push({ x: cx + (nz ? (rng2() - 0.5) * len * 0.5 : 0), z: cz + (nx ? (rng2() - 0.5) * len * 0.5 : 0), y: C.h + 0.12, nx, nz });
+        }
+      }
+      const erkGeo = mergeParts([
+        { geo: new THREE.BoxGeometry(3.4, 1, 1.0).translate(0, 0.5, 0.5), color: [0.9, 0.87, 0.8] },
+        ...[0, 1, 2, 3].map((k) => ({ geo: new THREE.BoxGeometry(2.6, 0.16, 0.04).translate(0, 0.25 + k * 0.25 - 0.08, 1.01), color: [0.16, 0.2, 0.25] })),
+        ...[-1, 1].map((sx) => ({ geo: new THREE.BoxGeometry(0.04, 0.9, 0.7).translate(sx * 1.71, 0.5, 0.5), color: [0.18, 0.22, 0.27] })),
+        { geo: new THREE.BoxGeometry(3.6, 0.04, 1.15).translate(0, 1.0, 0.55), color: [0.6, 0.58, 0.55] },
+      ]);
+      const em = new THREE.InstancedMesh(erkGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), Math.max(1, erk.length));
+      erk.forEach((e2, i) => { dq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(e2.nx, e2.nz)); m.compose(new THREE.Vector3(e2.x, e2.y, e2.z), dq, new THREE.Vector3(1, e2.h, 1)); em.setMatrixAt(i, m); });
+      this.erkerList = erk; this.entList = ent;
+      em.count = erk.length; em.castShadow = this.q.shadows; em.receiveShadow = true; em.frustumCulled = false; this.group.add(em);
+      const entGeo = mergeParts([
+        { geo: new THREE.BoxGeometry(1.5, 2.3, 0.12).translate(0, 1.15, 0.02), color: [0.28, 0.18, 0.1] },          // Haustür (Holz)
+        { geo: new THREE.BoxGeometry(1.8, 2.5, 0.08).translate(0, 1.25, 0.0), color: [0.85, 0.83, 0.78] },          // Türrahmen
+        { geo: new THREE.BoxGeometry(2.2, 0.1, 1.3).translate(0, 2.7, 0.65), color: [0.25, 0.27, 0.3] },            // Vordach
+        { geo: new THREE.BoxGeometry(2.0, 0.16, 0.9).translate(0, 0.08, 0.45), color: [0.7, 0.69, 0.66] },          // Stufe 1
+        { geo: new THREE.BoxGeometry(2.0, 0.16, 0.5).translate(0, 0.24, 0.25), color: [0.72, 0.71, 0.68] },         // Stufe 2
+        { geo: new THREE.BoxGeometry(0.1, 2.3, 0.08).translate(1.15, 1.15, 0.05), color: [0.55, 0.52, 0.48] },      // Klingelleiste
+      ]);
+      const enm = new THREE.InstancedMesh(entGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }), Math.max(1, ent.length));
+      ent.forEach((e2, i) => { dq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(e2.nx, e2.nz)); m.compose(new THREE.Vector3(e2.x, e2.y, e2.z), dq, new THREE.Vector3(1, 1, 1)); enm.setMatrixAt(i, m); });
+      enm.count = ent.length; enm.receiveShadow = true; enm.frustumCulled = false; this.group.add(enm);
     }
 
     // Ampeln

@@ -222,6 +222,12 @@ class StreetLife {
       ped.s += ped.dir * ped.speed * dt * stop;
       ped.phase += dt * ped.speed * 5.2 * stop;
       const [x, z, dx, dz] = this.walkPos(ped);
+      // LOD: Fußgänger weiter als 140 m werden nicht gezeichnet (Skalierung 0), gehen aber weiter
+      if ((x - cam.x) ** 2 + (z - cam.z) ** 2 > 140 * 140) {
+        m.makeScale(0, 0, 0); pm.body.setMatrixAt(i, m); pm.head.setMatrixAt(i, m);
+        for (const k2 of [0, 1]) { pm.leg.setMatrixAt(i * 2 + k2, m); pm.arm.setMatrixAt(i * 2 + k2, m); }
+        i++; continue;
+      }
       const yaw = Math.atan2(-dx, -dz), sw = Math.sin(ped.phase) * 0.42 * stop, bob = Math.abs(Math.cos(ped.phase)) * 0.03 * stop;
       const y = C.h + 0.12;
       q.setFromAxisAngle(this._up, yaw);

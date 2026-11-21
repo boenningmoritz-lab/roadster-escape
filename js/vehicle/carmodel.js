@@ -323,6 +323,12 @@ class CarModel {
       add(new THREE.BoxGeometry(0.04, 0.11, 0.4), black, si.x, si.y, si.z, 0, 0, 0);
     }
 
+    // Scheibenwischer außen: zwei Arme am unteren Rand der Frontscheibe (in Ruhelage)
+    for (const wx of [-0.42, 0.18]) {
+      const base = surf(wx, 2, -0.82, 0, -1, 0, -0.01);
+      const arm = add(new THREE.BoxGeometry(0.62, 0.012, 0.02), black, base.x + 0.28, base.y + 0.02, base.z + 0.04, 0, 0, 0.06); arm.castShadow = false;
+      const blade = add(new THREE.BoxGeometry(0.58, 0.018, 0.025), black, base.x + 0.3, base.y + 0.035, base.z + 0.07, 0, 0, 0.06); blade.castShadow = false;
+    }
     // Kennzeichen vorn/hinten (Fantasie-Kennzeichen), Türfugen, versenkte Türgriffe
     {
       const plateTex = (() => {
@@ -342,6 +348,12 @@ class CarModel {
         for (const z of [-0.62, 0.62]) {
           const pts = []; for (let y = 0.32; y <= 0.78; y += 0.04) pts.push(surf(sx * 3, y, z, -sx, 0, 0, -0.001));
           const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.0035, 4, false), gap); body.add(m);
+        }
+        // Sicke: scharfe Charakterlinie entlang der Flanke (Lichtkante im Lack) und Schwellerkante
+        for (const [yy, rr] of [[0.6, 0.007], [0.34, 0.005]]) {
+          const ln = []; for (let z = -1.5; z <= 1.5; z += 0.25) { const q = surf(sx * 3, yy + z * 0.012, z, -sx, 0, 0, -0.003); if (Math.abs(q.x) < 1.2) ln.push(q); }   // nur echte Treffer
+          if (ln.length < 4) continue;
+          const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ln), 24, rr, 4, false), yy > 0.5 ? this.paint : gap); m.userData.mergeable = true; body.add(m);
         }
         const gp = surf(sx * 3, 0.7, 0.3, -sx, 0, 0, -0.002);
         add(new THREE.BoxGeometry(0.012, 0.025, 0.16), black, gp.x, gp.y, gp.z).castShadow = false;     // Türgriff
