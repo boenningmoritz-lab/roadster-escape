@@ -30,7 +30,8 @@ function makeCarGlass() {
 
 /** Modell eines Verkehrsautos als eine Geometrie (Karosserie weiß → per Instanzfarbe lackiert). */
 // lo = true: vereinfachte Fern-Version (LOD) – grobe Karosserie, Scheiben deckend, ohne Innenraum/Felgen/Kleinteile
-function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
+// opts.noWheels / opts.noPeople: als Karosserie für das Spielerauto (eigene drehende Räder, Spieler sitzt selbst am Steuer)
+function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false, opts = {}) {
   const s = spec, L = s.L, W = s.W, Hh = s.H;
   const BODY = [0.93, 0.93, 0.93], GLASS = [0.07, 0.08, 0.1], DARK = [0.06, 0.06, 0.07], RIM = [0.55, 0.56, 0.58];
   const parts = [], lights = [], glassParts = [];
@@ -184,8 +185,7 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
     parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.18, 0.35).translate(0, belt + 0.02, -L / 2 + s.hood + 0.3), color: [0.09, 0.09, 0.1] });
     steering(-0.4, belt + 0.12, zs - 0.42, -1.15);
     const seed = type.length * 3 + Math.round(L * 10);
-    person(-0.4, Hh - 0.3, zs + 0.06, zs - 0.42, seed);
-    if (s.passenger) person(0.4, Hh - 0.31, zs + 0.06, null, seed + 5);
+    if (!opts.noPeople) { person(-0.4, Hh - 0.3, zs + 0.06, zs - 0.42, seed); if (s.passenger) person(0.4, Hh - 0.31, zs + 0.06, null, seed + 5); }
     }
     // Radhausschalen (verhindern Durchblick), Stoßfänger, Grill, Kennzeichen, Spiegel
     for (const z of [zf, zr]) parts.push({ geo: new THREE.BoxGeometry(W - 0.12, R * 0.9, R * 2).translate(0, s.wr + R * 0.6, z), color: DARK });
@@ -198,7 +198,7 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
       parts.push({ geo: new THREE.BoxGeometry(0.2, 0.12, 0.1).translate(x * (W / 2 + 0.02), belt + 0.1, -L / 2 + s.hood + 0.25), color: BODY, paint: true });
       parts.push({ geo: new THREE.BoxGeometry(0.06, 0.1, 0.06).translate(x * (W / 2 - 0.12), belt + 0.05, -L / 2 + s.hood + 0.25), color: DARK });
     }
-    for (const z of [zf, zr]) for (const x of [-1, 1]) {
+    if (!opts.noWheels) for (const z of [zf, zr]) for (const x of [-1, 1]) {
       const wx = x * (W / 2 - 0.16), r = s.wr;
       parts.push({ geo: new THREE.CylinderGeometry(r, r, 0.24, lo ? 8 : 18).rotateZ(Math.PI / 2).translate(wx, r, z), color: DARK });
       if (lo) continue;

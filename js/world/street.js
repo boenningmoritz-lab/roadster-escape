@@ -127,17 +127,39 @@ class StreetLife {
       const skin = [[0.95, 0.8, 0.68], [0.82, 0.62, 0.48], [0.6, 0.42, 0.3], [0.4, 0.28, 0.2]];
       const cloth = [[0.15, 0.18, 0.25], [0.6, 0.6, 0.62], [0.55, 0.12, 0.12], [0.2, 0.35, 0.55], [0.85, 0.82, 0.75], [0.12, 0.12, 0.12], [0.35, 0.45, 0.3], [0.75, 0.55, 0.3]];
       const pants = [[0.12, 0.14, 0.2], [0.2, 0.2, 0.22], [0.35, 0.3, 0.25], [0.1, 0.1, 0.1]];
+      // Figuren mit menschlichen Proportionen: Brustkorb breiter als Taille, Schultern, Kragen, Hals;
+      // Kopf mit Kinn, Nase, Augen, Ohren; Beine mit Schuhen, Arme mit Händen (Vertexfarbe × Instanzfarbe)
       const bodyGeo = mergeParts([
-        { geo: new THREE.CapsuleGeometry(0.19, 0.42, 4, 10).scale(1, 1, 0.65).translate(0, 1.18, 0), color: [1, 1, 1] },            // Oberkörper (Kleidung)
+        { geo: new THREE.CapsuleGeometry(0.17, 0.3, 4, 12).scale(1.12, 1, 0.66).translate(0, 1.27, 0), color: [1, 1, 1] },           // Brustkorb
+        { geo: new THREE.CapsuleGeometry(0.15, 0.2, 4, 12).scale(1, 1, 0.68).translate(0, 1.04, 0), color: [0.93, 0.93, 0.93] },      // Bauch/Taille
+        { geo: new THREE.CapsuleGeometry(0.075, 0.36, 3, 8).rotateZ(Math.PI / 2).scale(1, 1, 0.9).translate(0, 1.42, 0), color: [1, 1, 1] },   // Schultern
+        { geo: new THREE.CylinderGeometry(0.075, 0.085, 0.05, 12).translate(0, 1.5, 0), color: [0.8, 0.8, 0.8] },                     // Kragen
+        { geo: new THREE.CylinderGeometry(0.15, 0.15, 0.04, 14).scale(1, 1, 0.7).translate(0, 0.96, 0), color: [0.18, 0.15, 0.12] },  // Gürtel
       ]);
-      const headGeo = new THREE.SphereGeometry(0.115, 12, 10).scale(0.92, 1.08, 1).translate(0, 1.67, 0);
-      const hairGeo = new THREE.SphereGeometry(0.122, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.52).scale(0.95, 1.05, 1.05).translate(0, 1.685, 0.012);   // Haare (Kappe)
-      const hipGeo = new THREE.CapsuleGeometry(0.15, 0.16, 3, 8).rotateZ(Math.PI / 2).scale(1, 1, 0.75).translate(0, 0.93, 0);                         // Becken in Hosenfarbe
-      const legGeo = new THREE.CapsuleGeometry(0.075, 0.68, 4, 8).translate(0, -0.42, 0);   // Drehpunkt an der Hüfte
-      const armGeo = new THREE.CapsuleGeometry(0.05, 0.5, 4, 8).translate(0, -0.3, 0);       // Drehpunkt an der Schulter
-      const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+      const headGeo = mergeParts([
+        { geo: new THREE.SphereGeometry(0.105, 14, 12).scale(0.9, 1.1, 1).translate(0, 1.68, 0.005), color: [1, 1, 1] },              // Schädel
+        { geo: new THREE.SphereGeometry(0.07, 10, 8).scale(1, 0.9, 1).translate(0, 1.6, -0.035), color: [1, 1, 1] },                  // Kiefer/Kinn
+        { geo: new THREE.CylinderGeometry(0.045, 0.05, 0.1, 10).translate(0, 1.55, 0.01), color: [0.95, 0.95, 0.95] },                // Hals
+        { geo: new THREE.ConeGeometry(0.018, 0.045, 6).rotateX(-Math.PI / 2 - 0.3).translate(0, 1.665, -0.105), color: [0.96, 0.92, 0.92] },   // Nase
+        ...[-1, 1].map((sx) => ({ geo: new THREE.SphereGeometry(0.014, 6, 5).translate(sx * 0.036, 1.7, -0.088), color: [0.12, 0.1, 0.1] })),  // Augen
+        ...[-1, 1].map((sx) => ({ geo: new THREE.SphereGeometry(0.024, 6, 5).scale(0.5, 1, 0.8).translate(sx * 0.098, 1.675, 0.01), color: [0.93, 0.9, 0.9] })),   // Ohren
+        { geo: new THREE.BoxGeometry(0.04, 0.008, 0.01).translate(0, 1.615, -0.098), color: [0.55, 0.35, 0.33] },                     // Mund
+      ]);
+      const hairGeo = mergeParts([{ geo: new THREE.SphereGeometry(0.112, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55).scale(0.95, 1.08, 1.06).translate(0, 1.7, 0.016), color: [1, 1, 1] }]);   // Haare (Kappe)
+      const hipGeo = mergeParts([{ geo: new THREE.CapsuleGeometry(0.15, 0.16, 3, 8).rotateZ(Math.PI / 2).scale(1, 1, 0.75).translate(0, 0.9, 0), color: [1, 1, 1] }]);                  // Becken in Hosenfarbe
+      const handGeo = mergeParts([{ geo: new THREE.SphereGeometry(0.045, 8, 6).scale(0.8, 1.3, 0.6).translate(0, -0.64, -0.03), color: [1, 1, 1] }]);                                   // Hand (Hautfarbe)
+      const legGeo = mergeParts([                                                              // Drehpunkt an der Hüfte
+        { geo: new THREE.CapsuleGeometry(0.08, 0.36, 4, 8).translate(0, -0.24, 0), color: [1, 1, 1] },                    // Oberschenkel
+        { geo: new THREE.CapsuleGeometry(0.06, 0.36, 4, 8).translate(0, -0.62, 0.01), color: [1, 1, 1] },                 // Unterschenkel
+        { geo: new THREE.BoxGeometry(0.1, 0.07, 0.25).translate(0, -0.86, -0.05), color: [0.12, 0.11, 0.1] },             // Schuh
+      ]);
+      const armGeo = mergeParts([                                                              // Drehpunkt an der Schulter
+        { geo: new THREE.CapsuleGeometry(0.055, 0.24, 3, 8).translate(0, -0.17, 0), color: [1, 1, 1] },                   // Oberarm
+        { geo: new THREE.CapsuleGeometry(0.045, 0.22, 3, 8).translate(0, -0.45, -0.02), color: [1, 1, 1] },               // Unterarm
+      ]);
+      const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, vertexColors: true });
       const mk = (geo, n) => { const im = new THREE.InstancedMesh(geo, mat, n); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = false; im.frustumCulled = false; scene.add(im); return im; };
-      this.pm = { body: mk(bodyGeo, N), head: mk(headGeo, N), hair: mk(hairGeo, N), hip: mk(hipGeo, N), leg: mk(legGeo, N * 2), arm: mk(armGeo, N * 2) };
+      this.pm = { body: mk(bodyGeo, N), head: mk(headGeo, N), hair: mk(hairGeo, N), hip: mk(hipGeo, N), leg: mk(legGeo, N * 2), arm: mk(armGeo, N * 2), hand: mk(handGeo, N * 2) };
       const hairs = [[0.1, 0.07, 0.05], [0.28, 0.18, 0.1], [0.6, 0.48, 0.3], [0.05, 0.04, 0.04], [0.5, 0.5, 0.52], [0.45, 0.2, 0.1]];
       const col = new THREE.Color();
       const city = blocks.filter((b) => !b.park);
@@ -156,7 +178,7 @@ class StreetLife {
         const hc = hairs[Math.floor(rng() * hairs.length)];
         this.pm.hair.setColorAt(i, col.setRGB(hc[0], hc[1], hc[2], THREE.SRGBColorSpace));
         this.pm.hip.setColorAt(i, col.setRGB(pa[0], pa[1], pa[2], THREE.SRGBColorSpace));
-        for (const k2 of [0, 1]) { this.pm.leg.setColorAt(i * 2 + k2, col.setRGB(pa[0], pa[1], pa[2], THREE.SRGBColorSpace)); this.pm.arm.setColorAt(i * 2 + k2, col.setRGB(cl[0] * 0.9, cl[1] * 0.9, cl[2] * 0.9, THREE.SRGBColorSpace)); }
+        for (const k2 of [0, 1]) { this.pm.leg.setColorAt(i * 2 + k2, col.setRGB(pa[0], pa[1], pa[2], THREE.SRGBColorSpace)); this.pm.arm.setColorAt(i * 2 + k2, col.setRGB(cl[0] * 0.9, cl[1] * 0.9, cl[2] * 0.9, THREE.SRGBColorSpace)); this.pm.hand.setColorAt(i * 2 + k2, col.setRGB(sc[0], sc[1], sc[2], THREE.SRGBColorSpace)); }
       }
     }
   }
@@ -238,7 +260,7 @@ class StreetLife {
     // ---------- Fußgänger ----------
     if (!this.peds.length) return;
     const pm = this.pm, m = this._m, q = this._q, s = this._s, pos = this._p, e = this._e;
-    const KEYS = ['body', 'head', 'hair', 'hip', 'leg', 'arm'];
+    const KEYS = ['body', 'head', 'hair', 'hip', 'leg', 'arm', 'hand'];
     const vis = !this.hidePeds && (inCity || Math.hypot(cam.x - C.cx, cam.z - C.cz) < 600);
     for (const k of KEYS) pm[k].visible = vis;
     if (!vis) return;
@@ -274,7 +296,11 @@ class StreetLife {
         if (v.speed > 2.5 && Math.abs(lz) < 2.5 && Math.abs(lx) < 1.25 && py < C.h + 2.5) {
           const sp = v.speed, kk = 0.55 + Math.random() * 0.25;
           ped.down = { t: 0, x: cx0 + ped.ox, z: cz0 + ped.oz, y: C.h + 0.12, vx: v.vel.x * kk + rgx * lx * 1.5, vz: v.vel.z * kk + rgz * lx * 1.5, vy: Math.min(2 + sp * 0.14, 7),
-            yaw: Math.atan2(fwd.x, fwd.z) + Math.PI + (Math.random() - 0.5) * 0.8, pitch: 0, pv: -(3 + sp * 0.35) * (Math.random() < 0.8 ? 1 : -1), roll: 0, rv: (Math.random() - 0.5) * 6, ground: false };
+            yaw: Math.atan2(fwd.x, fwd.z) + Math.PI + (Math.random() - 0.5) * 0.8, pitch: 0, pv: -(3 + sp * 0.35) * (Math.random() < 0.8 ? 1 : -1), roll: 0, rv: (Math.random() - 0.5) * 6, ground: false,
+            // Ragdoll: je Bein/Arm ein gefederter Winkel (x = vor/zurück, z = seitlich), Kopf nickt am Hals
+            limbs: [0, 1, 2, 3].map((k) => ({ ax: 0, az: 0, vx: (Math.random() - 0.5) * (6 + sp * 0.5), vz: (Math.random() - 0.5) * (4 + sp * 0.3),
+              rx: (Math.random() - 0.5) * (k < 2 ? 0.9 : 2.2), rz: (k % 2 ? 1 : -1) * (k < 2 ? 0.15 + Math.random() * 0.35 : 0.6 + Math.random() * 1.1) })),
+            head: { a: 0, v: (Math.random() - 0.5) * 8 }, hit: true };
           ped.stand = null;
           v.vel.multiplyScalar(0.97);
           v.lastImpact = Math.max(v.lastImpact || 0, Math.min(3, sp * 0.1));
@@ -297,6 +323,18 @@ class StreetLife {
         const pn = Math.atan2(Math.sin(D.pitch), Math.cos(D.pitch)), lieP = pn >= 0 ? Math.PI / 2 : -Math.PI / 2;
         if (D.ground && Math.hypot(D.vx, D.vz) < 1.5 && D.t < 5) { D.pitch = pn + (lieP - pn) * Math.min(1, dt * 6); D.roll *= Math.exp(-dt * 6); D.pv = 0; D.rv = 0; }
         const up = D.t > 5 ? Math.min(1, (D.t - 5) / 1.1) : 0;                  // Aufstehen
+        // Ragdoll: Glieder federn locker; im Flug schlackern sie und hinken der Körperdrehung nach,
+        // beim Aufschlag bekommen sie einen Stoß, liegend kommen sie in einer ungeordneten Pose zur Ruhe
+        const landed = D.ground && !D.landedOnce; if (landed) D.landedOnce = true;
+        const kS = D.ground ? 38 : 14, cD = D.ground ? 7 : 2.2;
+        for (const L of D.limbs) {
+          if (landed) { L.vx += (Math.random() - 0.5) * 9; L.vz += (Math.random() - 0.5) * 7; }
+          const tx = L.rx * (1 - up), tz = L.rz * (1 - up);
+          L.vx += (-kS * (L.ax - tx) - cD * L.vx - (D.ground ? 0 : D.pv * 2.5)) * dt;
+          L.vz += (-kS * (L.az - tz) - cD * L.vz - (D.ground ? 0 : D.rv * 2)) * dt;
+          L.ax += L.vx * dt; L.az += L.vz * dt;
+        }
+        { const H = D.head; if (landed) H.v += (Math.random() - 0.5) * 10; H.v += (-30 * H.a - 5 * H.v - (D.ground ? 0 : D.pv * 1.5)) * dt; H.a = clamp(H.a + H.v * dt, -0.9, 0.9) * (1 - up * 0.2); }
         x = D.x; z = D.z; yaw = D.yaw; pitch = D.pitch * (1 - up); roll = D.roll * (1 - up);
         lift = 0.13 * Math.abs(Math.sin(pitch));
         sw = 0; legX = (1 - up) * 0.35; armZ = 0.08 + (1 - up) * 1.1;
@@ -322,19 +360,26 @@ class StreetLife {
       // LOD: Fußgänger weiter als 140 m werden nicht gezeichnet (Skalierung 0), gehen aber weiter
       if ((x - cam.x) ** 2 + (z - cam.z) ** 2 > 140 * 140) {
         m.makeScale(0, 0, 0); for (const k of ['body', 'head', 'hair', 'hip']) pm[k].setMatrixAt(i, m);
-        for (const k2 of [0, 1]) { pm.leg.setMatrixAt(i * 2 + k2, m); pm.arm.setMatrixAt(i * 2 + k2, m); }
+        for (const k2 of [0, 1]) { pm.leg.setMatrixAt(i * 2 + k2, m); pm.arm.setMatrixAt(i * 2 + k2, m); pm.hand.setMatrixAt(i * 2 + k2, m); }
         i++; continue;
       }
       e.set(pitch, yaw, roll, 'YXZ'); q.setFromEuler(e); B.compose(pos, q, one);
       const wd = ped.wd;
       put(pm.body, i, 0, 0, 0, 0, h * wd, h); put(pm.hip, i, 0, 0, 0, 0, h * wd, h);
-      put(pm.head, i, 0, 0, 0, 0, h, h); put(pm.hair, i, 0, 0, 0, 0, h, h);
+      if (D && D.head) {
+        // Kopf nickt um ein Gelenk am Hals (1,52 m): B · T(Hals) · R · S · T(−Hals)
+        e.set(D.head.a, 0, 0, 'XYZ'); q.setFromEuler(e);
+        Lm.compose(pos.set(0, 1.52 * h, 0), q, s.set(h, h, h)); Lm.multiply(this._Tn || (this._Tn = new THREE.Matrix4().makeTranslation(0, -1.52, 0)));
+        m.multiplyMatrices(B, Lm); pm.head.setMatrixAt(i, m); pm.hair.setMatrixAt(i, m);
+      } else { put(pm.head, i, 0, 0, 0, 0, h, h); put(pm.hair, i, 0, 0, 0, 0, h, h); }
       for (const side of [-1, 1]) {
         // Beine (Hüfte 0,9 m) und Arme (Schulter 1,42 m) schwingen gegenläufig; beim Sturz gespreizt
         const j = i * 2 + (side > 0 ? 1 : 0);
+        const RL = D && D.limbs ? D.limbs[side > 0 ? 1 : 0] : null, RA = D && D.limbs ? D.limbs[side > 0 ? 3 : 2] : null;
+        if (RL) { put(pm.leg, j, side * 0.1 * h * wd, 0.9 * h, RL.ax, RL.az, h, h); put(pm.arm, j, side * 0.24 * h * wd, 1.42 * h, RA.ax, side * 0.08 + RA.az, h, h); pm.hand.setMatrixAt(j, m); continue; }
         put(pm.leg, j, side * 0.1 * h * wd, 0.9 * h, sw * side + legX * (side > 0 ? 0.6 : -0.3), side * legX * 0.4, h, h);
         const wave = ped.stand && side > 0 ? 2.6 + (ped.wave || 0) : 0;   // rechter Arm hoch (Gestikulieren)
-        put(pm.arm, j, side * 0.24 * h * wd, 1.42 * h, -sw * side * 0.8 + legX * side - wave * 0.15, side * (armZ + wave), h, h);
+        put(pm.arm, j, side * 0.24 * h * wd, 1.42 * h, -sw * side * 0.8 + legX * side - wave * 0.15, side * (armZ + wave), h, h); pm.hand.setMatrixAt(j, m);
       }
       i++;
     }

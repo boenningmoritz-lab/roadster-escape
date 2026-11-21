@@ -157,7 +157,7 @@ class Game {
     this.fxLevel = n;
     if (this.grass.mesh) this.grass.mesh.visible = n < 1;
     if (this.env.ao) this.env.ao.enabled = n < 1;               // AO als Erstes abschalten
-    if (this.street.pm) for (const k of ['body', 'head', 'leg', 'arm']) this.street.pm[k].visible = n < 2;
+    if (this.street.pm) for (const k of Object.keys(this.street.pm)) this.street.pm[k].visible = n < 2;
     this.street.hidePeds = n >= 2;
     const sh = this.q.shadows && n < 3;
     if (this.renderer.shadowMap.enabled !== sh) { this.renderer.shadowMap.enabled = sh; this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }

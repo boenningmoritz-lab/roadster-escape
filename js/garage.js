@@ -20,9 +20,9 @@ const UPGRADES = [
   { key: 'flyTime',    name: 'Flugzeit',              desc: 'größerer Energiespeicher',                prices: [2500, 5000, 9000, 16000, 27000] },
   { key: 'flyCtrl',    name: 'Flugsteuerung',         desc: 'stärkere Düsen, wendiger in der Luft',    prices: [2500, 5000, 9000, 16000, 27000] },
 ];
-const LOOK_DEFAULT = { paint: '#f2f2ee', finish: 'glossy', rims: 'sport5', rimColor: '#c8ccd2', underglow: 'off', spoiler: 'none',
+const LOOK_DEFAULT = { model: 'roadster', paint: '#f2f2ee', finish: 'glossy', rims: 'sport5', rimColor: '#c8ccd2', underglow: 'off', spoiler: 'none',
   seat: '#2a2a2e', wheel: 'round', ambient: '#36e0ff', display: 'cyan' };
-const COSMETIC_PRICES = { 'finish:metallic': 800, 'finish:matt': 800, 'rims:multi': 1500, 'rims:turbine': 1800, 'rims:mesh': 1500,
+const COSMETIC_PRICES = { 'model:limo': 6000, 'model:kombi': 5000, 'model:suv': 7000, 'finish:metallic': 800, 'finish:matt': 800, 'rims:multi': 1500, 'rims:turbine': 1800, 'rims:mesh': 1500,
   'spoiler:lip': 1200, 'spoiler:wing': 3500, 'underglow': 2500, 'wheel:yoke': 600, 'wheel:sport': 600 };
 const DISPLAY_THEMES = { cyan: ['#36e0ff', '#04111a'], amber: ['#ffb02e', '#140c02'], violet: ['#b07cff', '#0d0618'], green: ['#4dff9a', '#03140a'] };
 SaveData.data.upgrades = SaveData.data.upgrades || {};
@@ -82,6 +82,7 @@ Object.assign(CarModel.prototype, {
 
   /** Aussehen übernehmen (Lack, Felgen, Licht, Spoiler, Innenraum). */
   applyLook(L) {
+    this.setBodyStyle(L.model || 'roadster');
     this.paint.color.set(L.paint);
     const fin = { glossy: [0.12, 0.3, 1], metallic: [0.6, 0.36, 0.85], matt: [0.05, 0.78, 0] }[L.finish] || [0.12, 0.3, 1];
     this.paint.metalness = fin[0]; this.paint.roughness = fin[1];
@@ -284,6 +285,7 @@ class Garage {
       info.textContent = `Leistung ${Math.round(c.motor.maxPower / 735.5)} PS · Drehmoment ${Math.round(c.motor.maxTorque)} Nm · Gewicht ${Math.round(c.mass)} kg · Grip ${c.tire.mu.toFixed(2)} · Boost ${Math.round(c.boost.force / 1000)} kN`;
       box.appendChild(info);
     } else if (this.tab === 'look') {
+      row('Fahrzeug', 'Karosserie (gleiche Technik, andere Form)', seg('model', [['roadster', 'Roadster'], ['limo', 'Sportlimousine'], ['kombi', 'Kombi'], ['suv', 'SUV']]));
       row('Lackfarbe', 'Farbwähler oder Vorschlag', swatches('paint', ['#f2f2ee', '#101114', '#8c0612', '#0d3b8c', '#1e5c3a', '#c9a227', '#ff6a00', '#7a7f87', '#5a2d82', '#d81b60'], true));
       row('Lack-Art', 'Glanz, Metallic oder Matt', seg('finish', [['glossy', 'Glanz'], ['metallic', 'Metallic'], ['matt', 'Matt']]));
       row('Felgen', 'Design', seg('rims', [['sport5', '5-Speichen'], ['multi', 'Vielspeiche'], ['turbine', 'Turbine'], ['mesh', 'Gitter']]));

@@ -273,6 +273,9 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Unfälle:** Verkehrsautos merken sich Schaden und Aufprallpunkt: Dellen auf der getroffenen Seite (Vertex-Shader, Instanz-Attribut), dunklerer Lack, ab starken Treffern zersplitterte Scheiben. Leichter Unfall → nach kurzer Pause zurück auf die Spur, Warnblinker, Hupe, 35 % fahren dem Spieler verärgert hinterher. Totalschaden/Überschlag → bleibt liegen, Dauer-Warnblinker, Rauch, Fahrer steigt aus und gestikuliert.
 - **Grafik weniger „Plastik“:** Fassaden-Shader mit Verwitterung (Putzkörnung in Weltkoordinaten, Flecken, senkrechte Schmutzschlieren, verschmutzter Sockel, wechselnde Rauheit) – keine zusätzlichen Draw-Calls. Volle anisotrope Filterung für alle Texturen (scharf im flachen Winkel). Nebel beginnt später (Tag 340 m statt 130 m) → klarere Ferne. Nachts gedämpfte Schaufenster, nasse Straßen glatter und stärker spiegelnd. Verkehrsautos: Klarlack auf „Hoch“, glänzender Metallic-Lack auf „Mittel“.
 - **Vegetation:** dichterer Wald (Mittel 0,38 → 0,46, Hoch 0,62 → 0,75) und mehr Gras im Wind (Mittel 6500 → 8000 Halme, Hoch 13000 → 16000). Dellen nach Unfällen doppelt so tief und größer – deutlich sichtbar.
+- **Menschen echter:** Brustkorb, Taille, Schultern, Kragen, Gürtel; Kopf mit Kinn, Nase, Augen, Ohren, Mund und Hals; Ober-/Unterschenkel mit Schuhen, Ober-/Unterarm mit Händen in Hautfarbe.
+- **Ragdoll beim Anfahren:** jedes Bein, jeder Arm und der Kopf ist ein eigenes gefedertes Gelenk – im Flug schlackern die Glieder und hinken der Körperdrehung nach, beim Aufschlag bekommen sie einen Stoß, liegend kommen sie in einer ungeordneten Pose zur Ruhe.
+- **Mehrere Spielerautos:** in der Garage unter Optik → Fahrzeug: Roadster, Sportlimousine, Kombi, SUV (gleiche Technik, eigene Karosserie mit Glas, Lichtern und Lackfarbe aus der Garage; Vorschau auch ohne Geld).
 
 ## Code-Aufbau
 

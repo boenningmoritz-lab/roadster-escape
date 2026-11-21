@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makeTrafficVariant, makeCarGlass } from '../world/traffic.js';
 import { radialTexture } from '../world/world.js';
 import { clamp, lerp, smoothstep, damp, approach, Settings } from '../config.js';
 import { smoothNormals } from '../environment.js';
@@ -565,6 +566,8 @@ class CarModel {
     mergeStatic(body);   // Leistung: ~120 Einzelteile → wenige Objekte je Material (vorher ~250 Draw-Calls nur für das eigene Auto)
 
     // ---------- Räder ----------
+    // Teile der Roadster-Karosserie merken (für den Modellwechsel); Lichtquellen und Cockpit-Gruppe bleiben immer
+    this.roadsterParts = body.children.filter((o) => o.isMesh && o !== this.glow);
     this.wheels = [];
     const tireGeo = new THREE.CylinderGeometry(R, R, cfg.wheelWidth, 28, 1).rotateZ(Math.PI / 2);
     const sideWallGeo = new THREE.TorusGeometry(R - 0.035, 0.035, 6, 28).rotateY(Math.PI / 2);
@@ -602,6 +605,39 @@ class CarModel {
     this.spokeGeos = { sport: spokeGeo, thin: new THREE.BoxGeometry(0.014, 0.44, 0.026), fin: new THREE.BoxGeometry(0.018, 0.17, 0.05) };
     this.capGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12).rotateZ(Math.PI / 2);
     this.buildRims('sport5'); this._rimStyle = 'sport5';
+  }
+
+  /**
+   * Karosserie wechseln: 'roadster' (eigenes Modell) oder eine geschlossene Karosserie mit echten Proportionen
+   * ('limo', 'kombi', 'suv'), passend auf Radstand (2,62 m) und Spur des Spielerautos zugeschnitten.
+   */
+  setBodyStyle(style) {
+    if (this._style === style) return;
+    this._style = style;
+    const SPEC = {
+      limo:  { type: 'sedan', L: 4.42, W: 1.9, H: 1.36, hood: 1.12, trunk: 0.7, wr: 0.34, mass: 1600 },
+      kombi: { type: 'kombi', L: 4.42, W: 1.9, H: 1.44, hood: 1.05, trunk: 0.12, wr: 0.34, mass: 1650, longRoof: true },
+      suv:   { type: 'suv',   L: 4.42, W: 1.96, H: 1.68, hood: 1.0, trunk: 0.28, wr: 0.38, mass: 2000 },
+    };
+    this.bodies = this.bodies || {};
+    for (const o of this.roadsterParts) o.visible = style === 'roadster' || !SPEC[style];
+    for (const [k, b] of Object.entries(this.bodies)) b.visible = k === style;
+    if (!SPEC[style] || this.bodies[style]) return;
+    const sp = SPEC[style], V = makeTrafficVariant(sp.type, sp, false, { noWheels: true, noPeople: true });
+    const grp = new THREE.Group();
+    // Lack: Teile mit paint = 1 bekommen die gewählte Lackfarbe (gleiches Material wie der Roadster → Garage-Farben gelten)
+    const paintMat = this.paint.clone(), paintU = { value: this.paint.color };
+    paintMat.vertexColors = true; paintMat.color = new THREE.Color(1, 1, 1);
+    paintMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uPaint = paintU;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float paint;\nuniform vec3 uPaint;')
+        .replace('#include <color_vertex>', '#include <color_vertex>\n vColor.rgb *= mix(vec3(1.0), uPaint, paint);');
+    };
+    const m = new THREE.Mesh(V.body, paintMat); m.castShadow = true; m.receiveShadow = true; grp.add(m);
+    if (V.glass) { const g = new THREE.Mesh(V.glass, makeCarGlass()); g.renderOrder = 2; grp.add(g); }
+    grp.add(new THREE.Mesh(V.lights, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })));
+    grp.position.z = 0.05;                     // Radmitten von Karosserie und Fahrwerk decken sich
+    this.body.add(grp); this.bodies[style] = grp;
   }
 
   /** Optik aus dem Physikzustand aktualisieren. */
