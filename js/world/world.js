@@ -501,11 +501,7 @@ class World {
           if (bx1 - bx0 < 8 || bz1 - bz0 < 8) continue;
           const h = clamp(base * (0.45 + rng() * 0.9), 9, 125);
           const office = h > 32 || rng() < 0.25;
-          this.addBuilding(bx0, bx1, bz0, bz1, C.h, h, office ? 0 : 1, rng);
-          if (h > 45 && rng() < 0.55) {          // zurückgesetzter Turm obendrauf
-            const sx = (bx1 - bx0) * 0.18, sz = (bz1 - bz0) * 0.18;
-            this.addBuilding(bx0 + sx, bx1 - sx, bz0 + sz, bz1 - sz, C.h + h, h * (0.25 + rng() * 0.45), 0, rng);
-          }
+          this.composeBuilding(bx0, bx1, bz0, bz1, C.h, h, office, rng);
         }
       }
     }
@@ -544,6 +540,57 @@ class World {
         this.crossings.push({ x: nd.x + ax * 10, z: nd.z + az * 10, along: ax !== 0 ? 'z' : 'x', stop: { x: nd.x + ax * 11.5 + rx * 3.5, z: nd.z + az * 11.5 + rz * 3.5, along: ax !== 0 ? 'z' : 'x' } });
       }
     }
+  }
+
+  /**
+   * Ein Grundstück mit einem echten Baukörper statt eines Quaders bebauen:
+   *  - Bürohaus: Sockelgeschosse über das ganze Grundstück, darauf ein schlanker, zurückgesetzter Turm,
+   *    hohe Türme mit weiterem Rücksprung (Staffelung) oben
+   *  - Wohnhaus/Altbau: Blockrand als L- oder U-Form mit Innenhof, Flügel unterschiedlich hoch,
+   *    niedrige Häuser mit Satteldach bzw. Mansarddach (Dachprismen), höhere mit Staffelgeschoss
+   */
+  composeBuilding(x0, x1, z0, z1, y0, h, office, rng) {
+    const w = x1 - x0, d = z1 - z0;
+    this.roofs = this.roofs || [];
+    if (office) {
+      const pod = Math.min(h, 7 + rng() * 5);
+      this.addBuilding(x0, x1, z0, z1, y0, pod, 0, rng);                                   // Sockel (Läden/Lobby)
+      if (h > pod + 4) {
+        const ix = w * (0.1 + rng() * 0.12), iz = d * (0.1 + rng() * 0.12), ox = (rng() - 0.5) * ix, oz = (rng() - 0.5) * iz;
+        const tx0 = x0 + ix + ox, tx1 = x1 - ix + ox, tz0 = z0 + iz + oz, tz1 = z1 - iz + oz;
+        const th = h - pod;
+        if (th > 30 && rng() < 0.7) {                                                     // gestaffelter Turm
+          const h1 = th * (0.55 + rng() * 0.2);
+          this.addBuilding(tx0, tx1, tz0, tz1, y0 + pod, h1, 0, rng);
+          const sx = (tx1 - tx0) * 0.14, sz = (tz1 - tz0) * 0.14;
+          this.addBuilding(tx0 + sx, tx1 - sx, tz0 + sz, tz1 - sz, y0 + pod + h1, th - h1, 0, rng);
+        } else this.addBuilding(tx0, tx1, tz0, tz1, y0 + pod, th, 0, rng);
+      }
+      return;
+    }
+    // Wohnbebauung: Flügeltiefe 9–12 m entlang der Grundstückskanten
+    const t = Math.min(9 + rng() * 3, w * 0.45, d * 0.45);
+    const form = w > 26 && d > 26 ? (rng() < 0.5 ? 'U' : 'L') : w > 18 && d > 18 ? 'L' : 'I';
+    const wings = [];
+    if (form === 'I') wings.push([x0, x1, z0, z1]);
+    else {
+      const sideA = rng() < 0.5;                                                         // welche Ecke offen bleibt
+      wings.push(sideA ? [x0, x1, z0, z0 + t] : [x0, x1, z1 - t, z1]);                 // Front entlang x
+      wings.push([x0, x0 + t, sideA ? z0 + t : z0, sideA ? z1 : z1 - t]);              // Seitenflügel links
+      if (form === 'U') wings.push([x1 - t, x1, sideA ? z0 + t : z0, sideA ? z1 : z1 - t]);   // Seitenflügel rechts → Innenhof
+    }
+    const low = h < 22;
+    wings.forEach(([a0, a1, b0, b1], i) => {
+      const wh = clamp(h * (i === 0 ? 1 : 0.75 + rng() * 0.3), 8, 60);
+      this.addBuilding(a0, a1, b0, b1, y0, wh, 1, rng);
+      if (low) {
+        // Dach: Satteldach oder Mansarddach (First entlang der längeren Seite)
+        this.roofs.push({ x0: a0, x1: a1, z0: b0, z1: b1, y: y0 + wh, h: Math.min(a1 - a0, b1 - b0) * (0.32 + rng() * 0.12), along: (a1 - a0) > (b1 - b0) ? 'x' : 'z', mansard: rng() < 0.45, tint: rng() });
+      } else if (rng() < 0.7) {
+        const sx = Math.min(2.2, (a1 - a0) * 0.15), sz = Math.min(2.2, (b1 - b0) * 0.15);
+        this.addBuilding(a0 + sx, a1 - sx, b0 + sz, b1 - sz, y0 + wh, 3.2, 1, rng);       // Staffelgeschoss
+      }
+    });
   }
 
   addBuilding(x0, x1, z0, z1, y0, h, kind, rng) {
@@ -1565,7 +1612,7 @@ Object.assign(World.prototype, {
           vFac = (abs(fwn.x) > 0.5 ? vec2(fwp.z, fwp.y) : vec2(fwp.x, fwp.y)) / 28.0 + vec2(floor(fseed * 8.0) / 8.0, floor(fract(fseed * 13.0) * 8.0) / 8.0);
           vRoof = fwn.y;
           vAO = 0.55 + 0.45 * smoothstep(0.0, 4.5, fwp.y - fm[3].y);
-          vHA = fwp.y - fm[3].y; vSeed = fseed; vFW = fwp.xyz; vFN = fwn;`);
+          vHA = fwp.y - fm[3].y + step(${(WORLD.city.h + 0.5).toFixed(1)}, fm[3].y) * 100.0; vSeed = fseed; vFW = fwp.xyz; vFN = fwn;`);   // Läden nur im Erdgeschoss (nicht am Turmfuß auf dem Sockel)
         sh.fragmentShader = 'uniform float uGlow; varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed; varying vec3 vFW; varying vec3 vFN;\n' + sh.fragmentShader
           .replace('#include <map_fragment>', 'vec4 facCol = texture2D(map, vFac);' +
             // Parallaxe: Fensterscheibe liegt ~25 cm hinter der Fassade → seitlich sichtbare Laibung (Schattenkante)
@@ -1609,6 +1656,30 @@ Object.assign(World.prototype, {
       });
       im.castShadow = true; im.receiveShadow = true;
       this.group.add(im);
+    }
+    // Satteldächer und Mansarddächer (Prisma mit Ziegel-/Schieferfarbe), eine Geometrie je Dachform
+    if (this.roofs?.length) {
+      const prism = (mans) => {
+        // Querschnitt in x (−0.5…0.5), Höhe 0…1, Länge in z (−0.5…0.5)
+        const prof = mans ? [[-0.5, 0], [-0.4, 0.72], [-0.22, 1], [0.22, 1], [0.4, 0.72], [0.5, 0]] : [[-0.5, 0], [0, 1], [0.5, 0]];
+        const sh = new THREE.Shape(); sh.moveTo(prof[0][0], prof[0][1]); for (const q2 of prof.slice(1)) sh.lineTo(q2[0], q2[1]);
+        return new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false }).translate(0, 0, -0.5);
+      };
+      const rmat = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0.05 });
+      for (const mans of [false, true]) {
+        const list = this.roofs.filter((r) => r.mansard === mans);
+        const im = new THREE.InstancedMesh(prism(mans), rmat, Math.max(1, list.length));
+        const rq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), rc = new THREE.Color();
+        list.forEach((r, i) => {
+          const along = r.along === 'x', len = along ? r.x1 - r.x0 : r.z1 - r.z0, wid = along ? r.z1 - r.z0 : r.x1 - r.x0;
+          rq.setFromAxisAngle(up, along ? Math.PI / 2 : 0);
+          m.compose(new THREE.Vector3((r.x0 + r.x1) / 2, r.y - 0.05, (r.z0 + r.z1) / 2), rq, new THREE.Vector3(wid + 0.6, r.h, len + 0.4));
+          im.setMatrixAt(i, m);
+          // Ziegelrot … Schiefergrau
+          im.setColorAt(i, mans ? rc.setRGB(0.22 + r.tint * 0.08, 0.24 + r.tint * 0.06, 0.28, THREE.SRGBColorSpace) : rc.setRGB(0.55 + r.tint * 0.15, 0.24 + r.tint * 0.08, 0.16, THREE.SRGBColorSpace));
+        });
+        im.count = list.length; im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; this.group.add(im);
+      }
     }
     // Attika (Dachrand) und Gesims: ein Kranz knapp über/unter der Dachkante
     const cm = new THREE.InstancedMesh(unit, new THREE.MeshStandardMaterial({ color: 0x9a9894, roughness: 0.8 }), this.buildings.length * 2);
