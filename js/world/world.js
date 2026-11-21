@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { clamp, lerp, smoothstep } from '../config.js';
 import { mulberry32, hash2, vnoise, fbm, ridged, tick } from './noise.js';
 import { makeWedge, makeNoiseTexture } from '../environment.js';
+import { genHouses, buildHouses, onHousePlot } from './suburb.js';
 
 // ============================== Welt-Konstanten ==============================
 const WORLD = {
@@ -167,6 +168,7 @@ class World {
     this.genColors();
     progress(0.62, 'Stadt bauen …'); await tick();
     this.genCity();
+    genHouses(this, WORLD);          // Vorstadt und Dörfer (vor dem Wald, damit Grundstücke frei bleiben)
     progress(0.7, 'Wald pflanzen …'); await tick();
     this.genTrees();
     this.genRamps();
@@ -631,6 +633,7 @@ class World {
         for (let a = -2; a <= 2 && !nearRoad; a++) for (let b = -2; b <= 2; b++) { const kk = (j + b) * n + i + a; if (surf[kk] === 1 || roadW[kk] > 0.3) { nearRoad = true; break; } }
         if (nearRoad) continue;
         if (x > C.x0 - 30 && x < C.x1 + 30 && z > C.z0 - 30 && z < C.z1 + 30) continue;
+        if (onHousePlot(this, x, z)) continue;
         if (Math.abs(x - A.cx) < A.hx + 50 && Math.abs(z - A.cz) < A.hz + 70) continue;
         const conifer = h > 55 ? r2 < 0.85 : r2 < 0.38;
         xs.push(x); zs.push(z); ys.push(this.gridAt(H, x, z) - 0.2);
@@ -1238,6 +1241,7 @@ Object.assign(World.prototype, {
     this.buildRails();
     this.buildLamps();
     this.buildCity();
+    buildHouses(this, this.group, this.q);
     this.buildTrees();
     this.buildRamps();
     this.setupFallers();
