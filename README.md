@@ -246,6 +246,9 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Bürohäuser:** Sockelgeschosse über das ganze Grundstück, darauf zurückgesetzte Türme, hohe Türme zusätzlich gestaffelt.
 - **Wohnhäuser:** Blockrand als L- oder U-Form mit Innenhof, Flügel unterschiedlich hoch; niedrige Häuser mit Satteldach (Ziegelrot) oder Mansarddach (Schiefer), höhere mit Staffelgeschoss.
 - Ladenzeile nur noch im Erdgeschoss, nicht am Turmfuß auf dem Sockel. Leistung praktisch unverändert (263 Draw-Calls auf Mittel).
+- **Stadtplatz** im Park mit Brunnen (Becken, Säule, Wasserfläche), gepflastertem Rund und Bänken.
+- **Verkehrsinseln** vor Ampelkreuzungen: begrünte Mittelinsel mit Bordstein und blauem „Rechts vorbei“-Schild (instanziert, 1 Draw-Call).
+- **Abgerundete Kreuzungsecken:** Gehwege mit 3 m Eckradius (alle Blöcke in einer Geometrie), Bordstein folgt dem Bogen.
 
 - **Standard auf Touch-Geräten = Mittel** (vorher bekamen iPads „Hoch“ → Hauptgrund fürs Ruckeln); alte Spielstände werden einmalig umgestellt. **Automatische Grafikstufe:** 1,5–6,5 s nach dem Start wird die echte Bildrate gemessen; unter 50 FPS eine Stufe herunter (bis zu zweimal). Wer die Stufe selbst wählt, schaltet die Automatik ab.
 - **Telemetrie** zeigt Draw-Calls, Dreiecke, ms pro Bild und FPS.

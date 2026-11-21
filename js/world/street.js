@@ -24,12 +24,22 @@ class StreetLife {
 
     // ---------- Bordsteine ----------
     const kerbMat = new THREE.MeshStandardMaterial({ color: 0xb4b2ac, roughness: 0.85 });
-    const kerb = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), kerbMat, blocks.length * 4);
+    // gerade Stücke (um den Eckradius gekürzt) + je Ecke ein Bogen aus kurzen gedrehten Steinen
+    const R = world.cornerR || 0, NA = R > 0 ? 6 : 0, per = 4 + 4 * NA;
+    const kerb = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), kerbMat, blocks.length * per);
     blocks.forEach((b, i) => {
       const x0 = b.x0 - 4, x1 = b.x1 + 4, z0 = b.z0 - 4, z1 = b.z1 + 4, y = C.h + 0.085, t = 0.28;
-      const put = (k, cx, cz, sx, sz) => { m4.compose(p3.set(cx, y, cz), q4.identity(), s3.set(sx, 0.17, sz)); kerb.setMatrixAt(i * 4 + k, m4); };
-      put(0, (x0 + x1) / 2, z0 + t / 2, x1 - x0, t); put(1, (x0 + x1) / 2, z1 - t / 2, x1 - x0, t);
-      put(2, x0 + t / 2, (z0 + z1) / 2, t, z1 - z0); put(3, x1 - t / 2, (z0 + z1) / 2, t, z1 - z0);
+      let k = i * per;
+      const put = (cx, cz, sx, sz, yaw = 0) => { q4.setFromAxisAngle(up, yaw); m4.compose(p3.set(cx, y, cz), q4, s3.set(sx, 0.17, sz)); kerb.setMatrixAt(k++, m4); };
+      put((x0 + x1) / 2, z0 + t / 2, x1 - x0 - 2 * R, t); put((x0 + x1) / 2, z1 - t / 2, x1 - x0 - 2 * R, t);
+      put(x0 + t / 2, (z0 + z1) / 2, t, z1 - z0 - 2 * R); put(x1 - t / 2, (z0 + z1) / 2, t, z1 - z0 - 2 * R);
+      const rr = R - t / 2, seg = 2 * rr * Math.sin(Math.PI / 4 / NA) + 0.04;
+      for (const [cx, cz, a0] of [[x1 - R, z0 + R, -Math.PI / 2], [x1 - R, z1 - R, 0], [x0 + R, z1 - R, Math.PI / 2], [x0 + R, z0 + R, Math.PI]]) {
+        for (let j = 0; j < NA; j++) {
+          const a = a0 + (j + 0.5) / NA * Math.PI / 2;
+          put(cx + Math.cos(a) * rr, cz + Math.sin(a) * rr, t, seg, -a);
+        }
+      }
     });
     kerb.receiveShadow = true; scene.add(kerb);
 
