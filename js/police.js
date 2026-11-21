@@ -159,7 +159,7 @@ class PoliceSystem {
   start(levelKey, player, camera) {
     this.stop(false);
     const D = this.D = POLICE_LEVELS[levelKey]; this.levelKey = levelKey;
-    this.active = true; this.time = 0; this.lastSeen = 0; this.seen = true; this.bustT = 0; this.rams = 0; this.wanted = 1;
+    this.active = true; this.time = 0; this.lastSeen = 0; this.seen = true; this.bustT = 0; this.rams = 0; this.wanted = 1; this.crimes = 0;
     this.earned = 0; this.earnAcc = 0; this.payT = 0;   // Geld pro Sekunde während der Verfolgung
     this.lastKnown = player.pos.clone(); this.blockTimer = 25;
     while (this.units.length < D.count + 8) this.units.push(this.makeUnit());
@@ -229,7 +229,8 @@ class PoliceSystem {
     this.time += dt;
     const pp = player.pos, pv = player.vel;
     // Fahndungslevel steigt mit der Zeit und mit Rammstößen
-    this.wanted = clamp(1 + Math.floor(this.time / 30) + Math.floor(this.rams / 3), 1, D.maxStars);
+    // … und mit jedem angefahrenen Fußgänger (ein Stern je Opfer)
+    this.wanted = clamp(1 + Math.floor(this.time / 30) + Math.floor(this.rams / 3) + (this.crimes || 0), 1, D.maxStars);
     // Geld pro Sekunde: Stufe × Fahndungssterne; einmal pro Sekunde gutschreiben (nicht jedes Bild speichern)
     this.rate = D.reward * (1 + (this.wanted - 1) * 0.25);
     this.earnAcc += this.rate * dt;

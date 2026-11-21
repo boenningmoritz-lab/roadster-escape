@@ -5425,7 +5425,7 @@ class PoliceSystem {
   start(levelKey, player, camera) {
     this.stop(false);
     const D = this.D = POLICE_LEVELS[levelKey]; this.levelKey = levelKey;
-    this.active = true; this.time = 0; this.lastSeen = 0; this.seen = true; this.bustT = 0; this.rams = 0; this.wanted = 1;
+    this.active = true; this.time = 0; this.lastSeen = 0; this.seen = true; this.bustT = 0; this.rams = 0; this.wanted = 1; this.crimes = 0;
     this.earned = 0; this.earnAcc = 0; this.payT = 0;   // Geld pro Sekunde während der Verfolgung
     this.lastKnown = player.pos.clone(); this.blockTimer = 25;
     while (this.units.length < D.count + 8) this.units.push(this.makeUnit());
@@ -5495,7 +5495,8 @@ class PoliceSystem {
     this.time += dt;
     const pp = player.pos, pv = player.vel;
     // Fahndungslevel steigt mit der Zeit und mit Rammstößen
-    this.wanted = clamp(1 + Math.floor(this.time / 30) + Math.floor(this.rams / 3), 1, D.maxStars);
+    // … und mit jedem angefahrenen Fußgänger (ein Stern je Opfer)
+    this.wanted = clamp(1 + Math.floor(this.time / 30) + Math.floor(this.rams / 3) + (this.crimes || 0), 1, D.maxStars);
     // Geld pro Sekunde: Stufe × Fahndungssterne; einmal pro Sekunde gutschreiben (nicht jedes Bild speichern)
     this.rate = D.reward * (1 + (this.wanted - 1) * 0.25);
     this.earnAcc += this.rate * dt;
@@ -9210,12 +9211,15 @@ class StreetLife {
       const bodyGeo = mergeParts([
         { geo: new THREE.CapsuleGeometry(0.19, 0.42, 4, 10).scale(1, 1, 0.65).translate(0, 1.18, 0), color: [1, 1, 1] },            // Oberkörper (Kleidung)
       ]);
-      const headGeo = new THREE.SphereGeometry(0.115, 12, 10).translate(0, 1.67, 0);
+      const headGeo = new THREE.SphereGeometry(0.115, 12, 10).scale(0.92, 1.08, 1).translate(0, 1.67, 0);
+      const hairGeo = new THREE.SphereGeometry(0.122, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.52).scale(0.95, 1.05, 1.05).translate(0, 1.685, 0.012);   // Haare (Kappe)
+      const hipGeo = new THREE.CapsuleGeometry(0.15, 0.16, 3, 8).rotateZ(Math.PI / 2).scale(1, 1, 0.75).translate(0, 0.93, 0);                         // Becken in Hosenfarbe
       const legGeo = new THREE.CapsuleGeometry(0.075, 0.68, 4, 8).translate(0, -0.42, 0);   // Drehpunkt an der Hüfte
       const armGeo = new THREE.CapsuleGeometry(0.05, 0.5, 4, 8).translate(0, -0.3, 0);       // Drehpunkt an der Schulter
       const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
       const mk = (geo, n) => { const im = new THREE.InstancedMesh(geo, mat, n); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = false; im.frustumCulled = false; scene.add(im); return im; };
-      this.pm = { body: mk(bodyGeo, N), head: mk(headGeo, N), leg: mk(legGeo, N * 2), arm: mk(armGeo, N * 2) };
+      this.pm = { body: mk(bodyGeo, N), head: mk(headGeo, N), hair: mk(hairGeo, N), hip: mk(hipGeo, N), leg: mk(legGeo, N * 2), arm: mk(armGeo, N * 2) };
+      const hairs = [[0.1, 0.07, 0.05], [0.28, 0.18, 0.1], [0.6, 0.48, 0.3], [0.05, 0.04, 0.04], [0.5, 0.5, 0.52], [0.45, 0.2, 0.1]];
       const col = new THREE.Color();
       const city = blocks.filter((b) => !b.park);
       for (let i = 0; i < N; i++) {
@@ -9224,11 +9228,15 @@ class StreetLife {
         const x0 = b.x0 - 1.6, x1 = b.x1 + 1.6, z0 = b.z0 - 1.6, z1 = b.z1 + 1.6;
         const per = 2 * (x1 - x0) + 2 * (z1 - z0);
         const ped = { rect: [x0, x1, z0, z1], per, s: rng() * per, dir: rng() < 0.5 ? 1 : -1, speed: 1.1 + rng() * 0.6, phase: rng() * 6.28,
-          dodge: 0, dodgeV: 0, x: 0, z: 0, yaw: 0, h: 0.92 + rng() * 0.16 };
+          dodge: 0, dodgeV: 0, x: 0, z: 0, yaw: 0, h: 0.88 + rng() * 0.22, wd: 0.88 + rng() * 0.3,   // Größe und Statur
+          alert: rng() < 0.6, down: null, ox: 0, oz: 0 };                                              // aufmerksam → springt zur Seite
         this.peds.push(ped);
         const sc = skin[Math.floor(rng() * skin.length)], cl = cloth[Math.floor(rng() * cloth.length)], pa = pants[Math.floor(rng() * pants.length)];
         this.pm.body.setColorAt(i, col.setRGB(cl[0], cl[1], cl[2], THREE.SRGBColorSpace));
         this.pm.head.setColorAt(i, col.setRGB(sc[0], sc[1], sc[2], THREE.SRGBColorSpace));
+        const hc = hairs[Math.floor(rng() * hairs.length)];
+        this.pm.hair.setColorAt(i, col.setRGB(hc[0], hc[1], hc[2], THREE.SRGBColorSpace));
+        this.pm.hip.setColorAt(i, col.setRGB(pa[0], pa[1], pa[2], THREE.SRGBColorSpace));
         for (const k2 of [0, 1]) { this.pm.leg.setColorAt(i * 2 + k2, col.setRGB(pa[0], pa[1], pa[2], THREE.SRGBColorSpace)); this.pm.arm.setColorAt(i * 2 + k2, col.setRGB(cl[0] * 0.9, cl[1] * 0.9, cl[2] * 0.9, THREE.SRGBColorSpace)); }
       }
     }
@@ -9298,44 +9306,97 @@ class StreetLife {
     // ---------- Fußgänger ----------
     if (!this.peds.length) return;
     const pm = this.pm, m = this._m, q = this._q, s = this._s, pos = this._p, e = this._e;
+    const KEYS = ['body', 'head', 'hair', 'hip', 'leg', 'arm'];
     const vis = !this.hidePeds && (inCity || Math.hypot(cam.x - C.cx, cam.z - C.cz) < 600);
-    for (const k of ['body', 'head', 'leg', 'arm']) pm[k].visible = vis;
+    for (const k of KEYS) pm[k].visible = vis;
     if (!vis) return;
+    const B = this._B || (this._B = new THREE.Matrix4()), Lm = this._Lm || (this._Lm = new THREE.Matrix4()), one = this._one || (this._one = new THREE.Vector3(1, 1, 1));
+    const fwd = this._fw || (this._fw = new THREE.Vector3());
+    fwd.set(0, 0, -1).applyQuaternion(v.quat);
+    const rgx = -fwd.z, rgz = fwd.x;                                       // rechts vom Auto
+    // Teil in lokalem Rahmen der Figur (Füße = Ursprung) setzen: Welt = B · T(lx,ly,0) · R(rx,0,rz) · S
+    const put = (mesh, idx, lx, ly, rx, rz, sx, sy) => {
+      e.set(rx, 0, rz, 'XYZ'); q.setFromEuler(e);
+      Lm.compose(pos.set(lx, ly, 0), q, s.set(sx, sy, sx)); m.multiplyMatrices(B, Lm); mesh.setMatrixAt(idx, m);
+    };
+    this.newHits = 0;
     let i = 0;
     for (const ped of this.peds) {
       const [wx, wz] = this.walkPos(ped);
-      // Auto in der Nähe und schnell → seitlich zur Hauswand ausweichen (springen)
-      const dpx = px - wx, dpz = pz - wz, d2 = dpx * dpx + dpz * dpz;
-      const danger = d2 < 64 && v.speed > 2.5 && py < C.h + 3;
-      const target = danger ? 1.4 : 0;
-      ped.dodgeV = danger ? 6 : 1.2;
-      ped.dodge += clamp(target - ped.dodge, -ped.dodgeV * dt, ped.dodgeV * dt);
-      const stop = danger ? 0 : 1;
-      ped.s += ped.dir * ped.speed * dt * stop;
-      ped.phase += dt * ped.speed * 5.2 * stop;
-      const [x, z, dx, dz] = this.walkPos(ped);
+      const h = ped.h;
+      if (!ped.down) {
+        // Auto in der Nähe und schnell → aufmerksame Fußgänger springen seitlich zur Hauswand
+        const dpx = px - wx, dpz = pz - wz, d2 = dpx * dpx + dpz * dpz;
+        const danger = d2 < 64 && v.speed > 2.5 && py < C.h + 3;
+        const target = danger && ped.alert ? 1.4 : 0;
+        ped.dodgeV = danger ? 6 : 1.2;
+        ped.dodge += clamp(target - ped.dodge, -ped.dodgeV * dt, ped.dodgeV * dt);
+        const stop = danger ? 0 : 1;
+        ped.s += ped.dir * ped.speed * dt * stop;
+        ped.phase += dt * ped.speed * 5.2 * stop;
+        ped.stop = stop;
+        // Angefahren? (Figur liegt im Umriss des Autos, Auto fährt) → umgestoßen, durch die Luft geschleudert
+        const [cx0, cz0] = this.walkPos(ped), rx0 = cx0 + ped.ox - px, rz0 = cz0 + ped.oz - pz;
+        const lz = rx0 * fwd.x + rz0 * fwd.z, lx = rx0 * rgx + rz0 * rgz;
+        if (v.speed > 2.5 && Math.abs(lz) < 2.5 && Math.abs(lx) < 1.25 && py < C.h + 2.5) {
+          const sp = v.speed, kk = 0.55 + Math.random() * 0.25;
+          ped.down = { t: 0, x: cx0 + ped.ox, z: cz0 + ped.oz, y: C.h + 0.12, vx: v.vel.x * kk + rgx * lx * 1.5, vz: v.vel.z * kk + rgz * lx * 1.5, vy: Math.min(2 + sp * 0.14, 7),
+            yaw: Math.atan2(fwd.x, fwd.z) + Math.PI + (Math.random() - 0.5) * 0.8, pitch: 0, pv: -(3 + sp * 0.35) * (Math.random() < 0.8 ? 1 : -1), roll: 0, rv: (Math.random() - 0.5) * 6, ground: false };
+          v.vel.multiplyScalar(0.97);
+          v.lastImpact = Math.max(v.lastImpact || 0, Math.min(3, sp * 0.1));
+          this.newHits++; this.hitsTotal = (this.hitsTotal || 0) + 1;
+        }
+      }
+      let x, z, yaw, lift = 0, pitch = 0, roll = 0, sw, legX = 0, armZ = 0.08, bob = 0;
+      const D = ped.down;
+      if (D) {
+        // Sturz: Flug, Aufprall, Rutschen, Liegen (4 s), Aufstehen (1 s) – danach zurück auf den Rundweg
+        D.t += dt;
+        const gY = C.h + (this.w.sample ? Math.max(0, this.w.sample(D.x, D.z) - C.h) : 0) + 0.06;
+        if (!D.ground || D.vy > 0 || D.y > gY + 0.01) {
+          D.vy -= 9.81 * dt; D.x += D.vx * dt; D.z += D.vz * dt; D.y += D.vy * dt; D.pitch += D.pv * dt; D.roll += D.rv * dt;
+          if (D.y <= gY) { D.y = gY; D.vy = Math.abs(D.vy) > 2.5 ? -D.vy * 0.25 : 0; D.vx *= 0.55; D.vz *= 0.55; D.pv *= 0.35; D.rv *= 0.3; D.ground = true; }
+        } else {
+          const f = Math.exp(-dt * 4); D.vx *= f; D.vz *= f; D.x += D.vx * dt; D.z += D.vz * dt;
+        }
+        // liegend: Oberkörper waagerecht (auf dem Bauch oder Rücken)
+        const pn = Math.atan2(Math.sin(D.pitch), Math.cos(D.pitch)), lieP = pn >= 0 ? Math.PI / 2 : -Math.PI / 2;
+        if (D.ground && Math.hypot(D.vx, D.vz) < 1.5 && D.t < 5) { D.pitch = pn + (lieP - pn) * Math.min(1, dt * 6); D.roll *= Math.exp(-dt * 6); D.pv = 0; D.rv = 0; }
+        const up = D.t > 5 ? Math.min(1, (D.t - 5) / 1.1) : 0;                  // Aufstehen
+        x = D.x; z = D.z; yaw = D.yaw; pitch = D.pitch * (1 - up); roll = D.roll * (1 - up);
+        lift = 0.13 * Math.abs(Math.sin(pitch));
+        sw = 0; legX = (1 - up) * 0.35; armZ = 0.08 + (1 - up) * 1.1;
+        if (D.t > 6.2) {                                                            // wieder auf den Weg: Versatz weich abbauen
+          const [bx, bz] = this.walkPos(ped); ped.ox = D.x - bx; ped.oz = D.z - bz; ped.down = null; ped.dodge = 0;
+        }
+        D.y = Math.max(D.y, gY);
+        pos.set(x, D.y + lift, z);
+      } else {
+        const [ax, az, dx, dz] = this.walkPos(ped);
+        const k = Math.exp(-dt * 0.8); ped.ox *= k; ped.oz *= k;
+        x = ax + ped.ox; z = az + ped.oz; yaw = Math.atan2(-dx, -dz);
+        sw = Math.sin(ped.phase) * 0.42 * ped.stop; bob = Math.abs(Math.cos(ped.phase)) * 0.03 * ped.stop;
+        pos.set(x, C.h + 0.12 + bob, z);
+      }
       // LOD: Fußgänger weiter als 140 m werden nicht gezeichnet (Skalierung 0), gehen aber weiter
       if ((x - cam.x) ** 2 + (z - cam.z) ** 2 > 140 * 140) {
-        m.makeScale(0, 0, 0); pm.body.setMatrixAt(i, m); pm.head.setMatrixAt(i, m);
+        m.makeScale(0, 0, 0); for (const k of ['body', 'head', 'hair', 'hip']) pm[k].setMatrixAt(i, m);
         for (const k2 of [0, 1]) { pm.leg.setMatrixAt(i * 2 + k2, m); pm.arm.setMatrixAt(i * 2 + k2, m); }
         i++; continue;
       }
-      const yaw = Math.atan2(-dx, -dz), sw = Math.sin(ped.phase) * 0.42 * stop, bob = Math.abs(Math.cos(ped.phase)) * 0.03 * stop;
-      const y = C.h + 0.12;
-      q.setFromAxisAngle(this._up, yaw);
-      m.compose(pos.set(x, y + bob, z), q, s.set(ped.h, ped.h, ped.h)); pm.body.setMatrixAt(i, m); pm.head.setMatrixAt(i, m);
+      e.set(pitch, yaw, roll, 'YXZ'); q.setFromEuler(e); B.compose(pos, q, one);
+      const wd = ped.wd;
+      put(pm.body, i, 0, 0, 0, 0, h * wd, h); put(pm.hip, i, 0, 0, 0, 0, h * wd, h);
+      put(pm.head, i, 0, 0, 0, 0, h, h); put(pm.hair, i, 0, 0, 0, 0, h, h);
       for (const side of [-1, 1]) {
-        // Beine (Hüfte 0,9 m) und Arme (Schulter 1,42 m) schwingen gegenläufig
-        e.set(sw * side, yaw, 0, 'YXZ'); q.setFromEuler(e);
-        const ox = Math.cos(yaw) * side * 0.1 * ped.h, oz = -Math.sin(yaw) * side * 0.1 * ped.h;
-        m.compose(pos.set(x + ox, y + 0.9 * ped.h + bob, z + oz), q, s.set(ped.h, ped.h, ped.h)); pm.leg.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), m);
-        e.set(-sw * side * 0.8, yaw, side * 0.08, 'YXZ'); q.setFromEuler(e);
-        const ax = Math.cos(yaw) * side * 0.24 * ped.h, az = -Math.sin(yaw) * side * 0.24 * ped.h;
-        m.compose(pos.set(x + ax, y + 1.42 * ped.h + bob, z + az), q, s.set(ped.h, ped.h, ped.h)); pm.arm.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), m);
+        // Beine (Hüfte 0,9 m) und Arme (Schulter 1,42 m) schwingen gegenläufig; beim Sturz gespreizt
+        const j = i * 2 + (side > 0 ? 1 : 0);
+        put(pm.leg, j, side * 0.1 * h * wd, 0.9 * h, sw * side + legX * (side > 0 ? 0.6 : -0.3), side * legX * 0.4, h, h);
+        put(pm.arm, j, side * 0.24 * h * wd, 1.42 * h, -sw * side * 0.8 + legX * side, side * armZ, h, h);
       }
       i++;
     }
-    for (const k of ['body', 'head', 'leg', 'arm']) pm[k].instanceMatrix.needsUpdate = true;
+    for (const k of KEYS) pm[k].instanceMatrix.needsUpdate = true;
   }
 }
 
@@ -9658,6 +9719,12 @@ class Game {
       if (res && !this.missions.onPoliceResult(res)) this.showResult(res);
       this.missions.update(dt);
       this.street.update(dt, v, this.camera.position);
+      // Fußgänger angefahren → Fahndung steigt; ohne laufende Verfolgung ruft ein Zeuge die Polizei (nicht in Missionen)
+      if (this.street.newHits) {
+        Haptics.pulse(25);
+        if (this.police.active) { this.police.crimes = (this.police.crimes || 0) + this.street.newHits; toast('Fußgänger angefahren – Fahndung steigt', 1400); }
+        else if (!this.missions.active) { this.togglePolice(); this.police.crimes = 1; toast('Ein Zeuge hat die Polizei gerufen!', 2200); }
+      }
       Tutorial.update(dt, v);
       document.body.classList.toggle('inMission', !!this.missions.active);
       this.trackStats(dt);

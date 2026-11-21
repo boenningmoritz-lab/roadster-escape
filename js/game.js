@@ -338,6 +338,12 @@ class Game {
       if (res && !this.missions.onPoliceResult(res)) this.showResult(res);
       this.missions.update(dt);
       this.street.update(dt, v, this.camera.position);
+      // Fußgänger angefahren → Fahndung steigt; ohne laufende Verfolgung ruft ein Zeuge die Polizei (nicht in Missionen)
+      if (this.street.newHits) {
+        Haptics.pulse(25);
+        if (this.police.active) { this.police.crimes = (this.police.crimes || 0) + this.street.newHits; toast('Fußgänger angefahren – Fahndung steigt', 1400); }
+        else if (!this.missions.active) { this.togglePolice(); this.police.crimes = 1; toast('Ein Zeuge hat die Polizei gerufen!', 2200); }
+      }
       Tutorial.update(dt, v);
       document.body.classList.toggle('inMission', !!this.missions.active);
       this.trackStats(dt);
