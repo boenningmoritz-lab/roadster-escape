@@ -177,12 +177,25 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false, opts =
     const zs = -L / 2 + s.hood + 1.25;
     if (!lo) {
     parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.04, L - s.hood - s.trunk - 0.6).translate(0, belt - 0.06, (-L / 2 + s.hood + L / 2 - s.trunk) / 2), color: [0.08, 0.08, 0.09] });
-    for (const sx of [-1, 1]) {
-      parts.push({ geo: new THREE.BoxGeometry(0.46, 0.5, 0.1).translate(sx * 0.4, 1.0, zs + 0.28), color: [0.12, 0.12, 0.13] });
-      parts.push({ geo: new THREE.BoxGeometry(0.24, 0.14, 0.09).translate(sx * 0.4, Hh - 0.16, zs + 0.3), color: [0.12, 0.12, 0.13] });
-    }
+    // Innenraum mit echten Formen: Sitze (Polster, geneigte Lehne, Kopfstütze), Mittelkonsole mit Wählhebel,
+    // Rücksitzbank mit Kopfstützen, Türverkleidungen. Polsterfarbe je Modell (hell oder dunkel → durch die Scheibe erkennbar)
+    const UPH = { hatch: [0.55, 0.5, 0.44], sedan: [0.16, 0.16, 0.17], kombi: [0.42, 0.36, 0.3], suv: [0.62, 0.58, 0.52], van: [0.25, 0.27, 0.3] }[type] || [0.2, 0.2, 0.21];
+    const UPH2 = UPH.map((c) => c * 0.75), sy0 = belt - 0.38;
+    const seat = (x, z, w) => {
+      parts.push({ geo: new THREE.CapsuleGeometry(0.09, w - 0.18, 3, 8).rotateZ(Math.PI / 2).scale(1, 1, 2.6).translate(x, sy0, z - 0.06), color: UPH });            // Sitzfläche
+      parts.push({ geo: new THREE.CapsuleGeometry(0.08, 0.46, 3, 8).scale(w / 0.36, 1, 0.9).rotateX(0.22).translate(x, sy0 + 0.34, z + 0.22), color: UPH });       // Lehne (geneigt)
+      parts.push({ geo: new THREE.CapsuleGeometry(0.07, Math.max(0.01, w * 0.4 - 0.14), 3, 8).rotateZ(Math.PI / 2).scale(1, 1.1, 0.8).translate(x, sy0 + 0.72, z + 0.3), color: UPH2 });   // Kopfstütze
+    };
+    for (const sx of [-1, 1]) seat(sx * 0.4, zs + 0.06, 0.5);
+    parts.push({ geo: new THREE.BoxGeometry(0.2, 0.22, 0.75).translate(0, sy0 - 0.02, zs - 0.25), color: [0.07, 0.07, 0.08] });                 // Mittelkonsole
+    parts.push({ geo: new THREE.CylinderGeometry(0.015, 0.02, 0.12, 6).translate(0, sy0 + 0.14, zs - 0.15), color: [0.6, 0.6, 0.62] });        // Wählhebel
+    if (L > 4.2 && !s.tall) seat(0, zs + 0.95, W - 0.5);                                                                                     // Rücksitzbank
+    if (s.tall) for (const sx of [-1, 1]) seat(sx * 0.42, zs + 1.0, 0.55);
+    for (const sx of [-1, 1]) parts.push({ geo: new THREE.BoxGeometry(0.04, 0.32, L - s.hood - s.trunk - 0.8).translate(sx * (halfW(0) * 0.86), belt - 0.15, (-L / 2 + s.hood + L / 2 - s.trunk) / 2), color: UPH2 });   // Türverkleidung
     // Armaturenbrett, Lenkrad, Fahrer (links) und bei größeren Autos ein Beifahrer
     parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.18, 0.35).translate(0, belt + 0.02, -L / 2 + s.hood + 0.3), color: [0.09, 0.09, 0.1] });
+    parts.push({ geo: new THREE.BoxGeometry(0.26, 0.15, 0.02).rotateX(-0.35).translate(0.02, belt + 0.16, -L / 2 + s.hood + 0.42), color: [0.18, 0.32, 0.42] });   // Mitteldisplay
+    parts.push({ geo: new THREE.BoxGeometry(0.3, 0.1, 0.02).rotateX(-0.5).translate(-0.4, belt + 0.14, -L / 2 + s.hood + 0.36), color: [0.12, 0.14, 0.16] });     // Kombiinstrument
     steering(-0.4, belt + 0.12, zs - 0.42, -1.15);
     const seed = type.length * 3 + Math.round(L * 10);
     if (!opts.noPeople) { person(-0.4, Hh - 0.3, zs + 0.06, zs - 0.42, seed); if (s.passenger) person(0.4, Hh - 0.31, zs + 0.06, null, seed + 5); }
