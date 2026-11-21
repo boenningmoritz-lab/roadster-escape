@@ -9177,7 +9177,7 @@ Orientation.init();
 HUD.init();
 const game = new Game();
 window.__game = game;          // für Tests/Debugging
-Object.assign(window, { Input, CamInput, Settings, WORLD, View, SaveData, POLICE_LEVELS, MISSIONS, buildCarConfig, Menu, Tutorial, DynRes });
+Object.assign(window, { Input, CamInput, Settings, WORLD, View, SaveData, POLICE_LEVELS, MISSIONS, buildCarConfig, Menu, Tutorial, DynRes, Haptics });
 const loadFill = document.getElementById('lFill'), loadText = document.getElementById('lText');
 game.init((p, msg) => { loadFill.style.width = Math.round(p * 100) + '%'; loadText.textContent = msg; })
   .then(() => {
