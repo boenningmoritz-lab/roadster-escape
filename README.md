@@ -279,6 +279,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Innenräume der Verkehrsautos:** gepolsterte Sitze mit geneigter Lehne und Kopfstütze (helle oder dunkle Polster je Modell), Mittelkonsole mit Wählhebel, Rücksitzbank, Türverkleidungen, Mitteldisplay und Kombiinstrument.
 - **Ampeln:** Mast mit Ausleger und Strebe über die Fahrbahn, je Zufahrt zwei Signalgeber (am Mast und über der Spur), schwarze Kontrasttafel mit weißem Rand, Sonnenblenden über jeder Leuchte, gelber Anforderungstaster, Mastsockel.
 - **Stadtbus** im Verkehr (4 %, gelb/rot/blau): durchgehendes Fensterband aus echtem Glas, Sitzreihen mit Fahrgästen, Haltestangen, Fahrerplatz mit Lenkrad und Fahrer, Türen rechts, leuchtende Zielanzeige. Fährt in Stadt und Land, nicht in Kreisel und Parkstraße, wird nicht geparkt.
+- **Ego-Sicht in Limousine, Kombi, SUV:** eigenes Dach und lackierte A-Säulen, Fahrgastraum-Oberseite der Karosserie ausgeschnitten → das ausführliche Cockpit (Armaturen, Displays, Lenkrad, Hände, Sitze) bleibt sichtbar; der Roadster-Scheibenrahmen nur noch beim Roadster.
 
 ## Code-Aufbau
 

@@ -264,8 +264,9 @@ class CarModel {
       // von außen sieht man stattdessen die flache Glaskuppel.
       this.cockpitOnly = new THREE.Group(); this.cockpitOnly.visible = false; body.add(this.cockpitOnly);
       const tubeM = (pts, r) => { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, r, 8, false), black); this.cockpitOnly.add(m); return m; };
-      for (const sx of [-1, 1]) tubeM([new THREE.Vector3(sx * 0.66, 0.84, -0.78), new THREE.Vector3(sx * 0.63, 1.08, -0.5), new THREE.Vector3(sx * 0.58, 1.33, -0.2)], 0.012);
-      tubeM([new THREE.Vector3(-0.58, 1.33, -0.2), new THREE.Vector3(0, 1.36, -0.2), new THREE.Vector3(0.58, 1.33, -0.2)], 0.014);
+      this.frameTubes = [];
+      for (const sx of [-1, 1]) this.frameTubes.push(tubeM([new THREE.Vector3(sx * 0.66, 0.84, -0.78), new THREE.Vector3(sx * 0.63, 1.08, -0.5), new THREE.Vector3(sx * 0.58, 1.33, -0.2)], 0.012));
+      this.frameTubes.push(tubeM([new THREE.Vector3(-0.58, 1.33, -0.2), new THREE.Vector3(0, 1.36, -0.2), new THREE.Vector3(0.58, 1.33, -0.2)], 0.014));
       const rv = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.055, 0.025), black); rv.position.set(0.05, 1.3, -0.19); rv.rotation.x = -0.12; this.cockpitOnly.add(rv);
       // Spiegelglas: zeigt (in der Ego-Sicht) ein echtes Bild nach hinten – Render-Target, siehe Game.updateMirrors
       this.mirrorMat = new THREE.MeshBasicMaterial({ color: 0x9aa4ae });
@@ -567,7 +568,10 @@ class CarModel {
 
     // ---------- Räder ----------
     // Teile der Roadster-Karosserie merken (für den Modellwechsel); Lichtquellen und Cockpit-Gruppe bleiben immer
-    this.roadsterParts = body.children.filter((o) => o.isMesh && o !== this.glow);
+    // Nur die Außenhaut des Roadsters (Lack, Scheiben, Leuchten) wird beim Karosseriewechsel ausgeblendet –
+    // das ausführliche Cockpit (Armaturen, Sitze, Konsole, Lenkrad) bleibt für die Ego-Sicht in jedem Modell erhalten
+    const outer = new Set([this.paint, this.headMat, this.tailMat, this.revMat]);
+    this.roadsterParts = body.children.filter((o) => o.isMesh && o !== this.glow && (outer.has(o.material) || (o.material && o.material.transparent && !o.material.isMeshBasicMaterial)));
     this.wheels = [];
     const tireGeo = new THREE.CylinderGeometry(R, R, cfg.wheelWidth, 28, 1).rotateZ(Math.PI / 2);
     const sideWallGeo = new THREE.TorusGeometry(R - 0.035, 0.035, 6, 28).rotateY(Math.PI / 2);
@@ -621,13 +625,32 @@ class CarModel {
     };
     this.bodies = this.bodies || {};
     for (const o of this.roadsterParts) o.visible = style === 'roadster' || !SPEC[style];
+    for (const o of this.frameTubes || []) o.visible = style === 'roadster' || !SPEC[style];   // Roadster-Scheibenrahmen nur beim Roadster
     for (const [k, b] of Object.entries(this.bodies)) b.visible = k === style;
     if (!SPEC[style] || this.bodies[style]) return;
-    const sp = SPEC[style], V = makeTrafficVariant(sp.type, sp, false, { noWheels: true, noPeople: true });
+    const sp = SPEC[style], V = makeTrafficVariant(sp.type, sp, false, { noWheels: true, noPeople: true, noInterior: true });
+    // Fahrgastraum öffnen: die geschlossene Oberseite der Karosserie (Brüstungshöhe) zwischen Front- und Heckscheibe
+    // entfernen, damit man in der Ego-Sicht auf das eigene Cockpit (Armaturen, Lenkrad, Sitze) schaut
+    {
+      const belt = sp.type === 'suv' ? 1.0 : 0.88, z0 = -sp.L / 2 + sp.hood + 0.05, z1 = sp.L / 2 - sp.trunk - 0.05, xw = sp.W / 2 * 0.86;
+      const g = V.body, P = g.attributes.position, n = P.count, keep = [];
+      for (let t = 0; t < n; t += 3) {
+        let inside = true;
+        for (let k = 0; k < 3; k++) { const x = P.getX(t + k), y = P.getY(t + k), z = P.getZ(t + k); if (Math.abs(x) > xw || z < z0 || z > z1 || y < belt - 0.12 || y > belt + 0.12) { inside = false; break; } }
+        if (!inside) keep.push(t);
+      }
+      const ng = new THREE.BufferGeometry();
+      for (const [name, a] of Object.entries(g.attributes)) {
+        const arr = new a.array.constructor(keep.length * 3 * a.itemSize);
+        keep.forEach((t, j) => arr.set(a.array.subarray(t * a.itemSize, (t + 3) * a.itemSize), j * 3 * a.itemSize));
+        ng.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize));
+      }
+      V.body = ng;
+    }
     const grp = new THREE.Group();
     // Lack: Teile mit paint = 1 bekommen die gewählte Lackfarbe (gleiches Material wie der Roadster → Garage-Farben gelten)
     const paintMat = this.paint.clone(), paintU = { value: this.paint.color };
-    paintMat.vertexColors = true; paintMat.color = new THREE.Color(1, 1, 1);
+    paintMat.vertexColors = true; paintMat.color = new THREE.Color(1, 1, 1); paintMat.side = THREE.DoubleSide;   // Dachhimmel/Säulen auch von innen sichtbar
     paintMat.onBeforeCompile = (sh) => {
       sh.uniforms.uPaint = paintU;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float paint;\nuniform vec3 uPaint;')

@@ -211,7 +211,7 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false, opts =
     }
     // Innenraum hinter den Scheiben: Boden auf Brüstungshöhe, Sitzlehnen, Fahrer (links), Kopfstützen
     const zs = -L / 2 + s.hood + 1.25;
-    if (!lo) {
+    if (!lo && !opts.noInterior) {
     parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.04, L - s.hood - s.trunk - 0.6).translate(0, belt - 0.06, (-L / 2 + s.hood + L / 2 - s.trunk) / 2), color: [0.08, 0.08, 0.09] });
     // Innenraum mit echten Formen: Sitze (Polster, geneigte Lehne, Kopfstütze), Mittelkonsole mit Wählhebel,
     // Rücksitzbank mit Kopfstützen, Türverkleidungen. Polsterfarbe je Modell (hell oder dunkel → durch die Scheibe erkennbar)
