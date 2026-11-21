@@ -243,7 +243,7 @@ class TrafficSystem {
     this.bodyMat.onBeforeCompile = (sh) => {
       // Dellen: idmg = (Aufprallpunkt x, z lokal, Stärke 0–1, –) → lackierte Teile nahe dem Aufprallpunkt nach innen gedrückt
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float paint;\nattribute vec4 idmg;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\n { float dd = distance(position.xz, idmg.xy); float wd = (1.0 - smoothstep(0.2, 1.7, dd)) * idmg.z * paint;\n   float nz = fract(sin(dot(floor(position * 9.0), vec3(12.99, 78.23, 37.71))) * 43758.55);\n   transformed -= objectNormal * wd * (0.07 + 0.09 * nz); }')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n { float dd = distance(position.xz, idmg.xy); float wd = (1.0 - smoothstep(0.2, 2.0, dd)) * idmg.z * paint;\n   float nz = fract(sin(dot(floor(position * 7.0), vec3(12.99, 78.23, 37.71))) * 43758.55);\n   transformed -= objectNormal * wd * (0.14 + 0.16 * nz); }')
         .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix(vec3(1.0), instanceColor.xyz, paint);'));
     };
     this.lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
