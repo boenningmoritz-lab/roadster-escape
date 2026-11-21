@@ -283,13 +283,13 @@ class TrafficSystem {
     const near = this.nearEdges(focus, rMax);
     for (let t = 0; t < 90; t++) {
       const e = near.length && t < 70 ? near[Math.floor(this.rng() * near.length)] : this.randomEdge();
-      if (car.v.type === 'truck' && e.cls === 'city') continue;
+      if (car.v.type === 'truck' && (e.cls === 'city' || e.cls === 'ring')) continue;
       const s = 10 + this.rng() * Math.max(e.len - 20, 1);
       const p = this.w.pointOnEdge(e, s, this._p);
       const d = Math.hypot(p.x - focus.x, p.z - focus.z);
       if (d < rMin || d > rMax || p.y < this.w.waterLevel - 1) continue;
       if (camera && d < 200 && this.inView(camera, p)) continue;     // nicht vor den Augen erscheinen
-      const dir = this.rng() < 0.5 ? 1 : -1, lane = Math.floor(this.rng() * e.C.lanes.length);
+      const dir = e.oneWay || this.rng() < 0.5 ? 1 : -1, lane = Math.floor(this.rng() * e.C.lanes.length);
       let free = true;
       for (const o of this.cars) if (o !== car && o.e === e && Math.abs(o.s - s) < 18) { free = false; break; }
       if (!free) continue;
@@ -328,7 +328,7 @@ class TrafficSystem {
   place(car, dt, snap) {
     const p = this.w.pointOnEdge(car.e, car.s, this._p);
     const fx = p.tx * car.dir, fz = p.tz * car.dir, rx = -fz, rz = fx;
-    const lat = car.e.C.lanes[car.lane] + car.latOff;
+    const lat = car.e.C.lanes[car.lane] + car.latOff + (car.turnOff || 0);
     const x = p.x + rx * lat, z = p.z + rz * lat;
     if (snap) { car.bx = 0; car.bz = 0; }
     else { const k = Math.exp(-dt * 5); car.bx *= k; car.bz *= k; }
@@ -356,7 +356,7 @@ class TrafficSystem {
   /** Nächste Kante an einem Knoten wählen (lieber geradeaus; Lkw nicht in die Stadt). */
   chooseNext(car, e, node, here) {
     const inTx = here.tx * car.dir, inTz = here.tz * car.dir;
-    const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && o.cls === 'city'));
+    const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && (o.cls === 'city' || o.cls === 'ring')) && !(o.oneWay && o.a !== node));
     if (!opts.length) return e;
     let tot = 0; const ws = opts.map((o) => {
       const out = o.a === node ? o.pts[1] : o.pts[o.pts.length - 2];
@@ -390,6 +390,17 @@ class TrafficSystem {
           const axis = Math.abs(here.tx) > Math.abs(here.tz) ? 'EW' : 'NS';
           const st = w.signalState(node, axis);
           if (st === 'R' || (st === 'Y' && toNode > 18)) stop = toNode - C.stopBack;
+        } else if (node.type === 'ring') {
+          // Kreisverkehr: im Kreis Vorfahrt; einfahrende Autos warten nur, wenn ein Auto im Kreis gleich vorbeikommt
+          if (e.cls !== 'ring') {
+            vT = Math.min(vT, 4 + toNode * 0.35);
+            let busy = false;
+            for (const o of this.cars) {
+              if (o.state !== 'drive' || o.e.cls !== 'ring' || o.e.b !== node) continue;
+              if (o.e.len - o.s < 11) { busy = true; break; }
+            }
+            if (busy) stop = toNode - C.stopBack;
+          }
         } else if (node.type === 'hwj') {
           if (e.cls !== 'highway' && !car.cleared) {
             stop = toNode - C.stopBack;
@@ -434,6 +445,9 @@ class TrafficSystem {
         const cr = (here.tx * car.dir) * (oz2 / l) - (here.tz * car.dir) * (ox2 / l);   // >0: rechts (Bildschirm-Koordinaten x/z)
         car.blink = Math.abs(cr) > 0.45 ? (cr > 0 ? 1 : -1) : 0;
       }
+      // Abbiegespuren vor Ampelkreuzungen: Linksabbieger ordnen sich links ein, alle anderen rechts
+      { const tgt = e.cls === 'city' && node.signal && toNode < 40 && toNode > 6 ? (car.blink < 0 ? -0.7 : 2.6) : 0;
+        car.turnOff = (car.turnOff || 0) + (tgt - (car.turnOff || 0)) * Math.min(1, dt * 1.3); }
       car.s += car.dir * car.speed * dt;
       // Kantenende → nächste Kante wählen (lieber geradeaus)
       if (car.s > e.len || car.s < 0) {

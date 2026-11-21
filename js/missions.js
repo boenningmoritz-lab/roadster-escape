@@ -86,7 +86,7 @@ class MissionSystem {
   // ------------------------------------------------------------ Routen
   nearestNode(x, z) {
     let best = null, bd = 1e18;
-    for (const n of this.w.nodes) { const d = (n.x - x) ** 2 + (n.z - z) ** 2; if (d < bd) { bd = d; best = n; } }
+    for (const n of this.w.nodes) { if (!n.edges.length) continue; const d = (n.x - x) ** 2 + (n.z - z) ** 2; if (d < bd) { bd = d; best = n; } }
     return best;
   }
   /** Kürzester Weg im Straßengraphen (Dijkstra) als Punktfolge. */

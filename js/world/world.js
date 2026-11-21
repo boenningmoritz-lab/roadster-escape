@@ -21,6 +21,7 @@ const ROAD_CLASS = {
   highway: { halfW: 11, lanes: [2.7, 6.3], speed: [35, 28], grade: 0.05, smooth: 30, stopBack: 6 },
   country: { halfW: 4.2, lanes: [2.0], speed: [22], grade: 0.10, smooth: 10, stopBack: 6 },
   city:    { halfW: 7, lanes: [2.4], speed: [13.5], grade: 0, smooth: 0, stopBack: 11 },
+  ring:    { halfW: 3.5, lanes: [0], speed: [7.5], grade: 0, smooth: 0, stopBack: 4 },   // Kreisverkehr (Einbahn)
 };
 // Untergrund: 0 Gras, 1 Asphalt, 2 Waldboden, 3 Sand, 4 Fels
 const SURF_GRIP = [0.78, 1.0, 0.72, 0.6, 0.86];
@@ -304,11 +305,33 @@ class World {
       for (let k = 0; k <= m; k++) pts.push({ x: lerp(a.x, b.x, k / m), z: lerp(a.z, b.z, k / m), y: C.h });
       return pts;
     };
+    // Kreisverkehr statt Ampelkreuzung an einem Knoten: vier Einfahrtsknoten im Abstand RR um die Mitte,
+    // Zufahrten enden dort, dazwischen vier Einbahn-Bögen (gegen den Uhrzeigersinn von oben, Rechtsverkehr)
+    const RB = grid[5][3], RR = 8;
+    RB.hub = true; this.roundabout = { x: RB.x, z: RB.z, r: RR };
+    const entry = new Map();
+    const ringNode = (dx, dz) => {
+      const k = dx + ',' + dz;
+      if (!entry.has(k)) { const nd = this.addNode(RB.x + dx * RR, RB.z + dz * RR, 'ring'); nd.y = C.h; entry.set(k, nd); }
+      return entry.get(k);
+    };
+    const link = (a, b) => {
+      if (b === RB) [a, b] = [b, a];
+      if (a === RB) { const dx = Math.sign(b.x - a.x), dz = Math.sign(b.z - a.z); a = ringNode(dx, dz); }
+      this.addEdge(a, b, line(a, b), 'city');
+    };
     for (let i = 0; i < C.lines; i++) {
       for (let j = 0; j < C.lines; j++) {
-        if (i + 1 < C.lines) this.addEdge(grid[i][j], grid[i + 1][j], line(grid[i][j], grid[i + 1][j]), 'city');
-        if (j + 1 < C.lines) this.addEdge(grid[i][j], grid[i][j + 1], line(grid[i][j], grid[i][j + 1]), 'city');
+        if (i + 1 < C.lines) link(grid[i][j], grid[i + 1][j]);
+        if (j + 1 < C.lines) link(grid[i][j], grid[i][j + 1]);
       }
+    }
+    // Bögen: Ost → Nord → West → Süd → Ost (Norden = −z)
+    const order = [[1, 0], [0, -1], [-1, 0], [0, 1]];
+    for (let k = 0; k < 4; k++) {
+      const a = ringNode(...order[k]), b = ringNode(...order[(k + 1) % 4]), a0 = k * Math.PI / 2, pts = [];
+      for (let t = 0; t <= 8; t++) { const th = a0 + t / 8 * Math.PI / 2; pts.push({ x: RB.x + Math.cos(th) * RR, z: RB.z - Math.sin(th) * RR, y: C.h }); }
+      this.addEdge(a, b, pts, 'ring').oneWay = true;
     }
     this.cityGrid = grid;
 
@@ -541,7 +564,7 @@ class World {
         const fx = -ax, fz = -az, rx = -fz, rz = fx;
         const hx = nd.x + ax * 9 + rx * 9, hz = nd.z + az * 9 + rz * 9;
         this.heads.push({ node: nd, axis: ax !== 0 ? 'EW' : 'NS', x: hx, z: hz, yaw: Math.atan2(ax, az) });
-        this.crossings.push({ x: nd.x + ax * 10, z: nd.z + az * 10, along: ax !== 0 ? 'z' : 'x', stop: { x: nd.x + ax * 11.5 + rx * 3.5, z: nd.z + az * 11.5 + rz * 3.5, along: ax !== 0 ? 'z' : 'x' } });
+        this.crossings.push({ x: nd.x + ax * 10, z: nd.z + az * 10, ax, az, along: ax !== 0 ? 'z' : 'x', stop: { x: nd.x + ax * 11.5 + rx * 3.6, z: nd.z + az * 11.5 + rz * 3.6, along: ax !== 0 ? 'z' : 'x' } });
       }
     }
   }
@@ -2002,6 +2025,43 @@ Object.assign(World.prototype, {
       this.buildingHash.insert(P.x - 5, P.z - 5, P.x + 5, P.z + 5, { x0: P.x - 5, x1: P.x + 5, z0: P.z - 5, z1: P.z + 5, y0: C.h, top: C.h + 0.8, h: 0.8, kind: 9, tint: 0 });
     }
 
+    // Kreisverkehr: begrünte Mittelinsel mit Bordstein, überfahrbarer Pflasterring, Skulptur, Haifischzähne
+    // (Vorfahrt achten) an jeder Einfahrt und blaue Kreisverkehr-Schilder
+    if (this.roundabout) {
+      const R = this.roundabout, parts = [
+        { geo: new THREE.CylinderGeometry(5.7, 5.8, 0.06, 48).translate(0, 0.03, 0), color: [0.55, 0.52, 0.5] },        // Pflasterring
+        { geo: new THREE.CylinderGeometry(4.45, 4.5, 0.18, 40, 1, true).translate(0, 0.12, 0), color: [0.78, 0.77, 0.74] },   // Bordstein
+        { geo: new THREE.CylinderGeometry(4.4, 4.4, 0.16, 40).translate(0, 0.12, 0), color: [0.26, 0.42, 0.16] },       // Rasen
+        { geo: new THREE.CylinderGeometry(1.1, 1.4, 0.6, 7).translate(0, 0.45, 0), color: [0.6, 0.58, 0.55] },          // Sockel
+        { geo: new THREE.TorusKnotGeometry(0.75, 0.16, 64, 8, 2, 3).translate(0, 1.9, 0), color: [0.66, 0.42, 0.22] },  // Skulptur
+      ];
+      for (let k = 0; k < 7; k++) { const a2 = k / 7 * Math.PI * 2; parts.push({ geo: new THREE.IcosahedronGeometry(0.55 + (k % 3) * 0.12, 1).scale(1, 0.75, 1).translate(Math.cos(a2) * 3.2, 0.5, Math.sin(a2) * 3.2), color: [0.2, 0.36 + (k % 2) * 0.06, 0.14] }); }
+      const pole = (x, z, yaw, blue) => {
+        const g = [{ geo: new THREE.CylinderGeometry(0.05, 0.05, 2.4, 8).translate(0, 1.2, 0), color: [0.55, 0.56, 0.58] }];
+        if (blue) {
+          g.push({ geo: new THREE.CylinderGeometry(0.36, 0.36, 0.04, 24).rotateX(Math.PI / 2).translate(0, 2.3, 0.05), color: [0.08, 0.28, 0.72] });
+          for (let k = 0; k < 3; k++) { const a2 = k / 3 * Math.PI * 2; g.push({ geo: new THREE.BoxGeometry(0.2, 0.06, 0.02).rotateZ(a2 + 1.2).translate(Math.cos(a2) * 0.18, 2.3 + Math.sin(a2) * 0.18, 0.08), color: [0.95, 0.95, 0.95] }); }
+        } else {
+          g.push({ geo: new THREE.CylinderGeometry(0.5, 0.5, 0.04, 3).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).translate(0, 2.1, 0.05), color: [0.85, 0.1, 0.1] });
+          g.push({ geo: new THREE.CylinderGeometry(0.34, 0.34, 0.05, 3).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).translate(0, 2.08, 0.06), color: [0.95, 0.95, 0.95] });
+        }
+        for (const q of g) { q.geo.rotateY(yaw).translate(x, 0, z); parts.push(q); }
+      };
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const rx = dz, rz = -dx;   // rechte Seite der einfahrenden Spur (Fahrtrichtung −dx/−dz)
+        for (let k = 0; k < 6; k++) {   // Haifischzähne quer über die Einfahrt
+          const o = 0.6 + k * 1.05, tri = new THREE.CylinderGeometry(0.45, 0.45, 0.02, 3).scale(1, 1, 1.6);
+          tri.rotateY(Math.atan2(dx, dz) + Math.PI / 2).translate(dx * 11 + rx * o, 0.075, dz * 11 + rz * o);
+          parts.push({ geo: tri, color: [0.95, 0.95, 0.93] });
+        }
+        pole(dx * 13 + rx * 7.8, dz * 13 + rz * 7.8, Math.atan2(dx, dz), true);
+        pole(dx * 14.5 + rx * 7.8, dz * 14.5 + rz * 7.8, Math.atan2(dx, dz), false);
+      }
+      const rm = new THREE.Mesh(mergeParts(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }));
+      rm.position.set(R.x, C.h + 0.04, R.z); rm.castShadow = true; rm.receiveShadow = true; this.group.add(rm);
+      this.buildingHash.insert(R.x - 3, R.z - 3, R.x + 3, R.z + 3, { x0: R.x - 3, x1: R.x + 3, z0: R.z - 3, z1: R.z + 3, y0: C.h, top: C.h + 1, h: 1, kind: 9, tint: 0 });
+    }
+
     // Zebrastreifen + Haltelinien
     const bars = [];
     for (const c of this.crossings) {
@@ -2010,7 +2070,30 @@ Object.assign(World.prototype, {
         if (c.along === 'z') bars.push([c.x, c.z + o, 3.2, 0.6]); else bars.push([c.x + o, c.z, 0.6, 3.2]);
       }
       const s = c.stop;
-      if (s.along === 'z') bars.push([s.x, s.z, 0.4, 4.6]); else bars.push([s.x, s.z, 4.6, 0.4]);
+      if (s.along === 'z') bars.push([s.x, s.z, 0.4, 6.6]); else bars.push([s.x, s.z, 6.6, 0.4]);
+      // Abbiegespur: durchgezogene Trennlinie zwischen Linksabbieger- und Geradeaus-/Rechtsspur
+      const rx = c.az, rz = -c.ax, lx = c.x + c.ax * 15 + rx * 3.4, lz = c.z + c.az * 15 + rz * 3.4;   // 12–38 m vor der Kreuzungsmitte
+      if (c.along === 'z') bars.push([lx, lz, 26, 0.15]); else bars.push([lx, lz, 0.15, 26]);
+    }
+    // Richtungspfeile auf beiden Spuren (links: Linkspfeil, rechts: geradeaus + rechts)
+    {
+      const shp = (pts) => { const sh = new THREE.Shape(); sh.moveTo(pts[0][0], pts[0][1]); for (const q of pts.slice(1)) sh.lineTo(q[0], q[1]); return new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2); };
+      // lokale Koordinaten: x nach rechts, y in Fahrtrichtung (nach rotateX → −z)
+      const straight = [[-0.1, -2.4], [0.1, -2.4], [0.1, 0.6], [0.35, 0.6], [0, 1.6], [-0.35, 0.6], [-0.1, 0.6]];
+      const rightHook = [[0.1, -0.2], [0.75, 0.3], [0.75, 0.05], [1.35, 0.6], [0.75, 1.1], [0.75, 0.75], [0.1, 0.32]];
+      const leftArrow = [[-0.1, -2.4], [0.1, -2.4], [0.1, 0.35], [-0.75, 0.9], [-0.75, 1.2], [-1.35, 0.6], [-0.75, -0.05], [-0.75, 0.3], [-0.1, -0.15]];
+      const base = [{ g: shp(straight), dx: 5.3 }, { g: shp(rightHook), dx: 5.3 }, { g: shp(leftArrow), dx: 2.0 }];
+      const parts = [], mm = new THREE.Matrix4(), qq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+      for (const c of this.crossings) {
+        const yaw = Math.atan2(c.ax, c.az), rx = c.az, rz = -c.ax;
+        qq.setFromAxisAngle(up, yaw);
+        for (const d of [6, 20]) for (const b of base) {
+          mm.compose(new THREE.Vector3(c.x + c.ax * d + rx * b.dx, C.h + 0.075, c.z + c.az * d + rz * b.dx), qq, one);
+          parts.push({ geo: b.g, m: mm.clone(), color: [0.87, 0.86, 0.83] });
+        }
+      }
+      const am = new THREE.Mesh(mergeParts(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -6 }));
+      am.receiveShadow = true; this.group.add(am);
     }
     const bg = new THREE.PlaneGeometry(1, 1); bg.rotateX(-Math.PI / 2);
     const bmesh = new THREE.InstancedMesh(bg, new THREE.MeshStandardMaterial({ color: 0xdedcd4, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -6 }), bars.length);

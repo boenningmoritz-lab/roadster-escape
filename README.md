@@ -249,6 +249,8 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Stadtplatz** im Park mit Brunnen (Becken, Säule, Wasserfläche), gepflastertem Rund und Bänken.
 - **Verkehrsinseln** vor Ampelkreuzungen: begrünte Mittelinsel mit Bordstein und blauem „Rechts vorbei“-Schild (instanziert, 1 Draw-Call).
 - **Abgerundete Kreuzungsecken:** Gehwege mit 3 m Eckradius (alle Blöcke in einer Geometrie), Bordstein folgt dem Bogen.
+- **Kreisverkehr** statt Ampelkreuzung (Knoten 5/3): begrünte Mittelinsel mit Skulptur, Pflasterring, Haifischzähne und Schilder an jeder Einfahrt. Echte Verkehrsführung: vier Einbahn-Bögen gegen den Uhrzeigersinn, Autos im Kreis haben Vorfahrt, Einfahrende warten nur, wenn sich ein Auto nähert.
+- **Abbiegespuren** vor Ampeln: durchgezogene Trennlinie, Richtungspfeile (links / geradeaus+rechts); Linksabbieger ordnen sich links ein, alle anderen rechts.
 
 - **Standard auf Touch-Geräten = Mittel** (vorher bekamen iPads „Hoch“ → Hauptgrund fürs Ruckeln); alte Spielstände werden einmalig umgestellt. **Automatische Grafikstufe:** 1,5–6,5 s nach dem Start wird die echte Bildrate gemessen; unter 50 FPS eine Stufe herunter (bis zu zweimal). Wer die Stufe selbst wählt, schaltet die Automatik ab.
 - **Telemetrie** zeigt Draw-Calls, Dreiecke, ms pro Bild und FPS.
