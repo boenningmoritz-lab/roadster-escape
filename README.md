@@ -270,6 +270,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Insassen:** in jedem Verkehrs-, Polizei- und Lkw-Fahrzeug sitzt ein Fahrer als Figur (Oberkörper, Hals, Kopf, Haare, Arme am Lenkrad), in Kombi, SUV, Transporter und Polizeiwagen zusätzlich ein Beifahrer; Armaturenbrett und Lenkrad. Nur im nahen LOD (< 75 m).
 - **Glas:** getönt, von vorn durchsichtig, im flachen Winkel spiegelnd (Fresnel im Shader). Lkw-Kabine als Hülle mit echten Front- und Seitenscheiben, Innenraum und Fahrer.
 - **Fußgänger:** Haare, Becken in Hosenfarbe, unterschiedliche Größe und Statur. Man kann sie anfahren: sie werden umgestoßen und durch die Luft geschleudert (Sturz mit Überschlag, Aufprall, Rutschen – kein Blut), liegen einige Sekunden und stehen wieder auf. 60 % springen bei nahendem Auto zur Seite. Jeder Treffer gibt einen Fahndungsstern; ohne laufende Verfolgung ruft ein Zeuge die Polizei.
+- **Unfälle:** Verkehrsautos merken sich Schaden und Aufprallpunkt: Dellen auf der getroffenen Seite (Vertex-Shader, Instanz-Attribut), dunklerer Lack, ab starken Treffern zersplitterte Scheiben. Leichter Unfall → nach kurzer Pause zurück auf die Spur, Warnblinker, Hupe, 35 % fahren dem Spieler verärgert hinterher. Totalschaden/Überschlag → bleibt liegen, Dauer-Warnblinker, Rauch, Fahrer steigt aus und gestikuliert.
 
 ## Code-Aufbau
 

@@ -570,7 +570,8 @@ class TrafficSystem {
     const f = this._pos.set(0, 0, -1).applyQuaternion(b.quat);
     car.yaw = Math.atan2(-f.x, -f.z);
     car.x = b.pos.x; car.z = b.pos.z; car.y = b.pos.y - car.v.H / 2;
-    if (b.sleep > 0.5) car.stopT += dt; else car.stopT = 0;
+    // zur Ruhe gekommen: eigene Erkennung (kleines Restzittern hält die Physik sonst „wach“)
+    if (b.sleep > 0.5 || (b.vel.lengthSq() < 0.09 && b.angVel.lengthSq() < 0.1)) car.stopT += dt; else car.stopT = 0;
     const d = Math.hypot(car.x - player.pos.x, car.z - player.pos.z);
     const hidden = !this.inView(camera, car);
     const upY = this._pos.set(0, 1, 0).applyQuaternion(b.quat).y;
