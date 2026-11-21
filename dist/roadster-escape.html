@@ -6930,7 +6930,7 @@ class Garage {
   }
 
   close() {
-    this.open = false;
+    this.open = false; this.preview = null;   // Vorschau verwerfen: gekauft bleibt nur, was bezahlt ist
     document.body.classList.remove('inGarage');
     document.getElementById('garage').hidden = true;
     // Upgrades und Optik ins Spiel übernehmen
@@ -6951,7 +6951,22 @@ class Garage {
     const id = key === 'underglow' ? 'underglow' : `${key}:${val}`;
     const price = key === 'underglow' ? (val === 'off' ? 0 : COSMETIC_PRICES.underglow) : (COSMETIC_PRICES[id] || 0);
     const owned = SaveData.data.owned;
-    if (price && !owned.includes(id)) { if (!this.buy(price)) return; owned.push(id); }
+    if (price && !owned.includes(id)) {
+      // Noch nicht gekauft: erster Tipp = Vorschau am Auto (auch ohne genug Geld), zweiter Tipp = kaufen
+      const pv = this.preview;
+      if (!pv || pv.key !== key || pv.val !== val) {
+        this.preview = { key, val, price };
+        this.car.applyLook({ ...SaveData.data.look, [key]: val });
+        toast(`Vorschau – ${SaveData.data.money >= price ? 'nochmal tippen zum Kaufen (' + fmtMoney(price) + ')' : 'kostet ' + fmtMoney(price) + ', du hast ' + fmtMoney(SaveData.data.money)}`, 2200);
+        if (key === 'wheel') this.wheelView = 6;
+        this.render();
+        return;
+      }
+      if (!this.buy(price)) return;
+      owned.push(id);
+    }
+    this.preview = null;
+    if (key === 'wheel') this.wheelView = 4;
     SaveData.data.look[key] = val; SaveData.save();
     this.car.applyLook(SaveData.data.look);
     this.render();
@@ -6961,7 +6976,7 @@ class Garage {
     document.getElementById('gMoney').textContent = '💰 ' + fmtMoney(SaveData.data.money);
     document.querySelectorAll('#gTabs button').forEach((b) => b.classList.toggle('sel', b.dataset.tab === this.tab));
     const box = document.getElementById('gList'); box.innerHTML = '';
-    const L = SaveData.data.look, owned = SaveData.data.owned;
+    const L = this.preview ? { ...SaveData.data.look, [this.preview.key]: this.preview.val } : SaveData.data.look, owned = SaveData.data.owned;
     const row = (title, sub, content) => { const r = document.createElement('div'); r.className = 'gRow'; r.innerHTML = `<div class="gHead"><b>${title}</b><small>${sub || ''}</small></div>`; r.appendChild(content); box.appendChild(r); };
     const seg = (key, opts) => {
       const s = document.createElement('div'); s.className = 'seg gSeg';
@@ -7027,6 +7042,15 @@ class Garage {
     // Auto links im Bild (rechts ist das Menü)
     c.setViewOffset(View.w, View.h, View.w * 0.18, 0, View.w, View.h);
     c.position.set(Math.sin(this.yaw) * Math.cos(this.pitch) * this.dist, 1.2 + Math.sin(this.pitch) * this.dist, Math.cos(this.yaw) * Math.cos(this.pitch) * this.dist);
+    // Lenkrad-Vorschau: Kamera schaut von oben hinter dem Fahrersitz ins Cockpit
+    if (this.wheelView > 0) {
+      this.wheelView -= dt;
+      const w = this._wp || (this._wp = new THREE.Vector3()); this.car.steeringWheel.getWorldPosition(w);
+      c.position.lerp(this._wc || (this._wc = new THREE.Vector3()), 0).set(w.x + 0.15, w.y + 0.75, w.z + 1.15);
+      c.lookAt(w.x, w.y - 0.05, w.z); c.updateProjectionMatrix();
+      if (this.car.steeringWheel) this.car.steeringWheel.rotation.z = Math.sin(performance.now() / 600) * 0.5;   // dreht zur Ansicht leicht hin und her
+      return;
+    }
     c.lookAt(0, 0.75, 0); c.updateProjectionMatrix();
     if (this.car.updateScreens && (this._st = (this._st || 0) - dt) <= 0) { this._st = 0.3; this.car.updateScreens(this.fake.speed ? this.fake : Object.assign(this.fake, { forwardSpeed: 0, drivetrain: this.g.vehicle.drivetrain, cfg: this.g.vehicle.cfg, latAccel: 0, longAccel: 0, tractionControl: true })); }
   }

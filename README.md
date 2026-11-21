@@ -238,6 +238,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Physikalischer Himmel:** Rayleigh- und Mie-Streuung mit Luftmassen-Näherung (blau oben, heller Dunst am Horizont und um die Sonne, Rötung bei tiefer Sonne); Wetter mischt Richtung Grau.
 - **Volumetrisch wirkende Wolken** (Grafik Hoch): 6 Schritte durch eine Wolkenschicht mit Lichtprobe zur Sonne – helle Ränder, dunkle Unterseiten, Himmelsfarbe abends.
 - **Verkehrsautos neu modelliert:** Karosserie als glatte Loft-Fläche aus gerundeten Querschnitten (statt Kästen) mit Motorhaube, Gürtellinie, rund eingezogenen Enden und Radausschnitten; Glashaus mit Tumblehome und getönten Scheiben, lackierte A-/C-Säulen, dunkle B-Säule, Chromleiste. Limousine, Kompaktwagen und SUV mit eigenen Proportionen.
+- **Garage-Vorschau:** Optik- und Innenraum-Teile lassen sich vor dem Kauf ansehen – auch ohne genug Geld. Erster Tipp zeigt das Teil am Auto (beim Lenkrad fährt die Kamera ins Cockpit), zweiter Tipp kauft. Beim Verlassen der Garage wird eine nicht gekaufte Vorschau verworfen.
 - **Polizei-SUV neu:** nutzt dieselbe gerundete Loft-Karosserie (SUV-Proportionen, dunkelblau mit silbernem Türstreifen, getönte Scheiben mit Fahrer), dazu Grill, Lichtbalken, Schriftzug.
 - **See:** Wassertiefe aus dem Höhenfeld → klares, türkises Flachwasser am Ufer, dunkel in der Tiefe; zweite gegenläufige Wellenlage, pulsierender Uferschaum, Tropfenringe bei Regen.
 
