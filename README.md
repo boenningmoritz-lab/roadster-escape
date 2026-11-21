@@ -278,6 +278,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Mehrere Spielerautos:** in der Garage unter Optik → Fahrzeug: Roadster, Sportlimousine, Kombi, SUV (gleiche Technik, eigene Karosserie mit Glas, Lichtern und Lackfarbe aus der Garage; Vorschau auch ohne Geld).
 - **Innenräume der Verkehrsautos:** gepolsterte Sitze mit geneigter Lehne und Kopfstütze (helle oder dunkle Polster je Modell), Mittelkonsole mit Wählhebel, Rücksitzbank, Türverkleidungen, Mitteldisplay und Kombiinstrument.
 - **Ampeln:** Mast mit Ausleger und Strebe über die Fahrbahn, je Zufahrt zwei Signalgeber (am Mast und über der Spur), schwarze Kontrasttafel mit weißem Rand, Sonnenblenden über jeder Leuchte, gelber Anforderungstaster, Mastsockel.
+- **Stadtbus** im Verkehr (4 %, gelb/rot/blau): durchgehendes Fensterband aus echtem Glas, Sitzreihen mit Fahrgästen, Haltestangen, Fahrerplatz mit Lenkrad und Fahrer, Türen rechts, leuchtende Zielanzeige. Fährt in Stadt und Land, nicht in Kreisel und Parkstraße, wird nicht geparkt.
 
 ## Code-Aufbau
 

@@ -4613,12 +4613,13 @@ class RigidBox {
 // ============================== Verkehr ==============================
 const TRAFFIC_TYPES = {
   // Sechs Modelle: Kleinwagen, Limousine, Kombi, SUV, Transporter, Lkw (Gewicht = Anteil im Verkehr)
-  hatch: { L: 3.95, W: 1.74, H: 1.5, hood: 0.85, trunk: 0.15, wr: 0.31, mass: 1150, weight: 0.24 },
+  hatch: { L: 3.95, W: 1.74, H: 1.5, hood: 0.85, trunk: 0.15, wr: 0.31, mass: 1150, weight: 0.2 },
   sedan: { L: 4.75, W: 1.84, H: 1.45, hood: 1.15, trunk: 0.85, wr: 0.33, mass: 1450, weight: 0.25 },
   kombi: { L: 4.85, W: 1.84, H: 1.5, hood: 1.1, trunk: 0.12, wr: 0.33, mass: 1550, weight: 0.17, longRoof: true, passenger: true },
   suv:   { L: 4.8, W: 1.95, H: 1.78, hood: 1.05, trunk: 0.3, wr: 0.38, mass: 2050, weight: 0.16, passenger: true },
   van:   { L: 5.3, W: 2.0, H: 2.35, hood: 0.75, trunk: 0.05, wr: 0.35, mass: 2400, weight: 0.1, tall: true, passenger: true },
   truck: { L: 8.4, W: 2.5, H: 3.4, wr: 0.5, mass: 9000, weight: 0.08 },
+  bus:   { L: 11.6, W: 2.55, H: 3.05, wr: 0.5, mass: 12000, weight: 0.04 },   // Stadtbus (Gelenk-/Solobus, nur Fahrzeugbild)
 };
 // Realistische Lackverteilung: viel Weiß/Silber/Grau/Schwarz, dazu einige kräftige Metallic-Farben
 const CAR_PAINTS = [[0.92, 0.92, 0.92], [0.94, 0.94, 0.92], [0.66, 0.68, 0.7], [0.72, 0.73, 0.75], [0.1, 0.1, 0.11], [0.06, 0.06, 0.07],
@@ -4682,7 +4683,42 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false, opts =
     parts.push({ geo: new THREE.CylinderGeometry(r, r, 0.26, 14).rotateZ(Math.PI / 2).translate(x, r, z), color: DARK });
     parts.push({ geo: new THREE.CylinderGeometry(r * 0.6, r * 0.6, 0.27, 10).rotateZ(Math.PI / 2).translate(x * 1.005, r, z), color: RIM });
   };
-  if (type === 'truck') {
+  if (type === 'bus') {
+    // Stadtbus: Unterbau, durchgehendes Fensterband (echtes Glas), Dach mit Klimaanlage, Türen rechts,
+    // innen Sitzreihen mit Fahrgästen, Haltestangen, Fahrerplatz mit Lenkrad und Fahrer
+    const gy0 = 1.15, gy1 = 2.75, Hb = 3.05;
+    parts.push({ geo: new THREE.BoxGeometry(W, gy0 - 0.3, L).translate(0, (0.3 + gy0) / 2, 0), color: BODY, paint: true });
+    parts.push({ geo: new THREE.BoxGeometry(W, Hb - gy1, L).translate(0, (gy1 + Hb) / 2, 0), color: BODY, paint: true });
+    parts.push({ geo: new THREE.BoxGeometry(1.6, 0.3, 2.6).translate(0, Hb + 0.15, 1.5), color: [0.8, 0.8, 0.82] });            // Klimaanlage
+    parts.push({ geo: new THREE.BoxGeometry(W, gy1 - gy0, 0.1).translate(0, (gy0 + gy1) / 2, L / 2 - 0.05), color: BODY, paint: true });   // Heckwand (vorn: Frontscheibe)
+    for (const sx of [-1, 1]) for (let z = -L / 2 + 0.2; z <= L / 2 - 0.2; z += 1.85) parts.push({ geo: new THREE.BoxGeometry(0.08, gy1 - gy0, 0.12).translate(sx * (W / 2 - 0.04), (gy0 + gy1) / 2, z), color: DARK });   // Fenstersäulen
+    for (const dz of [-L / 2 + 1.2, -0.4, 3.4]) parts.push({ geo: new THREE.BoxGeometry(0.04, 2.4, 1.2).translate(W / 2 + 0.005, 1.5, dz), color: [0.12, 0.12, 0.13] });   // Türen rechts
+    const gl = [new THREE.BoxGeometry(W - 0.14, gy1 - gy0 + 0.25, 0.03).translate(0, (gy0 + gy1) / 2 - 0.1, -L / 2 - 0.01)];
+    for (const sx of [-1, 1]) gl.push(new THREE.BoxGeometry(0.03, gy1 - gy0 - 0.06, L - 0.3).translate(sx * (W / 2 - 0.01), (gy0 + gy1) / 2, 0));
+    for (const g of gl) { if (lo) parts.push({ geo: g, color: GLASS }); else glassParts.push({ geo: g, color: [1, 1, 1] }); }
+    if (!lo) {
+      parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.05, L - 0.3).translate(0, 0.62, 0), color: [0.22, 0.22, 0.24] });     // Boden
+      parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.3, 0.5).translate(0, gy0 + 0.05, -L / 2 + 0.35), color: [0.1, 0.1, 0.11] });   // Armaturen
+      steering(-0.7, gy0 + 0.2, -L / 2 + 0.95, -0.7);
+      person(-0.7, gy0 + 0.62, -L / 2 + 1.6, -L / 2 + 0.95, 11);
+      const SEAT = [0.12, 0.25, 0.5]; let k = 0;
+      for (let z = -L / 2 + 3.0; z < L / 2 - 0.9; z += 0.85) for (const sx of [-1, 1]) for (const o of [0.36, 0.84]) {
+        const x = sx * (W / 2 - o); if (z > -1.0 && z < 0.3 && sx > 0) continue;           // Platz an der Mitteltür
+        parts.push({ geo: new THREE.BoxGeometry(0.42, 0.1, 0.42).translate(x, 1.05, z), color: SEAT });
+        parts.push({ geo: new THREE.BoxGeometry(0.42, 0.55, 0.08).rotateX(0.12).translate(x, 1.35, z + 0.22), color: SEAT });
+        if ((k++ * 7) % 5 < 2) person(x, 1.83, z + 0.08, null, k + 3);                       // einige Fahrgäste
+      }
+      for (const z of [-2.2, 0.6, 3.0]) parts.push({ geo: new THREE.CylinderGeometry(0.02, 0.02, gy1 - 0.65, 6).translate(0, (gy1 + 0.65) / 2, z), color: [0.85, 0.75, 0.1] });   // Haltestangen
+    }
+    for (const z of [-L / 2 + 2.4, L / 2 - 3.0]) for (const x of [-1, 1]) wheel(x * (W / 2 - 0.3), z, s.wr);
+    parts.push({ geo: new THREE.BoxGeometry(1.6, 0.25, 0.04).translate(0, gy1 - 0.05, -L / 2 - 0.04), color: [0.05, 0.05, 0.05] });   // Zielanzeige
+    lights.push({ geo: new THREE.BoxGeometry(1.4, 0.16, 0.03).translate(0, gy1 - 0.05, -L / 2 - 0.07), color: [1, 0.6, 0.1] });        // Zielanzeige (leuchtend)
+    for (const x of [-1, 1]) {
+      lights.push({ geo: new THREE.BoxGeometry(0.35, 0.16, 0.04).translate(x * (W / 2 - 0.35), 0.75, -L / 2 - 0.02), color: [1, 0.96, 0.88] });
+      lights.push({ geo: new THREE.BoxGeometry(0.2, 0.4, 0.04).translate(x * (W / 2 - 0.2), 1.0, L / 2 + 0.02), color: [0.9, 0.04, 0.04], mask: [1, 0, 0] });
+      for (const z of [-L / 2 - 0.02, L / 2 + 0.02]) lights.push({ geo: new THREE.BoxGeometry(0.16, 0.12, 0.04).translate(x * (W / 2 - 0.12), 1.35, z), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
+    }
+  } else if (type === 'truck') {
     const cabL = 2.3;
     // Kabine als Hülle: Unterteil, Dach, Rückwand, Säulen – dazwischen echte Scheiben (vorn und seitlich), dahinter Innenraum
     const cz = -L / 2 + cabL / 2, gy0 = 1.95, gy1 = 2.8;
@@ -4877,7 +4913,7 @@ class TrafficSystem {
     const pick = () => { let r = this.rng(), acc = 0; for (let i = 0; i < types.length; i++) { acc += TRAFFIC_TYPES[types[i]].weight; if (r <= acc) return i; } return 0; };
     const chosen = Array.from({ length: count }, pick);
     // geparkte Autos (keine Lkw) am Straßenrand der Stadt
-    for (let k = 0; k < parked; k++) { let t; do { t = pick(); } while (types[t] === 'truck'); chosen.push(t); }
+    for (let k = 0; k < parked; k++) { let t; do { t = pick(); } while (types[t] === 'truck' || types[t] === 'bus'); chosen.push(t); }
     for (const v of this.variants) {
       const n = Math.max(1, chosen.filter((i) => this.variants[i] === v).length);
       v.body.setAttribute('idmg', new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4).setUsage(THREE.DynamicDrawUsage));
@@ -4902,7 +4938,7 @@ class TrafficSystem {
       const car = { v, slot: v.n++, e: null, s: 0, dir: 1, lane: 0, speed: 0, x: 0, y: 0, z: 0, yaw: 0, pitch: 0,
         state: 'drive', vx: 0, vz: 0, yawRate: 0, stopT: 0, cleared: false, waitT: 0, latOff: 0, bx: 0, bz: 0,
         pers: 0.85 + this.rng() * 0.25 };
-      const p = v.type === 'truck' ? [0.9, 0.9, 0.9] : CAR_PAINTS[Math.floor(this.rng() * CAR_PAINTS.length)];
+      const p = v.type === 'truck' ? [0.9, 0.9, 0.9] : v.type === 'bus' ? [[0.95, 0.72, 0.08], [0.72, 0.08, 0.08], [0.1, 0.32, 0.62]][Math.floor(this.rng() * 3)] : CAR_PAINTS[Math.floor(this.rng() * CAR_PAINTS.length)];
       car.paint = new THREE.Color().setRGB(p[0], p[1], p[2], THREE.SRGBColorSpace);
       v.bodyMesh.setColorAt(car.slot, car.paint); v.loMesh.setColorAt(car.slot, car.paint);
       v.lightMesh.setColorAt(car.slot, col.setRGB(1, 0, 0));
@@ -4963,6 +4999,7 @@ class TrafficSystem {
     for (let t = 0; t < 90; t++) {
       const e = near.length && t < 70 ? near[Math.floor(this.rng() * near.length)] : this.randomEdge();
       if (car.v.type === 'truck' && (e.cls === 'city' || e.cls === 'ring' || e.cls === 'park')) continue;
+      if (car.v.type === 'bus' && (e.cls === 'ring' || e.cls === 'park')) continue;   // Bus: Stadt und Land, aber nicht Kreisel/Parkstraße
       const s = 10 + this.rng() * Math.max(e.len - 20, 1);
       const p = this.w.pointOnEdge(e, s, this._p);
       const d = Math.hypot(p.x - focus.x, p.z - focus.z);
@@ -5035,7 +5072,7 @@ class TrafficSystem {
   /** Nächste Kante an einem Knoten wählen (lieber geradeaus; Lkw nicht in die Stadt). */
   chooseNext(car, e, node, here) {
     const inTx = here.tx * car.dir, inTz = here.tz * car.dir;
-    const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && (o.cls === 'city' || o.cls === 'ring' || o.cls === 'park')) && !(o.oneWay && o.a !== node));
+    const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && (o.cls === 'city' || o.cls === 'ring' || o.cls === 'park')) && !(car.v.type === 'bus' && (o.cls === 'ring' || o.cls === 'park')) && !(o.oneWay && o.a !== node));
     if (!opts.length) return e;
     let tot = 0; const ws = opts.map((o) => {
       const out = o.a === node ? o.pts[1] : o.pts[o.pts.length - 2];
