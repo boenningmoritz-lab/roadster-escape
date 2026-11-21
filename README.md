@@ -256,6 +256,8 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Unterschiedliche Straßenbreiten:** Die Nord-Süd-Achse x = 500 ist ein 22 m breiter Boulevard (zwei Spuren je Richtung, Parkstreifen, begrünter Mittelstreifen mit Baumreihe und Doppelleuchten); Ampeln, Haltelinien und Zebrastreifen passen sich der Breite an.
 - **Kurvige Straße:** geschwungene Parkstraße durch den Park um den Brunnenplatz, T-Einmündungen (Hauptstraße hat Vorfahrt), mit Laternen; Autos fahren darauf.
 - Bildzeit im Software-Renderer (Innenstadt, gleiche Stelle): **Mittel 1860 → 867 ms, Hoch 2340 → 2123 ms**; 294 / 599 Draw-Calls.
+- **Spielerauto-Flanke:** Seitenschweller als Carbon-Leiste, die der Karosserie folgt, Lufteinlass aus drei Lamellen (vorher Kästen, die treppig durch die gewölbte Flanke stachen).
+- **Realistischere Unfälle:** Stoß auf ein Verkehrsauto greift nahe dessen Schwerpunkt an (Kraft verteilt sich über Tür/Knautschzone), kaum Aufwärtskomponente → Autos schleudern und drehen sich statt meterhoch zu fliegen (Kombi, Seitenaufprall 106 km/h: Schwerpunkt max. 0,86 m statt 3,0 m). Lkw kippen bei seitlichem Rutschen weiterhin – physikalisch richtig (Spurweite/(2·Schwerpunkthöhe) ≈ 0,7 < Reifenhaftung).
 
 - **Standard auf Touch-Geräten = Mittel** (vorher bekamen iPads „Hoch“ → Hauptgrund fürs Ruckeln); alte Spielstände werden einmalig umgestellt. **Automatische Grafikstufe:** 1,5–6,5 s nach dem Start wird die echte Bildrate gemessen; unter 50 FPS eine Stufe herunter (bis zu zweimal). Wer die Stufe selbst wählt, schaltet die Automatik ab.
 - **Telemetrie** zeigt Draw-Calls, Dreiecke, ms pro Bild und FPS.

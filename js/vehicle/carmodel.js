@@ -279,7 +279,6 @@ class CarModel {
     add(new THREE.BoxGeometry(1.7, 0.06, 3.9), black, 0, 0.2, 0);
     add(new THREE.BoxGeometry(1.5, 0.025, 0.3), carbon, 0, 0.19, -2.0);              // Frontsplitter
     add(new THREE.BoxGeometry(1.3, 0.04, 0.32), carbon, 0, 0.23, 1.9, 0.22);          // Diffusor
-    for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.06, 0.08, 1.6), carbon, s * 0.97, 0.26, 0);
     // Außenspiegel
     // Außenspiegel: Fuß auf der Tür, Arm, Gehäuse in Wagenfarbe, echtes Spiegelglas nach hinten
     const mirrorGeo = new THREE.SphereGeometry(1, 16, 12);
@@ -319,8 +318,16 @@ class CarModel {
       const fi = surf(sx * 0.52, 0.31, -5, 0, 0, 1, -0.005);
       add(new THREE.BoxGeometry(0.4, 0.08, 0.06), black, fi.x, fi.y, fi.z);
       // Seitlicher Lufteinlass hinter der Tür
-      const si = surf(sx * 3, 0.55, 0.85, -sx, 0, 0, -0.01);
-      add(new THREE.BoxGeometry(0.04, 0.11, 0.4), black, si.x, si.y, si.z, 0, 0, 0);
+      // drei schmale Lamellen, jede direkt auf der gewölbten Flanke (statt eines Kastens, der durch die Karosserie sticht)
+      for (const yy of [0.51, 0.55, 0.59]) {
+        const lp = []; for (let z = 0.66; z <= 1.04; z += 0.095) { const q = surf(sx * 3, yy, z, -sx, 0, 0, 0.002); if (Math.abs(q.x) < 1.2) lp.push(q); }
+        if (lp.length >= 3) { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lp), 8, 0.009, 4, false), black); m.userData.mergeable = true; body.add(m); }
+      }
+    }
+    // Seitenschweller in Carbon: Leiste, die der Karosserie folgt (per Strahl auf die Flanke gesetzt)
+    for (const sx of [-1, 1]) {
+      const sp = []; for (let z = -1.1; z <= 1.1; z += 0.2) { const q = surf(sx * 3, 0.27, z, -sx, 0, 0, 0.012); if (Math.abs(q.x) < 1.2) sp.push(q); }
+      if (sp.length >= 4) { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp), 22, 0.028, 6, false), carbon); m.castShadow = true; m.userData.mergeable = true; body.add(m); }
     }
 
     // Scheibenwischer außen: zwei Arme am unteren Rand der Frontscheibe (in Ruhelage)

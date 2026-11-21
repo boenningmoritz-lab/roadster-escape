@@ -608,27 +608,30 @@ class TrafficSystem {
     v.pos.x += nx * depth * wP; v.pos.z += nz * depth * wP;
     b.pos.x -= nx * depth * (1 - wP); b.pos.z -= nz * depth * (1 - wP);
     const t = v._v;
-    const P = t[3].set(x, Math.min(v.pos.y - 0.12, b.pos.y - 0.25), z);   // Stoß auf Stoßfängerhöhe
+    const P = t[3].set(x, Math.min(v.pos.y - 0.05, b.pos.y - 0.12), z);   // Stoß auf Stoßfänger-/Türhöhe (knapp unter dem Schwerpunkt → wenig Rollmoment)
     const r1 = t[4].subVectors(P, v.pos);
     const v1 = t[6].crossVectors(v.angVel, r1).add(v.vel);
     const v2 = b.pointVel(P, t[9]);
     const vn = (v1.x - v2.x) * nx + (v1.z - v2.z) * nz;
     if (vn >= 0) return;
-    const lift = clamp(-vn * 0.01, 0, 0.18);
+    const lift = clamp(-vn * 0.004, 0, 0.07);   // realistischer: Stoß wirkt fast waagerecht (vorher bis 0,18 → Autos flogen meterhoch)
     const n = t[5].set(nx, -lift, nz).normalize();
     const rn = t[7].crossVectors(r1, n);
     const k1 = v.invMass + v.applyInvInertia(t[8].copy(rn)).cross(r1).dot(n);
-    const k2 = b.effInv(t[2].subVectors(P, b.pos), n);
+    // getroffenes Auto: Kraft verteilt sich über Tür/Stoßfänger und Knautschzone → Angriffspunkt fast auf Schwerpunkthöhe
+    // (punktförmiger Stoß 30–40 cm darunter ließ Autos mit ~8 rad/s rollen und meterhoch fliegen)
+    const P2 = (this._P2 || (this._P2 = new THREE.Vector3())).set(x, b.pos.y - 0.06, z);
+    const k2 = b.effInv(t[2].subVectors(P2, b.pos), n);
     const j = -(1 + 0.18) * vn / (k1 + k2);
     const J = t[8].copy(n).multiplyScalar(j);
     v.vel.addScaledVector(J, v.invMass);
     v.angVel.add(v.applyInvInertia(t[9].crossVectors(r1, J)));
-    b.impulse(J.negate(), P);
+    b.impulse(J.negate(), P2);
     // Keil-Effekt: die flache Front schiebt sich bei harten Treffern unter das Auto → kann es aushebeln
     const now = performance.now();
-    if (-vn > 13 && !(c.wedgeT > now)) {             // nur einmal pro Zusammenstoß
+    if (-vn > 18 && !(c.wedgeT > now)) {             // nur einmal pro Zusammenstoß, erst bei sehr harten Treffern
       c.wedgeT = now + 600;
-      b.impulse(t[2].set(0, Math.min(-vn - 13, 14) * m2 * 0.05, 0), P);
+      b.impulse(t[2].set(0, Math.min(-vn - 18, 10) * m2 * 0.03, 0), P2);
     }
     if (-vn > 2) {
       v.lastImpact = Math.max(v.lastImpact, -vn);
