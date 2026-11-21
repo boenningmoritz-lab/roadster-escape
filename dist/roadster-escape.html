@@ -7218,30 +7218,75 @@ function makeTrafficVariant(type) {
       for (const z of [-L / 2 - 0.02, L / 2 + 0.02]) lights.push({ geo: new THREE.BoxGeometry(0.18, 0.12, 0.04).translate(x * (W / 2 - 0.08), 1.15, z), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
     }
   } else {
-    // Seitenprofil mit ausgeschnittenen Radhäusern (z vorn = −L/2)
-    const zf = -L / 2 + 0.9, zr = L / 2 - 0.85, R = s.wr + 0.07, yb = 0.3;
-    const arch = (zc, from, to) => { const pts = []; for (let i = 0; i <= 8; i++) { const a = from + (to - from) * i / 8; pts.push([zc + R * Math.cos(a), s.wr + R * Math.sin(a)]); } return pts; };
-    const lo = [[-L / 2 + 0.08, yb], [-L / 2 - 0.02, 0.46], [-L / 2 + 0.01, 0.62], [-L / 2 + 0.14, 0.74], [-L / 2 + 0.55, 0.81], [-L / 2 + s.hood, 0.86],
-      [L / 2 - s.trunk, 0.9], [L / 2 - 0.1, 0.88], [L / 2 + 0.01, 0.78], [L / 2 + 0.02, 0.5], [L / 2 - 0.06, yb],
-      [zr + R, yb], ...arch(zr, 0, Math.PI), [zr - R, yb], [zf + R, yb], ...arch(zf, 0, Math.PI), [zf - R, yb]];
-    const body = extrude(lo, W, 0.09);
-    const gh = [[-L / 2 + s.hood, 0.84], [-L / 2 + s.hood + 0.8, Hh - 0.02], [-L / 2 + s.hood + 1.0, Hh], [L / 2 - s.trunk - 0.7, Hh], [L / 2 - s.trunk - 0.5, Hh - 0.03], [L / 2 - s.trunk, 0.88]];
-    const glass = extrude(gh, W - 0.14, 0.05);
-    // Dach eingezogen (Tumblehome) und Ecken in der Draufsicht gerundet
-    const shape = (g) => {
-      const a = g.attributes.position;
-      for (let i = 0; i < a.count; i++) {
-        const y = a.getY(i), z = a.getZ(i);
-        const t = clamp((y - 0.72) / (Hh - 0.72), 0, 1), e = Math.pow(Math.abs(z) / (L / 2), 4);
-        a.setX(i, a.getX(i) * (1 - t * 0.16) * (1 - e * 0.08));
-      }
-      g.computeVertexNormals(); return g;
+    // ---------- Karosserie als glatte Loft-Fläche (Querschnitte entlang der Länge, gerundet) ----------
+    // z vorn = −L/2. Unterer Körper mit Motorhaube/Kofferraum, darüber Glashaus (Scheiben) und lackiertes Dach.
+    const zf = -L / 2 + 0.9, zr = L / 2 - 0.85, R = s.wr + 0.07;
+    const hatch = s.trunk < 0.5, suv = type === 'suv';
+    const z0 = -L / 2 + s.hood, z1 = L / 2 - s.trunk;              // Windschutzscheibe unten / Heckscheibe unten
+    const sm = (a2, b2, x) => { const t = clamp((x - a2) / (b2 - a2), 0, 1); return t * t * (3 - 2 * t); };
+    const halfW = (z) => { const u = Math.abs(z) / (L / 2); return W / 2 * (1 - 0.16 * Math.pow(u, 7)); };
+    const belt = (suv ? 1.0 : 0.88);
+    const topY = (z) => {                                           // Oberkante: Haube → Gürtellinie → Kofferraum
+      let y = (suv ? 0.72 : 0.6) + (belt - (suv ? 0.72 : 0.6)) * sm(-L / 2, -L / 2 + s.hood * 0.75, z);
+      if (!hatch) y -= 0.1 * sm(L / 2 - 0.35, L / 2, z); else y -= 0.03 * sm(L / 2 - 0.12, L / 2, z);
+      return y;
     };
-    parts.push({ geo: shape(body), color: BODY, paint: true });
-    glassParts.push({ geo: shape(glass), color: [1, 1, 1] });          // getönt-durchsichtig (eigenes Material)
+    const botY = (z, outer) => {                                    // Unterkante mit Radausschnitten
+      let y = 0.3 + 0.06 * Math.max(sm(L / 2 - 0.3, L / 2, z), sm(-L / 2 + 0.3, -L / 2, z));
+      if (outer) for (const zw of [zf, zr]) { const d = Math.abs(z - zw); if (d < R) y = Math.max(y, s.wr + Math.sqrt(R * R - d * d)); }
+      return y;
+    };
+    const roofY = (z) => belt + (Hh - belt) * sm(z0, z0 + (suv ? 0.75 : 0.95), z) * (1 - sm(z1 - (hatch ? 0.35 : 0.75), z1, z));
+    const loft = (zs, sec) => {
+      const pos = [], idx = []; let N = 0;
+      for (const z of zs) {
+        const h2 = sec(z), ring = [...h2, ...h2.slice(1, -1).reverse().map(([x, y]) => [-x, y])];
+        N = ring.length; for (const [x, y] of ring) pos.push(x, y, z);
+      }
+      for (let i = 0; i < zs.length - 1; i++) for (let k = 0; k < N; k++) {
+        const a3 = i * N + k, b3 = i * N + (k + 1) % N, c3 = a3 + N, d3 = b3 + N;
+        idx.push(a3, b3, c3, b3, d3, c3);   // Außenseite zeigt nach außen
+      }
+      // Enden schließen (Fächer um den Mittelpunkt)
+      for (const [ri, flip] of [[0, true], [zs.length - 1, false]]) {
+        let cx = 0, cy = 0; for (let k = 0; k < N; k++) { cx += pos[(ri * N + k) * 3]; cy += pos[(ri * N + k) * 3 + 1]; }
+        const c = pos.length / 3; pos.push(cx / N, cy / N, zs[ri]);
+        for (let k = 0; k < N; k++) { const a4 = ri * N + k, b4 = ri * N + (k + 1) % N; if (flip) idx.push(c, a4, b4); else idx.push(c, b4, a4); }
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+      return g;
+    };
+    const stations = (a5, b5, n, dense = true) => Array.from({ length: n + 1 }, (_, i) => { const t = i / n; const u = dense ? (1 - Math.cos(t * Math.PI)) / 2 : t; return a5 + (b5 - a5) * u; });
+    const zsBody = [...stations(-L / 2, -L / 2 + 0.6, 6), ...stations(-L / 2 + 0.65, L / 2 - 0.65, 26, false), ...stations(L / 2 - 0.6, L / 2, 6)];
+    const body = loft(zsBody, (z) => {
+      const w = halfW(z), yt = topY(z), yb = botY(z, true), yb0 = botY(z, false);
+      const nose = Math.max(sm(-L / 2 + 0.18, -L / 2, z), sm(L / 2 - 0.18, L / 2, z));   // Enden rund einziehen
+      const wn = w * (1 - 0.1 * nose);
+      return [[0, yb0], [wn * 0.86, yb], [wn * 0.99, yb + 0.08], [wn, (yb + yt) / 2], [wn * 0.985, yt - 0.08], [wn * 0.93, yt - 0.015], [wn * 0.72, yt + 0.02], [wn * 0.35, yt + 0.035 - 0.02 * nose], [0, yt + 0.04 - 0.02 * nose]];
+    });
+    parts.push({ geo: body, color: BODY, paint: true });
+    // Glashaus: getönte Scheiben, nach oben eingezogen (Tumblehome)
+    const zsG = stations(z0, z1, 22, false);
+    const glass = loft(zsG, (z) => {
+      const w = halfW(z), yt = topY(z) + 0.02, yr = roofY(z);
+      return [[0, yt], [w * 0.9, yt], [w * 0.84, yt + (yr - yt) * 0.5], [w * 0.74, yr], [0, yr + 0.02]];
+    });
+    glassParts.push({ geo: glass, color: [1, 1, 1] });
+    // Lackiertes Dach über dem Glashaus + A-/B-/C-Säulen
+    const ra = z0 + (suv ? 0.75 : 0.95), rb = z1 - (hatch ? 0.35 : 0.75);
+    parts.push({ geo: loft(stations(ra - 0.05, rb + 0.05, 12, false), (z) => { const w = halfW(z), yr = roofY(z); return [[0, yr + 0.01], [w * 0.76, yr + 0.005], [w * 0.74, yr + 0.035], [w * 0.4, yr + 0.06], [0, yr + 0.065]]; }), color: BODY, paint: true });
+    for (const sx of [-1, 1]) {
+      const pil = (za, zb) => { const pts = []; for (let i = 0; i <= 8; i++) { const z = za + (zb - za) * i / 8, w = halfW(z), yt = topY(z) + 0.02, yr = roofY(z), t = (yr - yt) / Math.max(Hh - belt, 0.01); pts.push(new THREE.Vector3(sx * w * (0.9 - 0.16 * t), yt + (yr - yt), z)); } return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.035, 5, false); };
+      parts.push({ geo: pil(z0 + 0.02, ra + 0.02), color: BODY, paint: true });          // A-Säule
+      parts.push({ geo: pil(rb - 0.02, z1 - 0.02), color: BODY, paint: true });          // C-Säule
+      const bz = (ra + rb) / 2 - 0.1, bw = halfW(bz);
+      parts.push({ geo: new THREE.BoxGeometry(0.06, Hh - belt, 0.1).translate(sx * bw * 0.82, (Hh + belt) / 2, bz), color: DARK });   // B-Säule
+      // Chromleiste an der Fensterunterkante
+      parts.push({ geo: new THREE.BoxGeometry(0.02, 0.025, z1 - z0 - 0.2).translate(sx * halfW(0) * 0.905, belt + 0.03, (z0 + z1) / 2), color: [0.7, 0.72, 0.75] });
+    }
     // Innenraum hinter den Scheiben: Boden auf Brüstungshöhe, Sitzlehnen, Fahrer (links), Kopfstützen
     const zs = -L / 2 + s.hood + 1.25;
-    parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.04, L - s.hood - s.trunk - 0.6).translate(0, 0.82, (-L / 2 + s.hood + L / 2 - s.trunk) / 2), color: [0.08, 0.08, 0.09] });
+    parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.04, L - s.hood - s.trunk - 0.6).translate(0, belt - 0.06, (-L / 2 + s.hood + L / 2 - s.trunk) / 2), color: [0.08, 0.08, 0.09] });
     for (const sx of [-1, 1]) {
       parts.push({ geo: new THREE.BoxGeometry(0.46, 0.5, 0.1).translate(sx * 0.4, 1.0, zs + 0.28), color: [0.12, 0.12, 0.13] });
       parts.push({ geo: new THREE.BoxGeometry(0.24, 0.14, 0.09).translate(sx * 0.4, Hh - 0.16, zs + 0.3), color: [0.12, 0.12, 0.13] });
@@ -7249,20 +7294,16 @@ function makeTrafficVariant(type) {
     parts.push({ geo: new THREE.BoxGeometry(0.42, 0.26, 0.24).translate(-0.4, 0.96, zs + 0.08), color: [0.25, 0.28, 0.34] });   // Fahrer: Oberkörper
     parts.push({ geo: new THREE.SphereGeometry(0.1, 10, 8).translate(-0.4, Hh - 0.3, zs + 0.06), color: [0.8, 0.62, 0.5] });     // Kopf
     parts.push({ geo: new THREE.SphereGeometry(0.105, 10, 8).scale(1, 0.6, 1).translate(-0.4, Hh - 0.24, zs + 0.08), color: [0.2, 0.14, 0.1] });   // Haare
-    const r0 = -L / 2 + s.hood + 1.0, r1 = L / 2 - s.trunk - 0.7;
-    parts.push({ geo: shape(new THREE.BoxGeometry(W - 0.42, 0.05, r1 - r0).translate(0, Hh + 0.015, (r0 + r1) / 2)), color: BODY, paint: true });   // Dach
-    parts.push({ geo: shape(new THREE.BoxGeometry(W - 0.2, 0.36, 0.09).translate(0, Hh - 0.24, (r0 + r1) / 2 + 0.1)), color: DARK });                // B-Säule
-    parts.push({ geo: shape(new THREE.BoxGeometry(W + 0.005, 0.035, L * 0.5).translate(0, 0.86, -0.1)), color: DARK });                           // Fensterleiste
     // Radhausschalen (verhindern Durchblick), Stoßfänger, Grill, Kennzeichen, Spiegel
-    for (const z of [zf, zr]) parts.push({ geo: new THREE.BoxGeometry(W - 0.5, R * 1.1, R * 2).translate(0, s.wr + R * 0.45, z), color: DARK });
+    for (const z of [zf, zr]) parts.push({ geo: new THREE.BoxGeometry(W - 0.12, R * 0.9, R * 2).translate(0, s.wr + R * 0.6, z), color: DARK });
     parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.16, 0.1).translate(0, 0.36, -L / 2 + 0.01), color: DARK });
     parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.16, 0.1).translate(0, 0.38, L / 2 - 0.02), color: DARK });
     parts.push({ geo: new THREE.BoxGeometry(W * 0.46, 0.15, 0.06).translate(0, 0.6, -L / 2 - 0.01), color: [0.03, 0.03, 0.035] });
     parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.42, -L / 2 - 0.06), color: [0.9, 0.9, 0.86] });
     parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.56, L / 2 + 0.04), color: [0.9, 0.9, 0.86] });
     for (const x of [-1, 1]) {
-      parts.push({ geo: new THREE.BoxGeometry(0.2, 0.12, 0.1).translate(x * (W / 2 + 0.02), 0.98, -L / 2 + s.hood + 0.25), color: BODY, paint: true });
-      parts.push({ geo: new THREE.BoxGeometry(0.06, 0.1, 0.06).translate(x * (W / 2 - 0.12), 0.93, -L / 2 + s.hood + 0.25), color: DARK });
+      parts.push({ geo: new THREE.BoxGeometry(0.2, 0.12, 0.1).translate(x * (W / 2 + 0.02), belt + 0.1, -L / 2 + s.hood + 0.25), color: BODY, paint: true });
+      parts.push({ geo: new THREE.BoxGeometry(0.06, 0.1, 0.06).translate(x * (W / 2 - 0.12), belt + 0.05, -L / 2 + s.hood + 0.25), color: DARK });
     }
     for (const z of [zf, zr]) for (const x of [-1, 1]) {
       const wx = x * (W / 2 - 0.16), r = s.wr;
