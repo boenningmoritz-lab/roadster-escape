@@ -251,6 +251,8 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Abgerundete Kreuzungsecken:** Gehwege mit 3 m Eckradius (alle Blöcke in einer Geometrie), Bordstein folgt dem Bogen.
 - **Kreisverkehr** statt Ampelkreuzung (Knoten 5/3): begrünte Mittelinsel mit Skulptur, Pflasterring, Haifischzähne und Schilder an jeder Einfahrt. Echte Verkehrsführung: vier Einbahn-Bögen gegen den Uhrzeigersinn, Autos im Kreis haben Vorfahrt, Einfahrende warten nur, wenn sich ein Auto nähert.
 - **Abbiegespuren** vor Ampeln: durchgezogene Trennlinie, Richtungspfeile (links / geradeaus+rechts); Linksabbieger ordnen sich links ein, alle anderen rechts.
+- **Schaufenster mit echter Tiefe:** Interior-Mapping im Fassaden-Shader – hinter jeder Scheibe ein 2,6 m tiefer Laden mit Regalen und Waren, Seitenwänden, Boden und Leuchtdecke, perspektivisch richtig je nach Blickwinkel; nachts beleuchtet.
+- **Durchfahrten:** Wohnblöcke mit Innenhof bekommen im straßenseitigen Flügel oft einen 4,2 m breiten Torbogen – man kann in den Hinterhof fahren.
 
 - **Standard auf Touch-Geräten = Mittel** (vorher bekamen iPads „Hoch“ → Hauptgrund fürs Ruckeln); alte Spielstände werden einmalig umgestellt. **Automatische Grafikstufe:** 1,5–6,5 s nach dem Start wird die echte Bildrate gemessen; unter 50 FPS eine Stufe herunter (bis zu zweimal). Wer die Stufe selbst wählt, schaltet die Automatik ab.
 - **Telemetrie** zeigt Draw-Calls, Dreiecke, ms pro Bild und FPS.

@@ -528,6 +528,7 @@ class World {
           if (bx1 - bx0 < 8 || bz1 - bz0 < 8) continue;
           const h = clamp(base * (0.45 + rng() * 0.9), 9, 125);
           const office = h > 32 || rng() < 0.25;
+          this.lotFront = { top: b0 === z0, bot: b1 === z1 };   // welche Grundstücksseite an der Straße liegt (für Durchfahrten)
           this.composeBuilding(bx0, bx1, bz0, bz1, C.h, h, office, rng);
         }
       }
@@ -607,9 +608,21 @@ class World {
       if (form === 'U') wings.push([x1 - t, x1, sideA ? z0 + t : z0, sideA ? z1 : z1 - t]);   // Seitenflügel rechts → Innenhof
     }
     const low = h < 22;
+    // Durchfahrt: Torbogen (4,2 m breit, 4,6 m hoch) im Vorderflügel → Zufahrt in den Innenhof
+    const LF = this.lotFront || { top: true, bot: true };
+    const frontOnStreet = wings.length > 1 && (wings[0][2] === z0 ? LF.top : LF.bot);
+    const gate = frontOnStreet && (x1 - x0) > 22 && rng() < 0.6 ? x0 + (x1 - x0) * (0.4 + rng() * 0.2) : null;
     wings.forEach(([a0, a1, b0, b1], i) => {
       const wh = clamp(h * (i === 0 ? 1 : 0.75 + rng() * 0.3), 8, 60);
-      this.addBuilding(a0, a1, b0, b1, y0, wh, 1, rng);
+      if (i === 0 && gate !== null) {
+        const nB = this.buildings.length;
+        const g0 = gate - 2.1, g1 = gate + 2.1;
+        this.addBuilding(a0, g0, b0, b1, y0, wh, 1, rng);
+        this.addBuilding(g1, a1, b0, b1, y0, wh, 1, rng);
+        this.addBuilding(g0, g1, b0, b1, y0 + 4.6, wh - 4.6, 1, rng);
+        for (let k = nB + 1; k < this.buildings.length; k++) this.buildings[k].tint = this.buildings[nB].tint;   // gleiche Fassade
+        this.gates = this.gates || []; this.gates.push({ x0: g0, x1: g1, z0: b0, z1: b1, y0, fz: b0 === z0 ? -1 : 1 });
+      } else this.addBuilding(a0, a1, b0, b1, y0, wh, 1, rng);
       if (low) {
         // Dach: Satteldach oder Mansarddach (First entlang der längeren Seite)
         this.roofs.push({ x0: a0, x1: a1, z0: b0, z1: b1, y: y0 + wh, h: Math.min(a1 - a0, b1 - b0) * (0.32 + rng() * 0.12), along: (a1 - a0) > (b1 - b0) ? 'x' : 'z', mansard: rng() < 0.45, tint: rng() });
@@ -1666,14 +1679,35 @@ Object.assign(World.prototype, {
             ' float shop = (1.0 - step(0.5, vRoof)) * (1.0 - step(4.2, vHA)); float bay = fract(vFac.x * 7.0);' +
             ' float glassZ = step(0.35, vHA) * step(vHA, 3.05) * step(0.07, bay) * step(bay, 0.93); float signZ = step(3.3, vHA) * step(vHA, 3.95) * step(0.03, bay) * step(bay, 0.97);' +
             ' vec3 signCol = vec3(fract(vSeed * 7.13), fract(vSeed * 3.71), fract(vSeed * 5.37)) * 0.75 + 0.15;' +
-            ' if (shop > 0.5) { diffuseColor.rgb = mix(vec3(0.42, 0.4, 0.38), vec3(0.05, 0.065, 0.08), glassZ); diffuseColor.rgb = mix(diffuseColor.rgb, signCol, signZ); }' +
+            // Schaufenster mit echter Tiefe (Interior-Mapping): Blickstrahl in einen 2,6 m tiefen Ladenraum hinter der
+            // Scheibe verfolgen → Rückwand mit Regalen und Waren, Seitenwände, Boden, beleuchtete Decke, je nach Blickwinkel
+            ' vec3 shopIn = vec3(0.0);' +
+            ' if (shop > 0.5 && glassZ > 0.5) {' +
+            '   vec3 V2 = normalize(cameraPosition - vFW); vec2 vt = abs(vFN.x) > 0.5 ? vec2(V2.z, V2.y) : vec2(V2.x, V2.y);' +
+            '   float vn2 = max(dot(V2, vFN), 0.05), u = bay * 4.0, du = -vt.x, dv = -vt.y, D = 2.6;' +
+            '   float tB = D / vn2, tS = du > 0.0 ? (3.72 - u) / max(du, 1e-4) : (u - 0.28) / max(-du, 1e-4);' +
+            '   float tV = dv > 0.0 ? (3.05 - vHA) / max(dv, 1e-4) : (vHA - 0.35) / max(-dv, 1e-4);' +
+            '   float tt = min(tB, min(tS, tV)); float hu = u + du * tt, hv = vHA + dv * tt, hd = vn2 * tt;' +
+            '   float rs = floor(vFac.x * 7.0) + vSeed * 31.0;' +
+            '   vec3 wallC = vec3(0.75, 0.72, 0.68) * (0.75 + 0.25 * fract(sin(rs * 3.1) * 917.3));' +
+            '   if (tt == tB) {' +
+            '     float shelf = step(0.82, fract(hv * 1.6)); vec2 cell = floor(vec2(hu * 3.2, hv * 1.6));' +
+            '     float hsh = fract(sin(dot(cell + rs, vec2(12.9898, 78.233))) * 43758.5453);' +
+            '     vec3 prod = vec3(fract(hsh * 7.1), fract(hsh * 3.3), fract(hsh * 5.7)) * 0.7 + 0.15;' +
+            '     shopIn = mix(mix(wallC, prod, step(0.25, hsh) * step(fract(hu * 3.2), 0.85)), vec3(0.35, 0.3, 0.26), shelf);' +
+            '   } else if (tt == tS) shopIn = wallC * 0.8 * (0.85 + 0.15 * step(0.5, fract(hd * 2.0)));' +
+            '   else if (dv < 0.0) shopIn = vec3(0.45, 0.4, 0.34) * (0.8 + 0.2 * step(0.5, fract(hu * 2.0) + fract(hd * 2.0) - 0.5));' +
+            '   else shopIn = vec3(1.0, 0.97, 0.9) * (0.7 + 0.3 * step(0.7, fract(hu * 1.5)));' +
+            '   shopIn *= 0.55 + 0.45 * smoothstep(0.0, D, D - hd * 0.6);' +
+            ' }' +
+            ' if (shop > 0.5) { diffuseColor.rgb = mix(vec3(0.42, 0.4, 0.38), shopIn * 0.32 + 0.02, glassZ); diffuseColor.rgb = mix(diffuseColor.rgb, signCol, signZ); }' +
             ' diffuseColor.rgb *= vAO;' +
             // Fensterflächen: glatt (spiegeln Himmel und Nachbarhäuser, v. a. im flachen Winkel)
             ' float winMask = (1.0 - smoothstep(0.06, 0.2, dot(facCol.rgb, vec3(0.299, 0.587, 0.114)))) * (1.0 - step(0.5, vRoof));' +
             ' if (shop > 0.5) winMask = glassZ;')
           .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.04, winMask);')
           .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor = mix(metalnessFactor, 0.0, winMask);')
-          .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance *= texture2D(emissiveMap, vFac).rgb * uGlow * (1.0 - step(0.5, vRoof)); float shopLit = step(0.45, fract(sin(floor(vFac.x * 7.0) * 12.9898 + vSeed * 78.233) * 43758.5453)); if (shop > 0.5) totalEmissiveRadiance = (glassZ * shopLit * vec3(1.0, 0.8, 0.55) * 0.45 + signZ * signCol * 1.1) * uGlow;');
+          .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance *= texture2D(emissiveMap, vFac).rgb * uGlow * (1.0 - step(0.5, vRoof)); float shopLit = step(0.45, fract(sin(floor(vFac.x * 7.0) * 12.9898 + vSeed * 78.233) * 43758.5453)); if (shop > 0.5) totalEmissiveRadiance = (glassZ * shopLit * shopIn * vec3(1.0, 0.86, 0.66) * 0.75 + signZ * signCol * 1.1) * uGlow + glassZ * shopIn * 0.05;');
       };
       return mat;
     };
