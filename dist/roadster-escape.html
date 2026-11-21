@@ -4154,13 +4154,18 @@ class RigidBox {
 // ---- js/world/traffic.js ----
 // ============================== Verkehr ==============================
 const TRAFFIC_TYPES = {
-  sedan: { L: 4.7, W: 1.84, H: 1.45, hood: 1.15, trunk: 0.85, wr: 0.33, mass: 1450, weight: 0.38 },
-  hatch: { L: 4.15, W: 1.78, H: 1.5, hood: 0.95, trunk: 0.2, wr: 0.32, mass: 1250, weight: 0.3 },
-  suv:   { L: 4.8, W: 1.95, H: 1.78, hood: 1.05, trunk: 0.3, wr: 0.38, mass: 2050, weight: 0.22 },
-  truck: { L: 8.4, W: 2.5, H: 3.4, wr: 0.5, mass: 9000, weight: 0.1 },
+  // Sechs Modelle: Kleinwagen, Limousine, Kombi, SUV, Transporter, Lkw (Gewicht = Anteil im Verkehr)
+  hatch: { L: 3.95, W: 1.74, H: 1.5, hood: 0.85, trunk: 0.15, wr: 0.31, mass: 1150, weight: 0.24 },
+  sedan: { L: 4.75, W: 1.84, H: 1.45, hood: 1.15, trunk: 0.85, wr: 0.33, mass: 1450, weight: 0.25 },
+  kombi: { L: 4.85, W: 1.84, H: 1.5, hood: 1.1, trunk: 0.12, wr: 0.33, mass: 1550, weight: 0.17, longRoof: true },
+  suv:   { L: 4.8, W: 1.95, H: 1.78, hood: 1.05, trunk: 0.3, wr: 0.38, mass: 2050, weight: 0.16 },
+  van:   { L: 5.3, W: 2.0, H: 2.35, hood: 0.75, trunk: 0.05, wr: 0.35, mass: 2400, weight: 0.1, tall: true },
+  truck: { L: 8.4, W: 2.5, H: 3.4, wr: 0.5, mass: 9000, weight: 0.08 },
 };
-const CAR_PAINTS = [[0.92, 0.92, 0.92], [0.66, 0.68, 0.7], [0.1, 0.1, 0.11], [0.3, 0.32, 0.34], [0.12, 0.2, 0.36],
-  [0.55, 0.08, 0.09], [0.7, 0.6, 0.45], [0.16, 0.3, 0.2], [0.85, 0.85, 0.82], [0.2, 0.22, 0.25]];
+// Realistische Lackverteilung: viel Weiß/Silber/Grau/Schwarz, dazu einige kräftige Metallic-Farben
+const CAR_PAINTS = [[0.92, 0.92, 0.92], [0.94, 0.94, 0.92], [0.66, 0.68, 0.7], [0.72, 0.73, 0.75], [0.1, 0.1, 0.11], [0.06, 0.06, 0.07],
+  [0.3, 0.32, 0.34], [0.42, 0.44, 0.46], [0.12, 0.2, 0.36], [0.08, 0.18, 0.5], [0.55, 0.08, 0.09], [0.7, 0.06, 0.05],
+  [0.7, 0.6, 0.45], [0.16, 0.3, 0.2], [0.85, 0.85, 0.82], [0.2, 0.22, 0.25], [0.85, 0.42, 0.1], [0.2, 0.4, 0.55], [0.38, 0.25, 0.18]];
 
 /** Modell eines Verkehrsautos als eine Geometrie (Karosserie weiß → per Instanzfarbe lackiert). */
 // lo = true: vereinfachte Fern-Version (LOD) – grobe Karosserie, Scheiben deckend, ohne Innenraum/Felgen/Kleinteile
@@ -4198,11 +4203,11 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
     // ---------- Karosserie als glatte Loft-Fläche (Querschnitte entlang der Länge, gerundet) ----------
     // z vorn = −L/2. Unterer Körper mit Motorhaube/Kofferraum, darüber Glashaus (Scheiben) und lackiertes Dach.
     const zf = -L / 2 + 0.9, zr = L / 2 - 0.85, R = s.wr + 0.07;
-    const hatch = s.trunk < 0.5, suv = type === 'suv';
+    const hatch = s.trunk < 0.5, suv = type === 'suv' || !!s.tall;
     const z0 = -L / 2 + s.hood, z1 = L / 2 - s.trunk;              // Windschutzscheibe unten / Heckscheibe unten
     const sm = (a2, b2, x) => { const t = clamp((x - a2) / (b2 - a2), 0, 1); return t * t * (3 - 2 * t); };
     const halfW = (z) => { const u = Math.abs(z) / (L / 2); return W / 2 * (1 - 0.16 * Math.pow(u, 7)); };
-    const belt = (suv ? 1.0 : 0.88);
+    const belt = s.tall ? 1.1 : suv ? 1.0 : 0.88;
     const topY = (z) => {                                           // Oberkante: Haube → Gürtellinie → Kofferraum
       let y = (suv ? 0.72 : 0.6) + (belt - (suv ? 0.72 : 0.6)) * sm(-L / 2, -L / 2 + s.hood * 0.75, z);
       if (!hatch) y -= 0.1 * sm(L / 2 - 0.35, L / 2, z); else y -= 0.03 * sm(L / 2 - 0.12, L / 2, z);
@@ -4213,7 +4218,8 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
       if (outer) for (const zw of [zf, zr]) { const d = Math.abs(z - zw); if (d < R) y = Math.max(y, s.wr + Math.sqrt(R * R - d * d)); }
       return y;
     };
-    const roofY = (z) => belt + (Hh - belt) * sm(z0, z0 + (suv ? 0.75 : 0.95), z) * (1 - sm(z1 - (hatch ? 0.35 : 0.75), z1, z));
+    const aLen = s.tall ? 0.45 : suv ? 0.75 : 0.95, cLen = s.tall ? 0.08 : s.longRoof ? 0.15 : hatch ? 0.35 : 0.75;
+    const roofY = (z) => belt + (Hh - belt) * sm(z0, z0 + aLen, z) * (1 - sm(z1 - cLen, z1, z));
     const loft = (zs, sec) => {
       const pos = [], idx = []; let N = 0;
       for (const z of zs) {
@@ -4251,7 +4257,8 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
     });
     if (lo) parts.push({ geo: glass, color: GLASS }); else glassParts.push({ geo: glass, color: [1, 1, 1] });
     // Lackiertes Dach über dem Glashaus + A-/B-/C-Säulen
-    const ra = z0 + (suv ? 0.75 : 0.95), rb = z1 - (hatch ? 0.35 : 0.75);
+    // Dachlinie: Transporter fast über die ganze Länge, Kombi mit langem Dach bis ans Heck
+    const ra = z0 + aLen, rb = z1 - cLen;
     parts.push({ geo: loft(stations(ra - 0.05, rb + 0.05, lo ? 3 : 12, false), (z) => { const w = halfW(z), yr = roofY(z); return [[0, yr + 0.01], [w * 0.76, yr + 0.005], [w * 0.74, yr + 0.035], [w * 0.4, yr + 0.06], [0, yr + 0.065]]; }), color: BODY, paint: true });
     if (!lo) for (const sx of [-1, 1]) {
       const pil = (za, zb) => { const pts = []; for (let i = 0; i <= 8; i++) { const z = za + (zb - za) * i / 8, w = halfW(z), yt = topY(z) + 0.02, yr = roofY(z), t = (yr - yt) / Math.max(Hh - belt, 0.01); pts.push(new THREE.Vector3(sx * w * (0.9 - 0.16 * t), yt + (yr - yt), z)); } return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.035, 5, false); };
