@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { clamp, lerp, damp } from './config.js';
 import { mergeParts, makeBlobTexture } from './world/world.js';
 import { Haptics, toast } from './input.js';
+import { makeTrafficVariant } from './world/traffic.js';
 
 // ============================== Spielstand ==============================
 /** Geld, Fortschritt, Upgrades (Phase 9) – dauerhaft in localStorage. */
@@ -36,33 +37,19 @@ function makePoliceGeometry() {
     const g = new THREE.ExtrudeGeometry(sh, { depth: width - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: 2, curveSegments: 2 });
     g.translate(0, 0, -(width - 2 * bevel) / 2); g.rotateY(-Math.PI / 2); g.computeVertexNormals(); return g;
   };
-  // Unterbau (dunkel), Seitenflächen hell, kantiges Glashaus, Dach dunkel
-  parts.push({ geo: ext([[-L / 2, 0.42], [-L / 2 - 0.03, 0.98], [-L / 2 + 0.35, 1.1], [L / 2 - 0.15, 1.12], [L / 2, 1.0], [L / 2, 0.42]], W, 0.08), color: DARK });
-  parts.push({ geo: new THREE.BoxGeometry(W + 0.02, 0.36, L - 1.6).translate(0, 0.78, 0.1), color: SILVER });         // Türen hell
-  // Scheiben als eigene, getönt-durchsichtige Geometrie; dahinter Sitze und zwei Beamte
-  const glassParts = [{ geo: ext([[-L / 2 + 1.25, 1.08], [-L / 2 + 1.95, H], [L / 2 - 0.35, H], [L / 2 - 0.2, 1.1]], W - 0.14, 0.05), color: [1, 1, 1] }];
-  parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.06, L - 2.0).translate(0, 1.06, 0.4), color: [0.1, 0.1, 0.11] });          // Innenraum-Boden auf Brüstungshöhe
-  for (const sx of [-1, 1]) {
-    parts.push({ geo: new THREE.BoxGeometry(0.5, 0.62, 0.12).translate(sx * 0.45, 1.38, -0.05), color: [0.12, 0.12, 0.13] });  // Sitzlehne vorn
-    parts.push({ geo: new THREE.BoxGeometry(0.26, 0.16, 0.1).translate(sx * 0.45, 1.75, -0.02), color: [0.12, 0.12, 0.13] });  // Kopfstütze
-    parts.push({ geo: new THREE.BoxGeometry(0.46, 0.3, 0.26).translate(sx * 0.45, 1.3, -0.3), color: [0.1, 0.13, 0.25] });     // Oberkörper (Uniform)
-    parts.push({ geo: new THREE.SphereGeometry(0.11, 10, 8).translate(sx * 0.45, 1.58, -0.32), color: [0.82, 0.64, 0.52] });   // Kopf
-    parts.push({ geo: new THREE.CylinderGeometry(0.12, 0.125, 0.07, 10).translate(sx * 0.45, 1.68, -0.32), color: [0.08, 0.12, 0.3] });   // Mütze
-    parts.push({ geo: new THREE.BoxGeometry(0.5, 0.55, 0.12).translate(sx * 0.45, 1.36, 1.1), color: [0.12, 0.12, 0.13] });    // Rückbank-Lehne
-  }
-  parts.push({ geo: new THREE.BoxGeometry(W - 0.18, 0.06, L - 2.5).translate(0, H + 0.02, 0.45), color: DARK });          // Dach
-  parts.push({ geo: new THREE.BoxGeometry(W - 0.16, 0.5, 0.12).translate(0, H - 0.3, -0.3), color: DARK });             // B-Säule
+  // Karosserie, Glashaus, Räder und Innenraum (mit Fahrer) aus dem gerundeten Loft-Modell der Verkehrsautos (SUV-Form),
+  // umgefärbt: Lack dunkelblau, Türen silbern; Glas wird getönt-durchsichtig gezeichnet
+  const V = makeTrafficVariant('suv', { L, W, H, hood: 1.25, trunk: 0.25, wr: 0.42, mass: 2600 });
+  { const col = V.body.attributes.color, pm = V.body.attributes.paint, c = new THREE.Color();
+    for (let i = 0; i < col.count; i++) if (pm.getX(i) > 0.5) { c.setRGB(DARK[0], DARK[1], DARK[2], THREE.SRGBColorSpace); col.setXYZ(i, c.r, c.g, c.b); } }
+  parts.push({ geo: V.body });
+  const glassParts = [{ geo: V.glass }];
+  parts.push({ geo: new THREE.BoxGeometry(W + 0.025, 0.34, L - 1.9).translate(0, 0.72, 0.1), color: SILVER });         // silberner Türstreifen
   parts.push({ geo: new THREE.BoxGeometry(1.2, 0.48, 0.06).translate(0, 0.76, -L / 2 - 0.04), color: CHROME });         // Kühlergrill
   for (let i = 0; i < 6; i++) parts.push({ geo: new THREE.BoxGeometry(1.12, 0.02, 0.07).translate(0, 0.56 + i * 0.08, -L / 2 - 0.05), color: [0.15, 0.16, 0.18] });
-  parts.push({ geo: new THREE.BoxGeometry(W + 0.04, 0.25, 0.18).translate(0, 0.45, -L / 2 - 0.02), color: DARK });
-  parts.push({ geo: new THREE.BoxGeometry(W + 0.04, 0.25, 0.18).translate(0, 0.48, L / 2 + 0.02), color: DARK });
-  for (const z of [-L / 2 + 1.0, L / 2 - 1.05]) for (const x of [-1, 1]) {
-    parts.push({ geo: new THREE.CylinderGeometry(0.42, 0.42, 0.32, 18).rotateZ(Math.PI / 2).translate(x * (W / 2 - 0.12), 0.42, z), color: TIRE });
-    parts.push({ geo: new THREE.CylinderGeometry(0.28, 0.28, 0.33, 12).rotateZ(Math.PI / 2).translate(x * (W / 2 - 0.11), 0.42, z), color: CHROME });
-  }
   // Lichtbalken-Sockel
   parts.push({ geo: new THREE.BoxGeometry(1.3, 0.1, 0.36).translate(0, H + 0.08, -0.1), color: [0.12, 0.12, 0.14] });
-  return { body: mergeParts(parts), glass: mergeParts(glassParts), L, W, H };
+  return { body: mergeParts(parts), glass: mergeParts(glassParts), L, W, H };   // mergeParts übernimmt vorhandene Vertexfarben
 }
 
 /** Schriftzug „POLIZEI“ als Textur. */

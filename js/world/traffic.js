@@ -15,8 +15,8 @@ const CAR_PAINTS = [[0.92, 0.92, 0.92], [0.66, 0.68, 0.7], [0.1, 0.1, 0.11], [0.
   [0.55, 0.08, 0.09], [0.7, 0.6, 0.45], [0.16, 0.3, 0.2], [0.85, 0.85, 0.82], [0.2, 0.22, 0.25]];
 
 /** Modell eines Verkehrsautos als eine Geometrie (Karosserie weiß → per Instanzfarbe lackiert). */
-function makeTrafficVariant(type) {
-  const s = TRAFFIC_TYPES[type], L = s.L, W = s.W, Hh = s.H;
+function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type]) {
+  const s = spec, L = s.L, W = s.W, Hh = s.H;
   const BODY = [0.93, 0.93, 0.93], GLASS = [0.07, 0.08, 0.1], DARK = [0.06, 0.06, 0.07], RIM = [0.55, 0.56, 0.58];
   const parts = [], lights = [], glassParts = [];
   const extrude = (pts, width, bevel) => {
