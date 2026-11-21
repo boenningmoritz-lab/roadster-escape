@@ -238,7 +238,9 @@ class TrafficSystem {
     this.w = world; this.rng = mulberry32(4242); this.cars = [];
     this.bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.36, metalness: 0.3 });
     this.bodyMat.onBeforeCompile = (sh) => {
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float paint;')
+      // Dellen: idmg = (Aufprallpunkt x, z lokal, Stärke 0–1, –) → lackierte Teile nahe dem Aufprallpunkt nach innen gedrückt
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float paint;\nattribute vec4 idmg;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n { float dd = distance(position.xz, idmg.xy); float wd = (1.0 - smoothstep(0.2, 1.7, dd)) * idmg.z * paint;\n   float nz = fract(sin(dot(floor(position * 9.0), vec3(12.99, 78.23, 37.71))) * 43758.55);\n   transformed -= objectNormal * wd * (0.07 + 0.09 * nz); }')
         .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix(vec3(1.0), instanceColor.xyz, paint);'));
     };
     this.lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -256,6 +258,7 @@ class TrafficSystem {
     for (let k = 0; k < parked; k++) { let t; do { t = pick(); } while (types[t] === 'truck'); chosen.push(t); }
     for (const v of this.variants) {
       const n = Math.max(1, chosen.filter((i) => this.variants[i] === v).length);
+      v.body.setAttribute('idmg', new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4).setUsage(THREE.DynamicDrawUsage));
       v.bodyMesh = new THREE.InstancedMesh(v.body, this.bodyMat, n);
       v.lightMesh = new THREE.InstancedMesh(v.lights, this.lightMat, n);
       if (v.glass) {
@@ -415,14 +418,16 @@ class TrafficSystem {
     let tot = 0; const ws = opts.map((o) => {
       const out = o.a === node ? o.pts[1] : o.pts[o.pts.length - 2];
       const ox2 = out.x - node.x, oz2 = out.z - node.z, l = Math.hypot(ox2, oz2) || 1;
-      const wgt = 0.35 + Math.max(0, (ox2 * inTx + oz2 * inTz) / l) * 2.2; tot += wgt; return wgt;
+      let wgt = 0.35 + Math.max(0, (ox2 * inTx + oz2 * inTz) / l) * 2.2;
+      if (car.angry > 0 && this.playerPos) { const tx = this.playerPos.x - node.x, tz = this.playerPos.z - node.z, tl = Math.hypot(tx, tz) || 1; wgt += Math.max(0, (ox2 * tx + oz2 * tz) / (l * tl)) * 6; }
+      tot += wgt; return wgt;
     });
     let r = this.rng() * tot; let k = 0; while (k < ws.length - 1 && r > ws[k]) { r -= ws[k]; k++; }
     return opts[k];
   }
 
   update(dt, player, camera) {
-    this.time = (this.time || 0) + dt; this.camPos = camera?.position;
+    this.time = (this.time || 0) + dt; this.camPos = camera?.position; this.playerPos = player.pos;
     const w = this.w;
     for (const car of this.cars) {
       if (car.state === 'loose') { this.updateLoose(car, dt, player, camera); continue; }
@@ -432,6 +437,9 @@ class TrafficSystem {
       const node = car.dir > 0 ? e.b : e.a;
       const toNode = car.dir > 0 ? e.len - car.s : car.s;
       let vT = C.speed[Math.min(car.lane, C.speed.length - 1)] * car.pers;
+      if (car.hazard > 0) car.hazard -= dt;
+      if (car.angry > 0) { car.angry -= dt; vT *= 1.4; }
+      if (car.pause > 0) { car.pause -= dt; vT = 0; }
       // Kurven: vor engen Bögen langsamer (Querbeschleunigung ~3 m/s²)
       const ahead = w.pointOnEdge(e, car.s + car.dir * 30, {}), here = w.pointOnEdge(e, car.s, this._p);
       const dot = clamp(ahead.tx * here.tx + ahead.tz * here.tz, -1, 1);
@@ -525,6 +533,25 @@ class TrafficSystem {
     this.writeInstances();
   }
 
+  /** Nach leichtem Unfall auf die nächste Fahrspur zurückkehren (weiche Überblendung der Position). */
+  recover(car, player) {
+    const pose = this.w.nearestRoadPose(car.x, car.z, car.yaw);
+    const e = pose.edge;
+    if (!e || Math.hypot(pose.x - car.x, pose.z - car.z) > 8 || e.cls === 'highway' && car.v.type === 'truck' && false) return false;
+    let bi = 0, bd = 1e18;
+    for (let i = 0; i < e.pts.length; i++) { const p = e.pts[i], dd = (p.x - car.x) ** 2 + (p.z - car.z) ** 2; if (dd < bd) { bd = dd; bi = i; } }
+    const p = e.pts[bi], fx = -Math.sin(car.yaw), fz = -Math.cos(car.yaw);
+    const dir = e.oneWay ? 1 : (fx * p.tx + fz * p.tz >= 0 ? 1 : -1);
+    const ox = car.x, oz = car.z, oyaw = car.yaw;
+    Object.assign(car, { e, s: p.s, dir, lane: e.C.lanes.length - 1, state: 'drive', speed: 0, body: null, cleared: false, waitT: 0, stopT: 0, latOff: 0, yawRate: 0 });
+    this.place(car, 0, true);
+    car.bx = ox - car.x; car.bz = oz - car.z; car.x = ox; car.z = oz; car.yaw = oyaw;   // Übergang weich ausblenden
+    car.hazard = 6; car.pause = 1.2;
+    if (this.w.fx.length < 30) this.w.fx.push({ type: 'honk', x: car.x, y: car.y + 1, z: car.z, s: 1 });
+    if (this.rng() < 0.35) car.angry = 18;                                    // verärgert: fährt dem Spieler hinterher
+    return true;
+  }
+
   /** Angefahrenes Auto: echter Starrkörper – rutscht, kippt, überschlägt sich. */
   makeLoose(car) {
     if (car.body) return;
@@ -546,8 +573,21 @@ class TrafficSystem {
     if (b.sleep > 0.5) car.stopT += dt; else car.stopT = 0;
     const d = Math.hypot(car.x - player.pos.x, car.z - player.pos.z);
     const hidden = !this.inView(camera, car);
-    if ((car.stopT > 6 && d > 60 && hidden) || (car.stopT > 25 && d > 25) || d > 700 || car.y < this.w.waterLevel - 6) {
-      car.body = null;
+    const upY = this._pos.set(0, 1, 0).applyQuaternion(b.quat).y;
+    if (car.stopT > 0.6 && !car.wreck && (upY < 0.6 || (car.dmg || 0) > 28)) {
+      // Totalschaden/überschlagen: liegen bleiben, Warnblinker, Rauch, Fahrer steigt aus
+      car.wreck = true; car.wreckT = 0;
+      if (this.onWreck && upY > 0.6) this.onWreck(car);
+    }
+    if (car.wreck) {
+      car.wreckT += dt;
+      if (d < 160 && Math.random() < dt * ((car.dmg || 0) > 40 ? 9 : 4) && this.w.fx.length < 30) this.w.fx.push({ type: 'smoke', x: car.x - Math.sin(car.yaw) * car.v.L * 0.35, y: car.y + car.v.H * 0.7, z: car.z - Math.cos(car.yaw) * car.v.L * 0.35, s: car.dmg });
+    } else if (car.stopT > 1.6 && upY > 0.85 && !car.parked) {
+      // leichter Unfall: zurück auf die Fahrspur und weiterfahren (Warnblinker, Hupe, manchmal verärgert hinterher)
+      if (this.recover(car, player)) return;
+    }
+    if ((car.stopT > 6 && d > 60 && hidden) || (car.stopT > (car.wreck ? 60 : 25) && d > 25) || d > 700 || car.y < this.w.waterLevel - 6) {
+      car.body = null; car.wreck = false; car.dmg = 0; car.dent = null;
       if (car.parked) this.placeParked(car, false); else this.respawn(car, player.pos, 110, 400, camera);
     }
   }
@@ -568,10 +608,17 @@ class TrafficSystem {
       }
       { const on = Math.sin((this.time || 0) * Math.PI * 3) > 0, drive = car.state === 'drive';
         this._lc = this._lc || new THREE.Color();
-        this._lc.setRGB(drive && car.brakeOn ? 3.2 : 1, drive && car.blink < 0 && on ? 1 : 0, drive && car.blink > 0 && on ? 1 : 0);
+        const haz = (car.hazard > 0 || car.wreck) && on;
+        this._lc.setRGB(drive && car.brakeOn ? 3.2 : 1, (drive && car.blink < 0 && on) || haz ? 1 : 0, (drive && car.blink > 0 && on) || haz ? 1 : 0);
         car.v.lightMesh.setColorAt(car.slot, this._lc); }
-      if (near) { const k = v.hi++; v.bodyMesh.setMatrixAt(k, m); v.bodyMesh.setColorAt(k, car.paint); if (v.glassMesh) v.glassMesh.setMatrixAt(k, m); }
-      else { const k = v.lo++; v.loMesh.setMatrixAt(k, m); v.loMesh.setColorAt(k, car.paint); }
+      // Schaden: Lack dunkler/verrußt, Dellen (Shader), bei schweren Treffern Scheiben zersplittert (ausgeblendet)
+      const dmg = car.dmg || 0, pc = dmg > 6 ? (this._pc || (this._pc = new THREE.Color())).copy(car.paint).multiplyScalar(1 - Math.min(0.45, dmg / 90)) : car.paint;
+      if (near) {
+        const k = v.hi++; v.bodyMesh.setMatrixAt(k, m); v.bodyMesh.setColorAt(k, pc);
+        const da = v.body.attributes.idmg; if (car.dent) da.setXYZW(k, car.dent.x, car.dent.z, car.dent.a, 0); else da.setXYZW(k, 0, 0, 0, 0);
+        if (v.glassMesh) v.glassMesh.setMatrixAt(k, dmg > 18 ? (this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0))) : m);
+      }
+      else { const k = v.lo++; v.loMesh.setMatrixAt(k, m); v.loMesh.setColorAt(k, pc); }
       car.v.lightMesh.setMatrixAt(car.slot, car.state === 'parked' ? this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0)) : m);
       // Kontaktschatten
       const bx = car.body ? car.body.pos.x : car.x, bz = car.body ? car.body.pos.z : car.z;
@@ -585,6 +632,7 @@ class TrafficSystem {
     for (const v of this.variants) {
       if (v.lightMesh.instanceColor) v.lightMesh.instanceColor.needsUpdate = true;
       v.bodyMesh.count = v.hi; v.loMesh.count = v.lo; if (v.glassMesh) v.glassMesh.count = v.hi;
+      v.body.attributes.idmg.needsUpdate = true;
       v.loMesh.instanceMatrix.needsUpdate = true;
       if (v.bodyMesh.instanceColor) v.bodyMesh.instanceColor.needsUpdate = true;
       if (v.loMesh.instanceColor) v.loMesh.instanceColor.needsUpdate = true;
@@ -681,6 +729,13 @@ class TrafficSystem {
     v.vel.addScaledVector(J, v.invMass);
     v.angVel.add(v.applyInvInertia(t[9].crossVectors(r1, J)));
     b.impulse(J.negate(), P2);
+    // Schaden merken: Stärke und Aufprallpunkt im Fahrzeug-Rahmen (für Dellen, Scheiben, Liegenbleiben)
+    if (-vn > 3) {
+      c.dmg = (c.dmg || 0) + (-vn - 3);
+      const lp = (this._lp || (this._lp = new THREE.Vector3())).subVectors(P2, b.pos).applyQuaternion((this._iq || (this._iq = new THREE.Quaternion())).copy(b.quat).invert());
+      const L2 = c.v.L / 2, W2 = c.v.W / 2;
+      c.dent = { x: clamp(lp.x, -W2, W2), z: clamp(lp.z, -L2, L2), a: clamp(c.dmg / 30, 0, 1) };
+    }
     // Keil-Effekt: die flache Front schiebt sich bei harten Treffern unter das Auto → kann es aushebeln
     const now = performance.now();
     if (-vn > 18 && !(c.wedgeT > now)) {             // nur einmal pro Zusammenstoß, erst bei sehr harten Treffern

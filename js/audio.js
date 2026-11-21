@@ -86,6 +86,17 @@ class SoundFX {
     o.connect(g).connect(this.master); o.start(t); o.stop(t + dur + 0.02);
   }
 
+  /** Hupe eines anderen Autos (zwei Töne, Lautstärke 0–1 nach Entfernung). */
+  horn(vol = 0.5) {
+    if (!this.ctx || !this.on || vol < 0.02) return;
+    const ctx = this.ctx, t = ctx.currentTime, g = ctx.createGain(), f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 1600;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09 * vol, t + 0.02);
+    g.gain.setValueAtTime(0.09 * vol, t + 0.32); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    f.connect(g).connect(this.master);
+    for (const fr of [410, 515]) { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = fr; o.connect(f); o.start(t); o.stop(t + 0.42); }
+  }
+
   /** Kurzer Knall/Rumms (Stärke ~ Aufprallgeschwindigkeit in m/s). */
   impact(strength, kind = 'hit') {
     if (!this.ctx || !this.on) return;

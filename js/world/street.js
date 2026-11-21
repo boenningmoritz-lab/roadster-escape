@@ -163,6 +163,19 @@ class StreetLife {
 
   key(x, z) { return Math.floor(x / 20) + ',' + Math.floor(z / 20); }
 
+  /** Fahrer steigt aus einem Unfallwrack: einen weit entfernten Fußgänger neben das Auto stellen (schimpft, 30 s). */
+  bystander(x, z, yaw, cam) {
+    let best = null;
+    for (const ped of this.peds) {
+      if (ped.down || ped.stand) continue;
+      const [px, pz] = this.walkPos(ped);
+      if (!cam || (px - cam.x) ** 2 + (pz - cam.z) ** 2 > 150 * 150) { best = ped; break; }
+    }
+    if (!best) return;
+    const sx = Math.cos(yaw), sz = -Math.sin(yaw);                       // links neben der Fahrertür
+    best.stand = { x: x - sx * 1.7, z: z - sz * 1.7, yaw: yaw + Math.PI * 0.6, t: 0 };
+  }
+
   writeProp(p) {
     this._m.compose(this._p.set(p.x, p.y, p.z), p.q, this._s.set(1, 1, 1));
     p.mesh.setMatrixAt(p.slot, this._m);
@@ -255,12 +268,14 @@ class StreetLife {
         ped.phase += dt * ped.speed * 5.2 * stop;
         ped.stop = stop;
         // Angefahren? (Figur liegt im Umriss des Autos, Auto fährt) → umgestoßen, durch die Luft geschleudert
-        const [cx0, cz0] = this.walkPos(ped), rx0 = cx0 + ped.ox - px, rz0 = cz0 + ped.oz - pz;
+        const [cw0, cwz0] = this.walkPos(ped), cx0 = ped.stand ? ped.stand.x - ped.ox : cw0, cz0 = ped.stand ? ped.stand.z - ped.oz : cwz0;
+        const rx0 = cx0 + ped.ox - px, rz0 = cz0 + ped.oz - pz;
         const lz = rx0 * fwd.x + rz0 * fwd.z, lx = rx0 * rgx + rz0 * rgz;
         if (v.speed > 2.5 && Math.abs(lz) < 2.5 && Math.abs(lx) < 1.25 && py < C.h + 2.5) {
           const sp = v.speed, kk = 0.55 + Math.random() * 0.25;
           ped.down = { t: 0, x: cx0 + ped.ox, z: cz0 + ped.oz, y: C.h + 0.12, vx: v.vel.x * kk + rgx * lx * 1.5, vz: v.vel.z * kk + rgz * lx * 1.5, vy: Math.min(2 + sp * 0.14, 7),
             yaw: Math.atan2(fwd.x, fwd.z) + Math.PI + (Math.random() - 0.5) * 0.8, pitch: 0, pv: -(3 + sp * 0.35) * (Math.random() < 0.8 ? 1 : -1), roll: 0, rv: (Math.random() - 0.5) * 6, ground: false };
+          ped.stand = null;
           v.vel.multiplyScalar(0.97);
           v.lastImpact = Math.max(v.lastImpact || 0, Math.min(3, sp * 0.1));
           this.newHits++; this.hitsTotal = (this.hitsTotal || 0) + 1;
@@ -290,6 +305,13 @@ class StreetLife {
         }
         D.y = Math.max(D.y, gY);
         pos.set(x, D.y + lift, z);
+      } else if (ped.stand) {
+        // ausgestiegener Fahrer: steht neben dem Wrack, gestikuliert (ein Arm hoch), nach 30 s zurück auf den Weg
+        const S = ped.stand; S.t += dt;
+        x = S.x; z = S.z; yaw = S.yaw; sw = 0; armZ = 0.08;
+        pos.set(x, C.h + 0.06 + (this.w.sample ? Math.max(0, this.w.sample(x, z) - C.h) : 0), z);
+        legX = 0; ped.wave = Math.sin(S.t * 7) * 0.5;
+        if (S.t > 30 && (x - cam.x) ** 2 + (z - cam.z) ** 2 > 90 * 90) { const [bx, bz] = this.walkPos(ped); ped.ox = x - bx; ped.oz = z - bz; ped.stand = null; ped.wave = 0; }
       } else {
         const [ax, az, dx, dz] = this.walkPos(ped);
         const k = Math.exp(-dt * 0.8); ped.ox *= k; ped.oz *= k;
@@ -311,7 +333,8 @@ class StreetLife {
         // Beine (Hüfte 0,9 m) und Arme (Schulter 1,42 m) schwingen gegenläufig; beim Sturz gespreizt
         const j = i * 2 + (side > 0 ? 1 : 0);
         put(pm.leg, j, side * 0.1 * h * wd, 0.9 * h, sw * side + legX * (side > 0 ? 0.6 : -0.3), side * legX * 0.4, h, h);
-        put(pm.arm, j, side * 0.24 * h * wd, 1.42 * h, -sw * side * 0.8 + legX * side, side * armZ, h, h);
+        const wave = ped.stand && side > 0 ? 2.6 + (ped.wave || 0) : 0;   // rechter Arm hoch (Gestikulieren)
+        put(pm.arm, j, side * 0.24 * h * wd, 1.42 * h, -sw * side * 0.8 + legX * side - wave * 0.15, side * (armZ + wave), h, h);
       }
       i++;
     }

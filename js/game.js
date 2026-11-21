@@ -65,6 +65,8 @@ class Game {
     this.scenery = new Scenery(this.world, this.scene, this.q);
     this.furniture = buildRoadFurniture(this.world, this.scene);
     this.street = new StreetLife(this.world, this.scene, this.q);     // Bordsteine, Stadtmöbel, Fußgänger
+    // Unfallwrack: Fahrer steigt aus (Figur aus dem Fußgänger-Pool)
+    this.traffic.onWreck = (car) => this.street.bystander(car.x, car.z, car.yaw, this.camera.position);
     this.flare = this.q.clouds ? makeSunFlare() : null;
     if (this.flare) this.scene.add(this.flare);
     this.weather = new Weather(this);
@@ -541,6 +543,11 @@ class Game {
         this.sound.impact(e.s, 'tree');
         this.rig.addShake(clamp(e.s * 0.03, 0.15, 0.6));
         Haptics.pulse(35);
+      } else if (e.type === 'smoke') {                       // qualmendes Unfallwrack
+        P.emit('smoke', e.x, e.y, e.z, (rnd() - 0.5) * 0.6, 1.4, (rnd() - 0.5) * 0.6, 1, 0.5);
+        if (e.s > 40 && rnd() < 0.3) P.emit('smoke', e.x, e.y, e.z, 0, 2, 0, 1, 0.3);
+      } else if (e.type === 'honk') {                        // angefahrenes Auto hupt
+        this.sound.horn(clamp(1 - Math.hypot(e.x - v.pos.x, e.z - v.pos.z) / 80, 0, 1));
       } else if (e.type === 'treeLand') {
         P.emit('dust', e.x, e.y, e.z, 0, 0.8, 0, 14, 4);
         P.emit('leaf', e.x, e.y + 1, e.z, 0, 2, 0, 20, 4);
