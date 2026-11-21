@@ -4000,6 +4000,7 @@ class PoliceSystem {
     this.stop(false);
     const D = this.D = POLICE_LEVELS[levelKey]; this.levelKey = levelKey;
     this.active = true; this.time = 0; this.lastSeen = 0; this.seen = true; this.bustT = 0; this.rams = 0; this.wanted = 1;
+    this.earned = 0; this.earnAcc = 0; this.payT = 0;   // Geld pro Sekunde während der Verfolgung
     this.lastKnown = player.pos.clone(); this.blockTimer = 25;
     while (this.units.length < D.count + 8) this.units.push(this.makeUnit());
     this.extra = 0; this.spikeTimer = 20; this.bustWarned = 0; this.heliOn = false;
@@ -4037,8 +4038,11 @@ class PoliceSystem {
     this.sound?.policeOn(false);
     if (!result) return null;
     const D = this.D;
-    const reward = result === 'escaped' ? Math.round(D.reward * this.time * (1 + (this.wanted - 1) * 0.25) + D.reward * 20) : 0;
-    if (reward) SaveData.addMoney(reward);
+    // Restbetrag der laufenden Sekunde gutschreiben; bei Flucht zusätzlich ein Entkommen-Bonus
+    const rest = Math.floor(this.earnAcc); this.earnAcc -= rest; this.earned += rest;
+    const bonus = result === 'escaped' ? Math.round(D.reward * 20 * (1 + (this.wanted - 1) * 0.25)) : 0;
+    if (rest + bonus) SaveData.addMoney(rest + bonus);
+    const reward = this.earned + bonus;
     const st = SaveData.data.stats;
     if (result === 'escaped') { st.escapes++; const b = SaveData.data.bestEscape; b[this.levelKey] = Math.max(b[this.levelKey] || 0, Math.round(this.time)); }
     else st.busted++;
@@ -4066,6 +4070,10 @@ class PoliceSystem {
     const pp = player.pos, pv = player.vel;
     // Fahndungslevel steigt mit der Zeit und mit Rammstößen
     this.wanted = clamp(1 + Math.floor(this.time / 30) + Math.floor(this.rams / 3), 1, D.maxStars);
+    // Geld pro Sekunde: Stufe × Fahndungssterne; einmal pro Sekunde gutschreiben (nicht jedes Bild speichern)
+    this.rate = D.reward * (1 + (this.wanted - 1) * 0.25);
+    this.earnAcc += this.rate * dt;
+    if ((this.payT += dt) >= 1) { this.payT = 0; const n = Math.floor(this.earnAcc); if (n > 0) { this.earnAcc -= n; this.earned += n; SaveData.addMoney(n); } }
     const boost = 1 + (this.wanted - 1) * 0.05;
     // Höhere Fahndungsstufe schaltet Taktiken frei: ★★★ Einkesseln, ★★★★ Sperren + Nagelbänder + Verstärkung, ★★★★★ Hubschrauber
     this.tact = { encircle: D.encircle || this.wanted >= 3, block: D.block || this.wanted >= 4, spikes: D.spikes || this.wanted >= 4, heli: D.heli || this.wanted >= 5 };
@@ -4354,7 +4362,7 @@ class PoliceSystem {
     const s = '★'.repeat(this.wanted) + '☆'.repeat(5 - this.wanted);
     if (ui.stars.textContent !== s) ui.stars.textContent = s;
     const mm = Math.floor(this.time / 60), ss = Math.floor(this.time % 60);
-    const st = this.seen ? `VERFOLGUNG ${mm}:${String(ss).padStart(2, '0')} · ${this.D.name}`
+    const st = this.seen ? `VERFOLGUNG ${mm}:${String(ss).padStart(2, '0')} · +${Math.round(this.rate || 0)} €/s · ${fmtMoney(this.earned || 0)}`
       : `AUSSER SICHT – entkommen in ${Math.max(0, Math.ceil(this.D.escape - hidden))} s`;
     if (ui.status.textContent !== st) ui.status.textContent = st;
     ui.hud.classList.toggle('lost', !this.seen);
@@ -8781,7 +8789,7 @@ class Game {
     document.getElementById('resTitle').style.color = esc ? '#7dffa8' : '#ff6b7a';
     const mm = Math.floor(r.time / 60), ss = Math.round(r.time % 60);
     document.getElementById('resText').textContent = `${r.level} · Fluchtzeit ${mm}:${String(ss).padStart(2, '0')} · Fahndungslevel ${'★'.repeat(r.wanted)}`;
-    document.getElementById('resMoney').textContent = esc ? '+ ' + fmtMoney(r.reward) : 'kein Geld';
+    document.getElementById('resMoney').textContent = r.reward ? '+ ' + fmtMoney(r.reward) + (esc ? ' (inkl. Flucht-Bonus)' : ' während der Verfolgung verdient') : 'kein Geld';
     document.getElementById('result').hidden = false;
     this.paused = true; Input.releaseAll();
     Haptics.pulse(esc ? 40 : 80);

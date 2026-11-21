@@ -205,7 +205,7 @@ class Game {
     document.getElementById('resTitle').style.color = esc ? '#7dffa8' : '#ff6b7a';
     const mm = Math.floor(r.time / 60), ss = Math.round(r.time % 60);
     document.getElementById('resText').textContent = `${r.level} · Fluchtzeit ${mm}:${String(ss).padStart(2, '0')} · Fahndungslevel ${'★'.repeat(r.wanted)}`;
-    document.getElementById('resMoney').textContent = esc ? '+ ' + fmtMoney(r.reward) : 'kein Geld';
+    document.getElementById('resMoney').textContent = r.reward ? '+ ' + fmtMoney(r.reward) + (esc ? ' (inkl. Flucht-Bonus)' : ' während der Verfolgung verdient') : 'kein Geld';
     document.getElementById('result').hidden = false;
     this.paused = true; Input.releaseAll();
     Haptics.pulse(esc ? 40 : 80);
