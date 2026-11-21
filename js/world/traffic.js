@@ -236,7 +236,10 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
 class TrafficSystem {
   constructor(world, scene, count, parked = 0) {
     this.w = world; this.rng = mulberry32(4242); this.cars = [];
-    this.bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.36, metalness: 0.3 });
+    // Lack: auf „Hoch“ mit Klarlackschicht (spiegelt Himmel und Häuser), sonst glänzender Metallic-Lack
+    this.bodyMat = world.q && world.q.physicalPaint
+      ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.45, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.3 })
+      : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.42, envMapIntensity: 1.35 });
     this.bodyMat.onBeforeCompile = (sh) => {
       // Dellen: idmg = (Aufprallpunkt x, z lokal, Stärke 0–1, –) → lackierte Teile nahe dem Aufprallpunkt nach innen gedrückt
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float paint;\nattribute vec4 idmg;')

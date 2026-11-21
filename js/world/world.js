@@ -1715,7 +1715,10 @@ Object.assign(World.prototype, {
           vRoof = fwn.y;
           vAO = 0.55 + 0.45 * smoothstep(0.0, 4.5, fwp.y - fm[3].y);
           vHA = fwp.y - fm[3].y + step(${(WORLD.city.h + 0.5).toFixed(1)}, fm[3].y) * 100.0; vSeed = fseed; vFW = fwp.xyz; vFN = fwn;`);   // Läden nur im Erdgeschoss (nicht am Turmfuß auf dem Sockel)
-        sh.fragmentShader = 'uniform float uGlow; varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed; varying vec3 vFW; varying vec3 vFN;\n' + sh.fragmentShader
+        sh.fragmentShader = 'uniform float uGlow; varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed; varying vec3 vFW; varying vec3 vFN;\n' +
+          'float fHs(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n' +
+          'float fVn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(fHs(i), fHs(i + vec2(1, 0)), f.x), mix(fHs(i + vec2(0, 1)), fHs(i + vec2(1, 1)), f.x), f.y); }\n' +
+          'float facGrain = 0.5; float facDirt = 0.0;\n' + sh.fragmentShader
           .replace('#include <map_fragment>', 'vec4 facCol = texture2D(map, vFac);' +
             // Parallaxe: Fensterscheibe liegt ~25 cm hinter der Fassade → seitlich sichtbare Laibung (Schattenkante)
             ' { vec3 V = normalize(cameraPosition - vFW); float vn = max(abs(dot(V, vFN)), 0.25);' +
@@ -1752,12 +1755,22 @@ Object.assign(World.prototype, {
             ' }' +
             ' if (shop > 0.5) { diffuseColor.rgb = mix(vec3(0.42, 0.4, 0.38), shopIn * 0.32 + 0.02, glassZ); diffuseColor.rgb = mix(diffuseColor.rgb, signCol, signZ); }' +
             ' diffuseColor.rgb *= vAO;' +
+            // Verwitterung statt „Plastik“: Putzkörnung, großflächige Flecken, senkrechte Schmutzschlieren (Regenablauf), verschmutzter Sockel
+            ' float facWin = 1.0 - smoothstep(0.06, 0.2, dot(facCol.rgb, vec3(0.299, 0.587, 0.114)));' +
+            ' if (vRoof < 0.5) { vec2 fp = abs(vFN.x) > 0.5 ? vec2(vFW.z, vFW.y) : vec2(vFW.x, vFW.y);' +
+            '   float grain = fVn(fp * 7.0) * 0.6 + fVn(fp * 23.0) * 0.4;' +
+            '   float blot = fVn(fp * 0.09 + vSeed * 17.0) * 0.6 + fVn(fp * 0.31 + vSeed * 5.0) * 0.4;' +
+            '   float streak = smoothstep(0.45, 0.95, fVn(vec2(fp.x * 1.9, fp.y * 0.07 + vSeed * 9.0))) * (0.5 + 0.5 * fVn(vec2(fp.x * 0.5, fp.y * 0.2)));' +
+            '   float base = 1.0 - smoothstep(0.0, 2.6, vHA);' +
+            '   float dirt = clamp(streak * 0.55 + base * 0.35 + (blot - 0.45) * 0.55, 0.0, 0.62) * (1.0 - facWin * 0.6);' +
+            '   diffuseColor.rgb *= (0.84 + grain * 0.32) * (1.0 - dirt) * mix(vec3(0.96, 0.98, 1.0), vec3(1.05, 0.97, 0.86), blot);' +
+            '   facGrain = grain; facDirt = dirt; }' +
             // Fensterflächen: glatt (spiegeln Himmel und Nachbarhäuser, v. a. im flachen Winkel)
             ' float winMask = (1.0 - smoothstep(0.06, 0.2, dot(facCol.rgb, vec3(0.299, 0.587, 0.114)))) * (1.0 - step(0.5, vRoof));' +
             ' if (shop > 0.5) winMask = glassZ;')
-          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.04, winMask);')
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = clamp(roughnessFactor * (0.85 + facGrain * 0.3) + facDirt * 0.25, 0.04, 1.0); roughnessFactor = mix(roughnessFactor, 0.04, winMask);')
           .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor = mix(metalnessFactor, 0.0, winMask);')
-          .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance *= texture2D(emissiveMap, vFac).rgb * uGlow * (1.0 - step(0.5, vRoof)); float shopLit = step(0.45, fract(sin(floor(vFac.x * 7.0) * 12.9898 + vSeed * 78.233) * 43758.5453)); if (shop > 0.5) totalEmissiveRadiance = (glassZ * shopLit * shopIn * vec3(1.0, 0.86, 0.66) * 0.75 + signZ * signCol * 1.1) * uGlow + glassZ * shopIn * 0.05;');
+          .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance *= texture2D(emissiveMap, vFac).rgb * uGlow * (1.0 - step(0.5, vRoof)); float shopLit = step(0.45, fract(sin(floor(vFac.x * 7.0) * 12.9898 + vSeed * 78.233) * 43758.5453)); if (shop > 0.5) totalEmissiveRadiance = (glassZ * shopLit * shopIn * vec3(1.0, 0.86, 0.66) * 0.42 + signZ * signCol * 1.1) * uGlow + glassZ * shopIn * 0.05;');
       };
       return mat;
     };
@@ -2460,7 +2473,7 @@ Object.assign(World.prototype, {
   setWet(w) {
     this.wet = w;
     if (this.puddleU) this.puddleU.value = w;
-    for (const m of this.wetMats || []) { m.roughness = lerp(0.82, 0.3, w); m.color.setScalar(lerp(1, 0.55, w)); m.envMapIntensity = 1 + w * 0.9; }
+    for (const m of this.wetMats || []) { m.roughness = lerp(0.82, 0.14, w); m.color.setScalar(lerp(1, 0.5, w)); m.envMapIntensity = 1 + w * 1.6; }
     if (this.terrainMat) this.terrainMat.color.setScalar(lerp(1, 0.82, w));
   },
 

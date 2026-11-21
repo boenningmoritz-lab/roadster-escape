@@ -207,7 +207,7 @@ class Environment {
       this.sunDir.set(0.35, 0.55, -0.55).normalize();              // Mond
       this.sun.color.set(0x9bb4ff); this.sun.intensity = 0.32;
       this.hemi.color.set(0x22324f); this.hemi.groundColor.set(0x08090b); this.hemi.intensity = 0.32;
-      this.scene.fog.color.set(0x0a111c); this.scene.fog.near = 120; this.scene.fog.far = Math.min(1300, this.q.fogFar);
+      this.scene.fog.color.set(0x0a111c); this.scene.fog.near = 220; this.scene.fog.far = Math.min(1500, this.q.fogFar * 1.1);
       this.renderer.toneMappingExposure = this.baseExposure = 1.15;
       this.envGround.material.color.set(0x050607);
     } else if (dusk) {
@@ -216,7 +216,7 @@ class Environment {
       this.sunDir.set(-0.78, 0.13, 0.6).normalize();
       this.sun.color.set(0xffa55e); this.sun.intensity = 2.4;
       this.hemi.color.set(0x8d8fb8); this.hemi.groundColor.set(0x4a3a2a); this.hemi.intensity = 0.55;
-      this.scene.fog.color.set(0xd99a72); this.scene.fog.near = 110; this.scene.fog.far = this.q.fogFar * 0.95;   // warmer Dunst
+      this.scene.fog.color.set(0xd99a72); this.scene.fog.near = 240; this.scene.fog.far = this.q.fogFar * 1.15;   // warmer Dunst
       this.renderer.toneMappingExposure = this.baseExposure = 1.05;
       this.envGround.material.color.set(0x3a2e24);
     } else {
@@ -224,7 +224,7 @@ class Environment {
       this.sunDir.set(-0.5, 0.5, 0.42).normalize();
       this.sun.color.set(0xffe9cf); this.sun.intensity = 3.2;
       this.hemi.color.set(0xbfdcff); this.hemi.groundColor.set(0x5a6040); this.hemi.intensity = 0.85;
-      this.scene.fog.color.set(0xbcd6ea); this.scene.fog.near = 130; this.scene.fog.far = this.q.fogFar * 1.12;    // leichter Dunst, Ferne bleibt sichtbar
+      this.scene.fog.color.set(0xbcd6ea); this.scene.fog.near = 340; this.scene.fog.far = this.q.fogFar * 1.4;    // leichter Dunst, Ferne bleibt sichtbar
       this.renderer.toneMappingExposure = this.baseExposure = 0.95;
       this.envGround.material.color.set(0x4a5236);
     }

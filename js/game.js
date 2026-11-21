@@ -67,6 +67,9 @@ class Game {
     this.street = new StreetLife(this.world, this.scene, this.q);     // Bordsteine, Stadtmöbel, Fußgänger
     // Unfallwrack: Fahrer steigt aus (Figur aus dem Fußgänger-Pool)
     this.traffic.onWreck = (car) => this.street.bystander(car.x, car.z, car.yaw, this.camera.position);
+    // Scharfe Texturen im flachen Blickwinkel (Straße, Gehweg, Fassaden): volle anisotrope Filterung der GPU
+    { const maxA = this.renderer.capabilities.getMaxAnisotropy();
+      this.scene.traverse((o) => { for (const m of [].concat(o.material || [])) for (const k of ['map', 'bumpMap', 'normalMap', 'roughnessMap', 'emissiveMap']) if (m[k] && m[k].anisotropy < maxA) { m[k].anisotropy = maxA; m[k].needsUpdate = true; } }); }
     this.flare = this.q.clouds ? makeSunFlare() : null;
     if (this.flare) this.scene.add(this.flare);
     this.weather = new Weather(this);
