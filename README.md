@@ -242,6 +242,14 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Polizei-SUV neu:** nutzt dieselbe gerundete Loft-Karosserie (SUV-Proportionen, dunkelblau mit silbernem Türstreifen, getönte Scheiben mit Fahrer), dazu Grill, Lichtbalken, Schriftzug.
 - **See:** Wassertiefe aus dem Höhenfeld → klares, türkises Flachwasser am Ufer, dunkel in der Tiefe; zweite gegenläufige Wellenlage, pulsierender Uferschaum, Tropfenringe bei Regen.
 
+## Technik (Leistung für iPad)
+- **Standard auf Touch-Geräten = Mittel** (vorher bekamen iPads „Hoch“ → Hauptgrund fürs Ruckeln); alte Spielstände werden einmalig umgestellt. **Automatische Grafikstufe:** 1,5–6,5 s nach dem Start wird die echte Bildrate gemessen; unter 50 FPS eine Stufe herunter (bis zu zweimal). Wer die Stufe selbst wählt, schaltet die Automatik ab.
+- **Telemetrie** zeigt Draw-Calls, Dreiecke, ms pro Bild und FPS.
+- **Eigenes Auto:** ~120 unbewegliche Einzelteile werden je Material zu einem Objekt zusammengefasst.
+- **Verkehr-LOD:** Autos weiter als 75 m werden als grobe Form ohne Innenraum, Felgen, Kleinteile und Schatten gezeichnet.
+- **Schatten:** Balkone, Markisen, Stadtmöbel und Fußgänger werfen keinen Schatten mehr.
+- Gemessen (Innenstadt, gleiche Stelle): **Mittel 388 → 261 Draw-Calls, 2,36 → 1,03 Mio. Dreiecke; Hoch 782 → 528 Draw-Calls, 6,8 → 2,8 Mio. Dreiecke.**
+
 ## Code-Aufbau
 
 ```

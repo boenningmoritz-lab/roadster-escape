@@ -3196,7 +3196,8 @@ Object.assign(World.prototype, {
         m.compose(new THREE.Vector3(a.x, a.y, a.z), dq, new THREE.Vector3(a.l, 1, 1));
         am.setMatrixAt(i, m); am.setColorAt(i, cc.setRGB(...a.col, THREE.SRGBColorSpace));
       });
-      am.castShadow = true; am.receiveShadow = true; this.group.add(am);
+      am.castShadow = false;   // Leistung: Kleinteile werfen keinen Schatten
+      am.receiveShadow = true; this.group.add(am);
       // Balkon: Bodenplatte + Glasbrüstung (eine Geometrie, Brüstung über Vertexfarbe dunkler)
       const balGeo = mergeParts([
         { geo: new THREE.BoxGeometry(2.6, 0.16, 1.1).translate(0, 0, 0.55), color: [0.85, 0.84, 0.8] },
@@ -3207,7 +3208,7 @@ Object.assign(World.prototype, {
       ]);
       const bm = new THREE.InstancedMesh(balGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 }), Math.max(1, bal.length));
       bal.forEach((b, i) => { dq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(b.nx, b.nz)); m.compose(new THREE.Vector3(b.x, b.y, b.z), dq, new THREE.Vector3(1, 1, 1)); bm.setMatrixAt(i, m); });
-      bm.castShadow = true; bm.receiveShadow = true; this.group.add(bm);
+      bm.castShadow = false; bm.receiveShadow = true; this.group.add(bm);
     }
 
     // Ampeln
@@ -4091,7 +4092,8 @@ const CAR_PAINTS = [[0.92, 0.92, 0.92], [0.66, 0.68, 0.7], [0.1, 0.1, 0.11], [0.
   [0.55, 0.08, 0.09], [0.7, 0.6, 0.45], [0.16, 0.3, 0.2], [0.85, 0.85, 0.82], [0.2, 0.22, 0.25]];
 
 /** Modell eines Verkehrsautos als eine Geometrie (Karosserie weiß → per Instanzfarbe lackiert). */
-function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type]) {
+// lo = true: vereinfachte Fern-Version (LOD) – grobe Karosserie, Scheiben deckend, ohne Innenraum/Felgen/Kleinteile
+function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
   const s = spec, L = s.L, W = s.W, Hh = s.H;
   const BODY = [0.93, 0.93, 0.93], GLASS = [0.07, 0.08, 0.1], DARK = [0.06, 0.06, 0.07], RIM = [0.55, 0.56, 0.58];
   const parts = [], lights = [], glassParts = [];
@@ -4161,7 +4163,8 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type]) {
       return g;
     };
     const stations = (a5, b5, n, dense = true) => Array.from({ length: n + 1 }, (_, i) => { const t = i / n; const u = dense ? (1 - Math.cos(t * Math.PI)) / 2 : t; return a5 + (b5 - a5) * u; });
-    const zsBody = [...stations(-L / 2, -L / 2 + 0.6, 6), ...stations(-L / 2 + 0.65, L / 2 - 0.65, 26, false), ...stations(L / 2 - 0.6, L / 2, 6)];
+    const zsBody = lo ? [...stations(-L / 2, -L / 2 + 0.6, 2), ...stations(-L / 2 + 0.65, L / 2 - 0.65, 6, false), ...stations(L / 2 - 0.6, L / 2, 2)]
+      : [...stations(-L / 2, -L / 2 + 0.6, 6), ...stations(-L / 2 + 0.65, L / 2 - 0.65, 26, false), ...stations(L / 2 - 0.6, L / 2, 6)];
     const body = loft(zsBody, (z) => {
       const w = halfW(z), yt = topY(z), yb = botY(z, true), yb0 = botY(z, false);
       const nose = Math.max(sm(-L / 2 + 0.18, -L / 2, z), sm(L / 2 - 0.18, L / 2, z));   // Enden rund einziehen
@@ -4170,16 +4173,16 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type]) {
     });
     parts.push({ geo: body, color: BODY, paint: true });
     // Glashaus: getönte Scheiben, nach oben eingezogen (Tumblehome)
-    const zsG = stations(z0, z1, 22, false);
+    const zsG = stations(z0, z1, lo ? 6 : 22, false);
     const glass = loft(zsG, (z) => {
       const w = halfW(z), yt = topY(z) + 0.02, yr = roofY(z);
       return [[0, yt], [w * 0.9, yt], [w * 0.84, yt + (yr - yt) * 0.5], [w * 0.74, yr], [0, yr + 0.02]];
     });
-    glassParts.push({ geo: glass, color: [1, 1, 1] });
+    if (lo) parts.push({ geo: glass, color: GLASS }); else glassParts.push({ geo: glass, color: [1, 1, 1] });
     // Lackiertes Dach über dem Glashaus + A-/B-/C-Säulen
     const ra = z0 + (suv ? 0.75 : 0.95), rb = z1 - (hatch ? 0.35 : 0.75);
-    parts.push({ geo: loft(stations(ra - 0.05, rb + 0.05, 12, false), (z) => { const w = halfW(z), yr = roofY(z); return [[0, yr + 0.01], [w * 0.76, yr + 0.005], [w * 0.74, yr + 0.035], [w * 0.4, yr + 0.06], [0, yr + 0.065]]; }), color: BODY, paint: true });
-    for (const sx of [-1, 1]) {
+    parts.push({ geo: loft(stations(ra - 0.05, rb + 0.05, lo ? 3 : 12, false), (z) => { const w = halfW(z), yr = roofY(z); return [[0, yr + 0.01], [w * 0.76, yr + 0.005], [w * 0.74, yr + 0.035], [w * 0.4, yr + 0.06], [0, yr + 0.065]]; }), color: BODY, paint: true });
+    if (!lo) for (const sx of [-1, 1]) {
       const pil = (za, zb) => { const pts = []; for (let i = 0; i <= 8; i++) { const z = za + (zb - za) * i / 8, w = halfW(z), yt = topY(z) + 0.02, yr = roofY(z), t = (yr - yt) / Math.max(Hh - belt, 0.01); pts.push(new THREE.Vector3(sx * w * (0.9 - 0.16 * t), yt + (yr - yt), z)); } return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.035, 5, false); };
       parts.push({ geo: pil(z0 + 0.02, ra + 0.02), color: BODY, paint: true });          // A-Säule
       parts.push({ geo: pil(rb - 0.02, z1 - 0.02), color: BODY, paint: true });          // C-Säule
@@ -4190,6 +4193,7 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type]) {
     }
     // Innenraum hinter den Scheiben: Boden auf Brüstungshöhe, Sitzlehnen, Fahrer (links), Kopfstützen
     const zs = -L / 2 + s.hood + 1.25;
+    if (!lo) {
     parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.04, L - s.hood - s.trunk - 0.6).translate(0, belt - 0.06, (-L / 2 + s.hood + L / 2 - s.trunk) / 2), color: [0.08, 0.08, 0.09] });
     for (const sx of [-1, 1]) {
       parts.push({ geo: new THREE.BoxGeometry(0.46, 0.5, 0.1).translate(sx * 0.4, 1.0, zs + 0.28), color: [0.12, 0.12, 0.13] });
@@ -4198,20 +4202,22 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type]) {
     parts.push({ geo: new THREE.BoxGeometry(0.42, 0.26, 0.24).translate(-0.4, 0.96, zs + 0.08), color: [0.25, 0.28, 0.34] });   // Fahrer: Oberkörper
     parts.push({ geo: new THREE.SphereGeometry(0.1, 10, 8).translate(-0.4, Hh - 0.3, zs + 0.06), color: [0.8, 0.62, 0.5] });     // Kopf
     parts.push({ geo: new THREE.SphereGeometry(0.105, 10, 8).scale(1, 0.6, 1).translate(-0.4, Hh - 0.24, zs + 0.08), color: [0.2, 0.14, 0.1] });   // Haare
+    }
     // Radhausschalen (verhindern Durchblick), Stoßfänger, Grill, Kennzeichen, Spiegel
     for (const z of [zf, zr]) parts.push({ geo: new THREE.BoxGeometry(W - 0.12, R * 0.9, R * 2).translate(0, s.wr + R * 0.6, z), color: DARK });
     parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.16, 0.1).translate(0, 0.36, -L / 2 + 0.01), color: DARK });
     parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.16, 0.1).translate(0, 0.38, L / 2 - 0.02), color: DARK });
     parts.push({ geo: new THREE.BoxGeometry(W * 0.46, 0.15, 0.06).translate(0, 0.6, -L / 2 - 0.01), color: [0.03, 0.03, 0.035] });
-    parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.42, -L / 2 - 0.06), color: [0.9, 0.9, 0.86] });
-    parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.56, L / 2 + 0.04), color: [0.9, 0.9, 0.86] });
-    for (const x of [-1, 1]) {
+    if (!lo) parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.42, -L / 2 - 0.06), color: [0.9, 0.9, 0.86] });
+    if (!lo) parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.56, L / 2 + 0.04), color: [0.9, 0.9, 0.86] });
+    if (!lo) for (const x of [-1, 1]) {
       parts.push({ geo: new THREE.BoxGeometry(0.2, 0.12, 0.1).translate(x * (W / 2 + 0.02), belt + 0.1, -L / 2 + s.hood + 0.25), color: BODY, paint: true });
       parts.push({ geo: new THREE.BoxGeometry(0.06, 0.1, 0.06).translate(x * (W / 2 - 0.12), belt + 0.05, -L / 2 + s.hood + 0.25), color: DARK });
     }
     for (const z of [zf, zr]) for (const x of [-1, 1]) {
       const wx = x * (W / 2 - 0.16), r = s.wr;
-      parts.push({ geo: new THREE.CylinderGeometry(r, r, 0.24, 18).rotateZ(Math.PI / 2).translate(wx, r, z), color: DARK });
+      parts.push({ geo: new THREE.CylinderGeometry(r, r, 0.24, lo ? 8 : 18).rotateZ(Math.PI / 2).translate(wx, r, z), color: DARK });
+      if (lo) continue;
       parts.push({ geo: new THREE.CylinderGeometry(r * 0.66, r * 0.66, 0.02, 14).rotateZ(Math.PI / 2).translate(wx + x * 0.121, r, z), color: RIM });
       parts.push({ geo: new THREE.CylinderGeometry(r * 0.5, r * 0.5, 0.02, 10).rotateZ(Math.PI / 2).translate(wx + x * 0.125, r, z), color: [0.16, 0.16, 0.17] });
       for (let k = 0; k < 5; k++) parts.push({ geo: new THREE.BoxGeometry(0.02, r * 0.95, 0.06).rotateX(k * Math.PI * 2 / 5).translate(wx + x * 0.135, r, z), color: RIM });
@@ -4275,6 +4281,10 @@ class TrafficSystem {
       }
       for (const im of [v.bodyMesh, v.lightMesh]) { im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled = false; im.count = 0; scene.add(im); }
       v.bodyMesh.castShadow = true;
+      // Fern-Version (LOD): gleiche Lackfarbe pro Instanz, wirft keinen Schatten
+      const lv = makeTrafficVariant(v.type, undefined, true);
+      v.loMesh = new THREE.InstancedMesh(lv.body, this.bodyMat, n);
+      v.loMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); v.loMesh.frustumCulled = false; v.loMesh.count = 0; v.loMesh.receiveShadow = true; scene.add(v.loMesh);
       v.n = 0;
     }
     const col = new THREE.Color();
@@ -4284,14 +4294,15 @@ class TrafficSystem {
         state: 'drive', vx: 0, vz: 0, yawRate: 0, stopT: 0, cleared: false, waitT: 0, latOff: 0, bx: 0, bz: 0,
         pers: 0.85 + this.rng() * 0.25 };
       const p = v.type === 'truck' ? [0.9, 0.9, 0.9] : CAR_PAINTS[Math.floor(this.rng() * CAR_PAINTS.length)];
-      v.bodyMesh.setColorAt(car.slot, col.setRGB(p[0], p[1], p[2], THREE.SRGBColorSpace));
+      car.paint = new THREE.Color().setRGB(p[0], p[1], p[2], THREE.SRGBColorSpace);
+      v.bodyMesh.setColorAt(car.slot, car.paint); v.loMesh.setColorAt(car.slot, car.paint);
       v.lightMesh.setColorAt(car.slot, col.setRGB(1, 0, 0));
       car.idx = this.cars.length;
       car.parked = car.idx >= count;
       this.cars.push(car);
     }
     for (const c of this.cars) if (c.parked) this.placeParked(c, true);
-    for (const v of this.variants) { v.bodyMesh.count = v.n; v.lightMesh.count = v.n; if (v.glassMesh) v.glassMesh.count = v.n; }
+    for (const v of this.variants) { v.bodyMesh.count = v.n; v.lightMesh.count = v.n; if (v.glassMesh) v.glassMesh.count = v.n; v.loMesh.count = 0; }
     this.blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ map: makeBlobTexture(), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }), this.cars.length);
     // Lichthöfe der Scheinwerfer/Rücklichter (nachts), ein Draw-Call für alle
@@ -4427,7 +4438,7 @@ class TrafficSystem {
   }
 
   update(dt, player, camera) {
-    this.time = (this.time || 0) + dt;
+    this.time = (this.time || 0) + dt; this.camPos = camera?.position;
     const w = this.w;
     for (const car of this.cars) {
       if (car.state === 'loose') { this.updateLoose(car, dt, player, camera); continue; }
@@ -4545,7 +4556,11 @@ class TrafficSystem {
   writeInstances() {
     const m = this._m, q = this._q, e = this._e, p = this._pos;
     if (!this._off) this._off = this.variants.map((v) => new THREE.Matrix4().makeTranslation(0, -v.H / 2, 0));
+    // LOD: Autos näher als lodDist detailliert (mit Innenraum, Glas, Felgen, Schatten), weiter weg als grobe Form
+    const cp = this.camPos, lod2 = (this.lodDist || 75) ** 2;
+    for (const v of this.variants) { v.hi = 0; v.lo = 0; }
     for (const car of this.cars) {
+      const v = car.v, near = !cp || ((car.x - cp.x) ** 2 + (car.z - cp.z) ** 2) < lod2 || !!car.body;
       if (car.body) {
         m.compose(car.body.pos, car.body.quat, this._one).multiply(this._off[this.variants.indexOf(car.v)]);
       } else {
@@ -4556,8 +4571,9 @@ class TrafficSystem {
         this._lc = this._lc || new THREE.Color();
         this._lc.setRGB(drive && car.brakeOn ? 3.2 : 1, drive && car.blink < 0 && on ? 1 : 0, drive && car.blink > 0 && on ? 1 : 0);
         car.v.lightMesh.setColorAt(car.slot, this._lc); }
-      if (car.v.glassMesh) car.v.glassMesh.setMatrixAt(car.slot, m);
-      car.v.bodyMesh.setMatrixAt(car.slot, m); car.v.lightMesh.setMatrixAt(car.slot, car.state === 'parked' ? this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0)) : m);
+      if (near) { const k = v.hi++; v.bodyMesh.setMatrixAt(k, m); v.bodyMesh.setColorAt(k, car.paint); if (v.glassMesh) v.glassMesh.setMatrixAt(k, m); }
+      else { const k = v.lo++; v.loMesh.setMatrixAt(k, m); v.loMesh.setColorAt(k, car.paint); }
+      car.v.lightMesh.setMatrixAt(car.slot, car.state === 'parked' ? this._zero || (this._zero = new THREE.Matrix4().makeScale(0, 0, 0)) : m);
       // Kontaktschatten
       const bx = car.body ? car.body.pos.x : car.x, bz = car.body ? car.body.pos.z : car.z;
       const gy = car.body ? this.w.sample(bx, bz) : car.y;
@@ -4567,7 +4583,13 @@ class TrafficSystem {
       this.blobs.setMatrixAt(car.idx, m);
     }
     this.blobs.instanceMatrix.needsUpdate = true;
-    for (const v of this.variants) if (v.lightMesh.instanceColor) v.lightMesh.instanceColor.needsUpdate = true;
+    for (const v of this.variants) {
+      if (v.lightMesh.instanceColor) v.lightMesh.instanceColor.needsUpdate = true;
+      v.bodyMesh.count = v.hi; v.loMesh.count = v.lo; if (v.glassMesh) v.glassMesh.count = v.hi;
+      v.loMesh.instanceMatrix.needsUpdate = true;
+      if (v.bodyMesh.instanceColor) v.bodyMesh.instanceColor.needsUpdate = true;
+      if (v.loMesh.instanceColor) v.loMesh.instanceColor.needsUpdate = true;
+    }
     // Lichthöfe (nur fahrende Autos, nur nachts)
     if (this.glow.visible) {
       const pa = this.glowGeo.attributes.position.array, ca = this.glowGeo.attributes.color.array;
@@ -8563,7 +8585,7 @@ class StreetLife {
     for (const [t, T] of Object.entries(types)) {
       const list = this.props.filter((p) => p.t === t);
       const im = new THREE.InstancedMesh(mergeParts(T.parts), pmat, Math.max(1, list.length));
-      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = true; im.receiveShadow = true;
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = false; im.receiveShadow = true;
       list.forEach((p, i) => { p.slot = i; p.mesh = im; p.home = { x: p.x, z: p.z, yaw: p.yaw }; p.q = new THREE.Quaternion().setFromAxisAngle(up, p.yaw); p.vel = new THREE.Vector3(); p.av = new THREE.Vector3(); p.fly = false; p.t0 = 0; this.writeProp(p); });
       im.count = list.length; scene.add(im); this.propMesh[t] = im;
     }
@@ -8584,7 +8606,7 @@ class StreetLife {
       const legGeo = new THREE.CapsuleGeometry(0.075, 0.68, 4, 8).translate(0, -0.42, 0);   // Drehpunkt an der Hüfte
       const armGeo = new THREE.CapsuleGeometry(0.05, 0.5, 4, 8).translate(0, -0.3, 0);       // Drehpunkt an der Schulter
       const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
-      const mk = (geo, n) => { const im = new THREE.InstancedMesh(geo, mat, n); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = true; im.frustumCulled = false; scene.add(im); return im; };
+      const mk = (geo, n) => { const im = new THREE.InstancedMesh(geo, mat, n); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = false; im.frustumCulled = false; scene.add(im); return im; };
       this.pm = { body: mk(bodyGeo, N), head: mk(headGeo, N), leg: mk(legGeo, N * 2), arm: mk(armGeo, N * 2) };
       const col = new THREE.Color();
       const city = blocks.filter((b) => !b.park);

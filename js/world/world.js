@@ -1802,7 +1802,8 @@ Object.assign(World.prototype, {
         m.compose(new THREE.Vector3(a.x, a.y, a.z), dq, new THREE.Vector3(a.l, 1, 1));
         am.setMatrixAt(i, m); am.setColorAt(i, cc.setRGB(...a.col, THREE.SRGBColorSpace));
       });
-      am.castShadow = true; am.receiveShadow = true; this.group.add(am);
+      am.castShadow = false;   // Leistung: Kleinteile werfen keinen Schatten
+      am.receiveShadow = true; this.group.add(am);
       // Balkon: Bodenplatte + Glasbrüstung (eine Geometrie, Brüstung über Vertexfarbe dunkler)
       const balGeo = mergeParts([
         { geo: new THREE.BoxGeometry(2.6, 0.16, 1.1).translate(0, 0, 0.55), color: [0.85, 0.84, 0.8] },
@@ -1813,7 +1814,7 @@ Object.assign(World.prototype, {
       ]);
       const bm = new THREE.InstancedMesh(balGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 }), Math.max(1, bal.length));
       bal.forEach((b, i) => { dq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(b.nx, b.nz)); m.compose(new THREE.Vector3(b.x, b.y, b.z), dq, new THREE.Vector3(1, 1, 1)); bm.setMatrixAt(i, m); });
-      bm.castShadow = true; bm.receiveShadow = true; this.group.add(bm);
+      bm.castShadow = false; bm.receiveShadow = true; this.group.add(bm);
     }
 
     // Ampeln

@@ -101,7 +101,7 @@ class StreetLife {
     for (const [t, T] of Object.entries(types)) {
       const list = this.props.filter((p) => p.t === t);
       const im = new THREE.InstancedMesh(mergeParts(T.parts), pmat, Math.max(1, list.length));
-      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = true; im.receiveShadow = true;
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = false; im.receiveShadow = true;
       list.forEach((p, i) => { p.slot = i; p.mesh = im; p.home = { x: p.x, z: p.z, yaw: p.yaw }; p.q = new THREE.Quaternion().setFromAxisAngle(up, p.yaw); p.vel = new THREE.Vector3(); p.av = new THREE.Vector3(); p.fly = false; p.t0 = 0; this.writeProp(p); });
       im.count = list.length; scene.add(im); this.propMesh[t] = im;
     }
@@ -122,7 +122,7 @@ class StreetLife {
       const legGeo = new THREE.CapsuleGeometry(0.075, 0.68, 4, 8).translate(0, -0.42, 0);   // Drehpunkt an der Hüfte
       const armGeo = new THREE.CapsuleGeometry(0.05, 0.5, 4, 8).translate(0, -0.3, 0);       // Drehpunkt an der Schulter
       const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
-      const mk = (geo, n) => { const im = new THREE.InstancedMesh(geo, mat, n); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = true; im.frustumCulled = false; scene.add(im); return im; };
+      const mk = (geo, n) => { const im = new THREE.InstancedMesh(geo, mat, n); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = false; im.frustumCulled = false; scene.add(im); return im; };
       this.pm = { body: mk(bodyGeo, N), head: mk(headGeo, N), leg: mk(legGeo, N * 2), arm: mk(armGeo, N * 2) };
       const col = new THREE.Color();
       const city = blocks.filter((b) => !b.park);
