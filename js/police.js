@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { clamp, lerp, damp } from './config.js';
 import { mergeParts, makeBlobTexture } from './world/world.js';
 import { Haptics, toast } from './input.js';
-import { makeTrafficVariant } from './world/traffic.js';
+import { makeTrafficVariant, makeCarGlass } from './world/traffic.js';
 
 // ============================== Spielstand ==============================
 /** Geld, Fortschritt, Upgrades (Phase 9) – dauerhaft in localStorage. */
@@ -39,7 +39,7 @@ function makePoliceGeometry() {
   };
   // Karosserie, Glashaus, Räder und Innenraum (mit Fahrer) aus dem gerundeten Loft-Modell der Verkehrsautos (SUV-Form),
   // umgefärbt: Lack dunkelblau, Türen silbern; Glas wird getönt-durchsichtig gezeichnet
-  const V = makeTrafficVariant('suv', { L, W, H, hood: 1.25, trunk: 0.25, wr: 0.42, mass: 2600 });
+  const V = makeTrafficVariant('suv', { L, W, H, hood: 1.25, trunk: 0.25, wr: 0.42, mass: 2600, passenger: true });
   { const col = V.body.attributes.color, pm = V.body.attributes.paint, c = new THREE.Color();
     for (let i = 0; i < col.count; i++) if (pm.getX(i) > 0.5) { c.setRGB(DARK[0], DARK[1], DARK[2], THREE.SRGBColorSpace); col.setXYZ(i, c.r, c.g, c.b); } }
   parts.push({ geo: V.body });
@@ -88,7 +88,7 @@ class PoliceSystem {
   makeUnit() {
     const G = this.geo, grp = new THREE.Group();
     const body = new THREE.Mesh(G.body, this.bodyMat); body.castShadow = true; grp.add(body);
-    if (!this.glassMat) this.glassMat = new THREE.MeshStandardMaterial({ color: 0x0d1218, roughness: 0.06, metalness: 0.4, transparent: true, opacity: 0.62, envMapIntensity: 1.4 });
+    if (!this.glassMat) this.glassMat = makeCarGlass();
     const gl = new THREE.Mesh(G.glass, this.glassMat); gl.renderOrder = 2; grp.add(gl);
     // Frontblitzer im Grill + Lichtbalken mit 3 Segmenten je Seite (Lauf-/Doppelblitz-Muster)
     if (!this.segMats) this.segMats = [0, 1, 2, 3, 4, 5].map(() => new THREE.MeshBasicMaterial({ color: 0x1030ff, toneMapped: false }));

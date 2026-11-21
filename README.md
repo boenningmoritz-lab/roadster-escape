@@ -266,6 +266,10 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Schatten:** Balkone, Markisen, Stadtmöbel und Fußgänger werfen keinen Schatten mehr.
 - Gemessen (Innenstadt, gleiche Stelle): **Mittel 388 → 261 Draw-Calls, 2,36 → 1,03 Mio. Dreiecke; Hoch 782 → 528 Draw-Calls, 6,8 → 2,8 Mio. Dreiecke.**
 
+## Technik (Menschen, Unfälle, Grafik)
+- **Insassen:** in jedem Verkehrs-, Polizei- und Lkw-Fahrzeug sitzt ein Fahrer als Figur (Oberkörper, Hals, Kopf, Haare, Arme am Lenkrad), in Kombi, SUV, Transporter und Polizeiwagen zusätzlich ein Beifahrer; Armaturenbrett und Lenkrad. Nur im nahen LOD (< 75 m).
+- **Glas:** getönt, von vorn durchsichtig, im flachen Winkel spiegelnd (Fresnel im Shader). Lkw-Kabine als Hülle mit echten Front- und Seitenscheiben, Innenraum und Fahrer.
+
 ## Code-Aufbau
 
 ```

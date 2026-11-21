@@ -9,15 +9,24 @@ const TRAFFIC_TYPES = {
   // Sechs Modelle: Kleinwagen, Limousine, Kombi, SUV, Transporter, Lkw (Gewicht = Anteil im Verkehr)
   hatch: { L: 3.95, W: 1.74, H: 1.5, hood: 0.85, trunk: 0.15, wr: 0.31, mass: 1150, weight: 0.24 },
   sedan: { L: 4.75, W: 1.84, H: 1.45, hood: 1.15, trunk: 0.85, wr: 0.33, mass: 1450, weight: 0.25 },
-  kombi: { L: 4.85, W: 1.84, H: 1.5, hood: 1.1, trunk: 0.12, wr: 0.33, mass: 1550, weight: 0.17, longRoof: true },
-  suv:   { L: 4.8, W: 1.95, H: 1.78, hood: 1.05, trunk: 0.3, wr: 0.38, mass: 2050, weight: 0.16 },
-  van:   { L: 5.3, W: 2.0, H: 2.35, hood: 0.75, trunk: 0.05, wr: 0.35, mass: 2400, weight: 0.1, tall: true },
+  kombi: { L: 4.85, W: 1.84, H: 1.5, hood: 1.1, trunk: 0.12, wr: 0.33, mass: 1550, weight: 0.17, longRoof: true, passenger: true },
+  suv:   { L: 4.8, W: 1.95, H: 1.78, hood: 1.05, trunk: 0.3, wr: 0.38, mass: 2050, weight: 0.16, passenger: true },
+  van:   { L: 5.3, W: 2.0, H: 2.35, hood: 0.75, trunk: 0.05, wr: 0.35, mass: 2400, weight: 0.1, tall: true, passenger: true },
   truck: { L: 8.4, W: 2.5, H: 3.4, wr: 0.5, mass: 9000, weight: 0.08 },
 };
 // Realistische Lackverteilung: viel Weiß/Silber/Grau/Schwarz, dazu einige kräftige Metallic-Farben
 const CAR_PAINTS = [[0.92, 0.92, 0.92], [0.94, 0.94, 0.92], [0.66, 0.68, 0.7], [0.72, 0.73, 0.75], [0.1, 0.1, 0.11], [0.06, 0.06, 0.07],
   [0.3, 0.32, 0.34], [0.42, 0.44, 0.46], [0.12, 0.2, 0.36], [0.08, 0.18, 0.5], [0.55, 0.08, 0.09], [0.7, 0.06, 0.05],
   [0.7, 0.6, 0.45], [0.16, 0.3, 0.2], [0.85, 0.85, 0.82], [0.2, 0.22, 0.25], [0.85, 0.42, 0.1], [0.2, 0.4, 0.55], [0.38, 0.25, 0.18]];
+
+/** Getöntes Autoglas: von vorn durchsichtig (Innenraum und Insassen sichtbar), im flachen Winkel stark spiegelnd (Fresnel). */
+function makeCarGlass() {
+  const m = new THREE.MeshStandardMaterial({ color: 0x1b232c, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.26, envMapIntensity: 1.5, depthWrite: false });
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_begin>', '{ float fres = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 3.0); diffuseColor.a = mix(diffuseColor.a, 0.92, fres); }\n#include <lights_fragment_begin>');
+  };
+  return m;
+}
 
 /** Modell eines Verkehrsautos als eine Geometrie (Karosserie weiß → per Instanzfarbe lackiert). */
 // lo = true: vereinfachte Fern-Version (LOD) – grobe Karosserie, Scheiben deckend, ohne Innenraum/Felgen/Kleinteile
@@ -32,20 +41,62 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
     g.translate(0, 0, -depth / 2); g.rotateY(-Math.PI / 2); g.computeVertexNormals();
     return g;
   };
+  // Insasse: sitzende Figur (Oberkörper, Hals, Kopf, Haare, Arme zum Lenkrad), Blick nach vorn (−z).
+  // hy = Kopfhöhe, zs = Sitz (Rücken), zw = Lenkrad-z (null → Beifahrer, Hände im Schoß)
+  const SKIN = [[0.86, 0.68, 0.56], [0.62, 0.45, 0.33], [0.42, 0.29, 0.2], [0.9, 0.75, 0.62]], SHIRT = [[0.2, 0.24, 0.32], [0.62, 0.62, 0.6], [0.45, 0.12, 0.12], [0.12, 0.3, 0.22], [0.08, 0.08, 0.09], [0.75, 0.7, 0.55]];
+  const HAIR = [[0.12, 0.08, 0.05], [0.3, 0.2, 0.1], [0.55, 0.45, 0.3], [0.06, 0.05, 0.05], [0.45, 0.45, 0.46]];
+  const pick = (arr, k) => arr[Math.abs(Math.round(k)) % arr.length];
+  const limb = (a, b, r, color) => {
+    const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b), len = va.distanceTo(vb);
+    const g = new THREE.CapsuleGeometry(r, Math.max(0.01, len - r), 2, 6);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize()));
+    g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+    parts.push({ geo: g, color });
+  };
+  const person = (x, hy, zs, zw, seed) => {
+    const skin = pick(SKIN, seed), shirt = pick(SHIRT, seed * 7 + 3), hair = pick(HAIR, seed * 3 + 1);
+    const sy = hy - 0.27;                                                                   // Schulterhöhe
+    parts.push({ geo: new THREE.CapsuleGeometry(0.16, 0.3, 3, 8).scale(1.3, 1, 0.72).translate(x, sy - 0.2, zs), color: shirt });   // Oberkörper
+    parts.push({ geo: new THREE.CylinderGeometry(0.05, 0.055, 0.12, 8).translate(x, sy + 0.05, zs - 0.01), color: skin });            // Hals
+    parts.push({ geo: new THREE.SphereGeometry(0.1, 12, 10).scale(0.88, 1.1, 0.98).translate(x, hy, zs - 0.02), color: skin });       // Kopf
+    parts.push({ geo: new THREE.SphereGeometry(0.105, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55).scale(0.92, 1.05, 1.04).translate(x, hy + 0.012, zs + 0.0), color: hair });   // Haare
+    for (const sx of [-1, 1]) {
+      const sh = [x + sx * 0.2, sy - 0.02, zs], el = [x + sx * 0.23, sy - 0.27, zs - 0.2];
+      const hand = zw !== null ? [x + sx * 0.16, sy - 0.17, zw + 0.03] : [x + sx * 0.1, sy - 0.42, zs - 0.3];
+      limb(sh, el, 0.05, shirt); limb(el, hand, 0.042, zw !== null ? shirt : skin);
+      parts.push({ geo: new THREE.SphereGeometry(0.04, 6, 5).translate(...hand), color: skin });
+    }
+  };
+  const steering = (x, y, z, tilt) => {
+    parts.push({ geo: new THREE.TorusGeometry(0.18, 0.02, 6, 18).rotateX(tilt).translate(x, y, z), color: [0.05, 0.05, 0.06] });
+    parts.push({ geo: new THREE.CylinderGeometry(0.05, 0.05, 0.05, 10).rotateX(tilt + Math.PI / 2).translate(x, y, z), color: [0.08, 0.08, 0.09] });
+  };
   const wheel = (x, z, r) => {
     parts.push({ geo: new THREE.CylinderGeometry(r, r, 0.26, 14).rotateZ(Math.PI / 2).translate(x, r, z), color: DARK });
     parts.push({ geo: new THREE.CylinderGeometry(r * 0.6, r * 0.6, 0.27, 10).rotateZ(Math.PI / 2).translate(x * 1.005, r, z), color: RIM });
   };
   if (type === 'truck') {
     const cabL = 2.3;
-    parts.push({ geo: new THREE.BoxGeometry(W, 2.4, cabL).translate(0, 0.6 + 1.2, -L / 2 + cabL / 2), color: BODY });
-    parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.9, 0.05).translate(0, 2.35, -L / 2 - 0.01), color: GLASS });
+    // Kabine als Hülle: Unterteil, Dach, Rückwand, Säulen – dazwischen echte Scheiben (vorn und seitlich), dahinter Innenraum
+    const cz = -L / 2 + cabL / 2, gy0 = 1.95, gy1 = 2.8;
+    parts.push({ geo: new THREE.BoxGeometry(W, gy0 - 0.6, cabL).translate(0, (0.6 + gy0) / 2, cz), color: BODY, paint: true });
+    parts.push({ geo: new THREE.BoxGeometry(W, 3.0 - gy1, cabL).translate(0, (gy1 + 3.0) / 2, cz), color: BODY, paint: true });
+    parts.push({ geo: new THREE.BoxGeometry(W, gy1 - gy0, 0.08).translate(0, (gy0 + gy1) / 2, -L / 2 + cabL - 0.04), color: BODY, paint: true });
+    for (const x of [-1, 1]) for (const z of [-L / 2 + 0.06, -L / 2 + cabL - 0.1]) parts.push({ geo: new THREE.BoxGeometry(0.1, gy1 - gy0, 0.12).translate(x * (W / 2 - 0.05), (gy0 + gy1) / 2, z), color: BODY, paint: true });
+    const gl = [new THREE.BoxGeometry(W - 0.18, gy1 - gy0, 0.02).translate(0, (gy0 + gy1) / 2, -L / 2 + 0.03)];
+    for (const x of [-1, 1]) gl.push(new THREE.BoxGeometry(0.02, gy1 - gy0 - 0.04, cabL - 0.3).translate(x * (W / 2 - 0.02), (gy0 + gy1) / 2, cz - 0.03));
+    for (const g of gl) { if (lo) parts.push({ geo: g, color: GLASS }); else glassParts.push({ geo: g, color: [1, 1, 1] }); }
+    if (!lo) {
+      parts.push({ geo: new THREE.BoxGeometry(W - 0.2, 0.3, 0.45).translate(0, gy0 + 0.05, -L / 2 + 0.3), color: [0.1, 0.1, 0.11] });   // Armaturenbrett
+      for (const x of [-0.6, 0.6]) parts.push({ geo: new THREE.BoxGeometry(0.55, 0.75, 0.14).translate(x, gy0 + 0.25, -L / 2 + 1.55), color: [0.14, 0.14, 0.15] });   // Sitzlehnen
+      steering(-0.6, gy0 + 0.28, -L / 2 + 0.72, -0.9);
+      person(-0.6, gy0 + 0.72, -L / 2 + 1.42, -L / 2 + 0.72, 2);
+    }
     parts.push({ geo: new THREE.BoxGeometry(W + 0.04, 2.9, L - cabL - 0.25).translate(0, 0.75 + 1.45, L / 2 - (L - cabL - 0.25) / 2), color: [0.85, 0.86, 0.87] });
     parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.35, L - 0.4).translate(0, 0.55, 0), color: DARK });
     for (const z of [-L / 2 + 1.3, L / 2 - 2.4, L / 2 - 1.2]) for (const x of [-1, 1]) wheel(x * (W / 2 - 0.25), z, s.wr);
     parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.62, -L / 2 - 0.03), color: [0.9, 0.9, 0.86] });
     parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.62, L / 2 + 0.03), color: [0.9, 0.9, 0.86] });
-    parts[0].paint = true; parts[2].paint = true;
     for (const x of [-1, 1]) {
       lights.push({ geo: new THREE.BoxGeometry(0.4, 0.18, 0.04).translate(x * (W / 2 - 0.35), 0.95, -L / 2 - 0.02), color: [1, 0.96, 0.88] });
       lights.push({ geo: new THREE.BoxGeometry(0.3, 0.2, 0.04).translate(x * (W / 2 - 0.25), 0.9, L / 2 + 0.02), color: [0.9, 0.04, 0.04], mask: [1, 0, 0] });
@@ -129,9 +180,12 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false) {
       parts.push({ geo: new THREE.BoxGeometry(0.46, 0.5, 0.1).translate(sx * 0.4, 1.0, zs + 0.28), color: [0.12, 0.12, 0.13] });
       parts.push({ geo: new THREE.BoxGeometry(0.24, 0.14, 0.09).translate(sx * 0.4, Hh - 0.16, zs + 0.3), color: [0.12, 0.12, 0.13] });
     }
-    parts.push({ geo: new THREE.BoxGeometry(0.42, 0.26, 0.24).translate(-0.4, 0.96, zs + 0.08), color: [0.25, 0.28, 0.34] });   // Fahrer: Oberkörper
-    parts.push({ geo: new THREE.SphereGeometry(0.1, 10, 8).translate(-0.4, Hh - 0.3, zs + 0.06), color: [0.8, 0.62, 0.5] });     // Kopf
-    parts.push({ geo: new THREE.SphereGeometry(0.105, 10, 8).scale(1, 0.6, 1).translate(-0.4, Hh - 0.24, zs + 0.08), color: [0.2, 0.14, 0.1] });   // Haare
+    // Armaturenbrett, Lenkrad, Fahrer (links) und bei größeren Autos ein Beifahrer
+    parts.push({ geo: new THREE.BoxGeometry(W - 0.3, 0.18, 0.35).translate(0, belt + 0.02, -L / 2 + s.hood + 0.3), color: [0.09, 0.09, 0.1] });
+    steering(-0.4, belt + 0.12, zs - 0.42, -1.15);
+    const seed = type.length * 3 + Math.round(L * 10);
+    person(-0.4, Hh - 0.3, zs + 0.06, zs - 0.42, seed);
+    if (s.passenger) person(0.4, Hh - 0.31, zs + 0.06, null, seed + 5);
     }
     // Radhausschalen (verhindern Durchblick), Stoßfänger, Grill, Kennzeichen, Spiegel
     for (const z of [zf, zr]) parts.push({ geo: new THREE.BoxGeometry(W - 0.12, R * 0.9, R * 2).translate(0, s.wr + R * 0.6, z), color: DARK });
@@ -205,7 +259,7 @@ class TrafficSystem {
       v.bodyMesh = new THREE.InstancedMesh(v.body, this.bodyMat, n);
       v.lightMesh = new THREE.InstancedMesh(v.lights, this.lightMat, n);
       if (v.glass) {
-        this.glassMat = this.glassMat || new THREE.MeshStandardMaterial({ color: 0x0c1016, roughness: 0.06, metalness: 0.35, transparent: true, opacity: 0.6, envMapIntensity: 1.3 });
+        this.glassMat = this.glassMat || makeCarGlass();
         v.glassMesh = new THREE.InstancedMesh(v.glass, this.glassMat, n); v.glassMesh.renderOrder = 2;
         v.glassMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); v.glassMesh.frustumCulled = false; v.glassMesh.count = 0; scene.add(v.glassMesh);
       }
@@ -640,4 +694,4 @@ class TrafficSystem {
   }
 }
 
-export { TRAFFIC_TYPES, CAR_PAINTS, makeTrafficVariant, TrafficSystem };
+export { TRAFFIC_TYPES, CAR_PAINTS, makeTrafficVariant, makeCarGlass, TrafficSystem };
