@@ -317,7 +317,7 @@ class Minimap {
         c.beginPath(); e.pts.forEach((p, i) => (i ? c.lineTo(tx(p.x), tx(p.z)) : c.moveTo(tx(p.x), tx(p.z)))); c.stroke();
       }
     };
-    draw('city', 2, '#c9c9c9'); draw('country', 2.2, '#e8dcc0'); draw('highway', 3.4, '#f0a640');
+    draw('city', 2, '#c9c9c9'); draw('avenue', 3.2, '#d8d8d8'); draw('park', 1.4, '#c9c9c9'); draw('ring', 2, '#c9c9c9'); draw('country', 2.2, '#e8dcc0'); draw('highway', 3.4, '#f0a640');
     this.map = cv;
     this.t = 0;
   }

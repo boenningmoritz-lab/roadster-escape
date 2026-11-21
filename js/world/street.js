@@ -59,14 +59,15 @@ class StreetLife {
     })();
     const covers = [], grates = [];
     for (const e of world.edges) {
-      if (e.cls !== 'city') continue;
+      if (e.cls !== 'city' && e.cls !== 'avenue') continue;
+      const hw = e.C.halfW;
       for (let s = 20 + rng() * 20; s < e.len - 15; s += 35 + rng() * 25) {
         const p = world.pointOnEdge(e, s), side = rng() < 0.5 ? -1 : 1;
-        covers.push([p.x - p.tz * side * 2.4, p.z + p.tx * side * 2.4]);
+        covers.push([p.x - p.tz * side * (hw - 4.6), p.z + p.tx * side * (hw - 4.6)]);
       }
       for (const s of [20, 44, 68]) {
         const p = world.pointOnEdge(e, s);
-        for (const side of [-1, 1]) grates.push([p.x - p.tz * side * 6.6, p.z + p.tx * side * 6.6, Math.atan2(p.tx, p.tz)]);
+        for (const side of [-1, 1]) grates.push([p.x - p.tz * side * (hw - 0.4), p.z + p.tx * side * (hw - 0.4), Math.atan2(p.tx, p.tz)]);
       }
     }
     const decal = (geo, tex, list, rot) => {
@@ -94,14 +95,15 @@ class StreetLife {
     // Positionen: zwischen den Laternen, 0,7 m hinter dem Bordstein (Möbel) bzw. an der Hauswand (Bänke)
     let k = 0;
     for (const e of world.edges) {
-      if (e.cls !== 'city') continue;
+      if (e.cls !== 'city' && e.cls !== 'avenue') continue;
+      const hw = e.C.halfW;
       for (const s of [17, 36, 59, 82]) {
         if (s > e.len - 14) continue;
         const p = world.pointOnEdge(e, s);
         for (const side of [-1, 1]) {
           if (rng() < 0.25) continue;
           const t = order[k++ % order.length], T = types[t];
-          const off = t === 'bench' ? C.streetHalf + 3.2 : C.streetHalf + 0.75;
+          const off = t === 'bench' ? hw + 3.2 : hw + 0.75;
           const ox = -p.tz * side, oz = p.tx * side;
           this.props.push({ t, x: p.x + ox * off, z: p.z + oz * off, yaw: Math.atan2(ox, oz), y: C.h + 0.12, r: T.r, h: T.h, mass: T.mass });
         }

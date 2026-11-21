@@ -253,6 +253,9 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Abbiegespuren** vor Ampeln: durchgezogene Trennlinie, Richtungspfeile (links / geradeaus+rechts); Linksabbieger ordnen sich links ein, alle anderen rechts.
 - **Schaufenster mit echter Tiefe:** Interior-Mapping im Fassaden-Shader – hinter jeder Scheibe ein 2,6 m tiefer Laden mit Regalen und Waren, Seitenwänden, Boden und Leuchtdecke, perspektivisch richtig je nach Blickwinkel; nachts beleuchtet.
 - **Durchfahrten:** Wohnblöcke mit Innenhof bekommen im straßenseitigen Flügel oft einen 4,2 m breiten Torbogen – man kann in den Hinterhof fahren.
+- **Unterschiedliche Straßenbreiten:** Die Nord-Süd-Achse x = 500 ist ein 22 m breiter Boulevard (zwei Spuren je Richtung, Parkstreifen, begrünter Mittelstreifen mit Baumreihe und Doppelleuchten); Ampeln, Haltelinien und Zebrastreifen passen sich der Breite an.
+- **Kurvige Straße:** geschwungene Parkstraße durch den Park um den Brunnenplatz, T-Einmündungen (Hauptstraße hat Vorfahrt), mit Laternen; Autos fahren darauf.
+- Bildzeit im Software-Renderer (Innenstadt, gleiche Stelle): **Mittel 1860 → 867 ms, Hoch 2340 → 2123 ms**; 294 / 599 Draw-Calls.
 
 - **Standard auf Touch-Geräten = Mittel** (vorher bekamen iPads „Hoch“ → Hauptgrund fürs Ruckeln); alte Spielstände werden einmalig umgestellt. **Automatische Grafikstufe:** 1,5–6,5 s nach dem Start wird die echte Bildrate gemessen; unter 50 FPS eine Stufe herunter (bis zu zweimal). Wer die Stufe selbst wählt, schaltet die Automatik ab.
 - **Telemetrie** zeigt Draw-Calls, Dreiecke, ms pro Bild und FPS.

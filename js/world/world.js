@@ -7,7 +7,7 @@ import { genHouses, buildHouses, onHousePlot } from './suburb.js';
 // ============================== Welt-Konstanten ==============================
 const WORLD = {
   half: 2000, cell: 4, n: 1001, seed: 20261117, waterLevel: 2, bound: 1930,
-  city: { x0: 300, z0: 150, lines: 8, spacing: 100, h: 22, streetHalf: 7 },
+  city: { x0: 300, z0: 150, lines: 8, spacing: 100, h: 22, streetHalf: 7, wideI: 2, wideHalf: 11 },   // Linie x = 500: Boulevard
   air: { cx: 300, cz: -1000, hx: 860, hz: 75, h: 14 },
   lake: { cx: -700, cz: 650, r: 330 },
 };
@@ -15,6 +15,8 @@ WORLD.city.x1 = WORLD.city.x0 + (WORLD.city.lines - 1) * WORLD.city.spacing;
 WORLD.city.z1 = WORLD.city.z0 + (WORLD.city.lines - 1) * WORLD.city.spacing;
 WORLD.city.cx = (WORLD.city.x0 + WORLD.city.x1) / 2;
 WORLD.city.cz = (WORLD.city.z0 + WORLD.city.z1) / 2;
+/** halbe Straßenbreite der Nord-Süd-Linie i (Boulevard breiter) */
+WORLD.city.halfX = (i) => (i === WORLD.city.wideI ? WORLD.city.wideHalf : WORLD.city.streetHalf);
 
 /** Straßenklassen: halbe Breite, Fahrspur-Mitten (vom Mittelstreifen nach rechts), Tempo, Steigung. */
 const ROAD_CLASS = {
@@ -22,6 +24,8 @@ const ROAD_CLASS = {
   country: { halfW: 4.2, lanes: [2.0], speed: [22], grade: 0.10, smooth: 10, stopBack: 6 },
   city:    { halfW: 7, lanes: [2.4], speed: [13.5], grade: 0, smooth: 0, stopBack: 11 },
   ring:    { halfW: 3.5, lanes: [0], speed: [7.5], grade: 0, smooth: 0, stopBack: 4 },   // Kreisverkehr (Einbahn)
+  avenue:  { halfW: 11, lanes: [2.9, 6.3], speed: [15, 13], grade: 0, smooth: 0, stopBack: 11 },   // Boulevard mit Mittelstreifen
+  park:    { halfW: 3.6, lanes: [1.7], speed: [7.5], grade: 0, smooth: 0, stopBack: 9 },          // geschwungene Parkstraße
 };
 // Untergrund: 0 Gras, 1 Asphalt, 2 Waldboden, 3 Sand, 4 Fels
 const SURF_GRIP = [0.78, 1.0, 0.72, 0.6, 0.86];
@@ -297,7 +301,7 @@ class World {
       grid[i] = [];
       for (let j = 0; j < C.lines; j++) {
         const nd = this.addNode(C.x0 + i * C.spacing, C.z0 + j * C.spacing, 'city');
-        nd.y = C.h; nd.gi = i; nd.gj = j; grid[i][j] = nd;
+        nd.y = C.h; nd.gi = i; nd.gj = j; nd.halfV = C.halfX(i); nd.halfH = C.streetHalf; grid[i][j] = nd;
       }
     }
     const line = (a, b) => {
@@ -315,10 +319,21 @@ class World {
       if (!entry.has(k)) { const nd = this.addNode(RB.x + dx * RR, RB.z + dz * RR, 'ring'); nd.y = C.h; entry.set(k, nd); }
       return entry.get(k);
     };
+    // Parkstraße: geschwungen durch den Park-Block (1,5) um den Brunnenplatz, T-Einmündungen in die Querstraßen
+    const PX = 448, PZa = C.z0 + 5 * C.spacing, PZb = C.z0 + 6 * C.spacing;
+    const tee = {};
     const link = (a, b) => {
       if (b === RB) [a, b] = [b, a];
       if (a === RB) { const dx = Math.sign(b.x - a.x), dz = Math.sign(b.z - a.z); a = ringNode(dx, dz); }
-      this.addEdge(a, b, line(a, b), 'city');
+      const vertical = a.x === b.x, cls = vertical && a.gi === C.wideI ? 'avenue' : 'city';
+      if (!vertical && a.z === b.z && (a.z === PZa || a.z === PZb) && Math.min(a.x, b.x) < PX && Math.max(a.x, b.x) > PX) {
+        const t = this.addNode(PX, a.z, 'tee'); t.y = C.h; tee[a.z] = t;
+        this.addEdge(a, t, line(a, t), 'city'); this.addEdge(t, b, line(t, b), 'city');
+        return;
+      }
+      const e = this.addEdge(a, b, line(a, b), cls);
+      // Querstraßen enden am Boulevard später (Fahrbahn-Textur nicht über den Boulevard ziehen)
+      if (cls === 'city') { if (a.halfV > 7 && !vertical) e.trimA = a.halfV; if (b.halfV > 7 && !vertical) e.trimB = b.halfV; }
     };
     for (let i = 0; i < C.lines; i++) {
       for (let j = 0; j < C.lines; j++) {
@@ -332,6 +347,12 @@ class World {
       const a = ringNode(...order[k]), b = ringNode(...order[(k + 1) % 4]), a0 = k * Math.PI / 2, pts = [];
       for (let t = 0; t <= 8; t++) { const th = a0 + t / 8 * Math.PI / 2; pts.push({ x: RB.x + Math.cos(th) * RR, z: RB.z - Math.sin(th) * RR, y: C.h }); }
       this.addEdge(a, b, pts, 'ring').oneWay = true;
+    }
+    {
+      const ctrl = [[PX, PZa], [PX - 2, PZa + 12], [PX - 16, PZa + 26], [PX - 25, PZa + 50], [PX - 16, PZb - 26], [PX - 2, PZb - 12], [PX, PZb]];
+      const pts = splinePoints(ctrl, false, 3).map((q) => ({ x: q.x, z: q.z, y: C.h }));
+      pts[0].x = PX; pts[0].z = PZa; pts[pts.length - 1].x = PX; pts[pts.length - 1].z = PZb;
+      this.parkRoad = this.addEdge(tee[PZa], tee[PZb], pts, 'park');
     }
     this.cityGrid = grid;
 
@@ -397,7 +418,7 @@ class World {
     const sumW = new Float32Array(n * n), sumWH = new Float32Array(n * n), maxW = new Float32Array(n * n);
     const surf = new Uint8Array(n * n);
     for (const e of this.edges) {
-      if (e.cls === 'city') continue;
+      if ((e.cls === 'city' || e.cls === 'avenue' || e.cls === 'park' || e.cls === 'ring')) continue;
       const hw = e.C.halfW;
       for (let i = 0; i < e.pts.length - 1; i++) {
         const p = e.pts[i], q = e.pts[i + 1];
@@ -503,7 +524,7 @@ class World {
     this.blocks = []; this.parkTrees = [];
     for (let bi = 0; bi < C.lines - 1; bi++) {
       for (let bj = 0; bj < C.lines - 1; bj++) {
-        const x0 = C.x0 + bi * C.spacing + inset, x1 = C.x0 + (bi + 1) * C.spacing - inset;
+        const x0 = C.x0 + bi * C.spacing + C.halfX(bi) + 4, x1 = C.x0 + (bi + 1) * C.spacing - C.halfX(bi + 1) - 4;
         const z0 = C.z0 + bj * C.spacing + inset, z1 = C.z0 + (bj + 1) * C.spacing - inset;
         const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
         const dc = Math.hypot(cx - C.cx, cz - C.cz);
@@ -512,7 +533,7 @@ class World {
         if (park) {
           // Stadtplatz mit Brunnen im festen Park-Block (1,5): Bäume nur außerhalb des gepflasterten Runds
           if (bi === 1 && bj === 5) this.plaza = { x: cx, z: cz, r: 15 };
-          for (let t = 0; t < 22; t++) { const tx = lerp(x0 + 4, x1 - 4, rng()), tz = lerp(z0 + 4, z1 - 4, rng()); if (this.plaza && bi === 1 && bj === 5 && Math.hypot(tx - cx, tz - cz) < 19) continue; this.parkTrees.push([tx, tz]); }
+          for (let t = 0; t < 22; t++) { const tx = lerp(x0 + 4, x1 - 4, rng()), tz = lerp(z0 + 4, z1 - 4, rng()); if (this.plaza && bi === 1 && bj === 5 && (Math.hypot(tx - cx, tz - cz) < 19 || this.parkRoad.pts.some((q) => Math.hypot(q.x - tx, q.z - tz) < 6.5))) continue; this.parkTrees.push([tx, tz]); }
           continue;
         }
         // Grundstücke: 1, 2 oder 4
@@ -533,6 +554,8 @@ class World {
         }
       }
     }
+    // Boulevard: Baumreihe auf dem begrünten Mittelstreifen
+    for (const e of this.edges) if (e.cls === 'avenue') for (let sv = 17; sv < e.len - 16; sv += 11) { const q = this.pointOnEdge(e, sv); this.parkTrees.push([q.x, q.z]); }
     // Hangars am Flugplatz
     const A = WORLD.air;
     for (let k = 0; k < 3; k++) this.addBuilding(A.cx + 200 + k * 70, A.cx + 255 + k * 70, A.cz - A.hz - 50, A.cz - A.hz - 10, A.h, 14, 2, rng);
@@ -547,6 +570,10 @@ class World {
             this.addLamp(p.x + ox * (C.streetHalf + 1.3), p.z + oz * (C.streetHalf + 1.3), C.h, Math.atan2(-ox, -oz), 1);
           }
         }
+      } else if (e.cls === 'avenue') {
+        for (const sv of [33.5, 66.5]) { const p = this.pointOnEdge(e, sv); this.addLamp(p.x, p.z, C.h + 0.18, Math.atan2(-p.tz, p.tx), 2); }
+      } else if (e.cls === 'park') {
+        for (let sv = 14; sv < e.len - 10; sv += 24) { const p = this.pointOnEdge(e, sv); this.addLamp(p.x + p.tz * 5, p.z - p.tx * 5, C.h, Math.atan2(p.tz, -p.tx), 1); }
       } else if (e.cls === 'highway') {
         for (let s = 35; s < e.len - 20; s += 70) {
           const p = this.pointOnEdge(e, s);
@@ -563,9 +590,11 @@ class World {
         const ax = Math.sign(other.x - nd.x), az = Math.sign(other.z - nd.z);   // Richtung zur Zufahrt
         // Fahrzeug kommt aus (ax,az) und fährt Richtung (−ax,−az); rechte Seite = (az, −ax)·(−1)
         const fx = -ax, fz = -az, rx = -fz, rz = fx;
-        const hx = nd.x + ax * 9 + rx * 9, hz = nd.z + az * 9 + rz * 9;
+        // perp: halbe Breite der Querstraße (Abstand der Haltelinie), own: halbe Breite der eigenen Zufahrt
+        const perp = ax !== 0 ? (nd.halfV || 7) : (nd.halfH || 7), own = ax !== 0 ? (nd.halfH || 7) : (nd.halfV || 7);
+        const hx = nd.x + ax * (perp + 2) + rx * (own + 2), hz = nd.z + az * (perp + 2) + rz * (own + 2);
         this.heads.push({ node: nd, axis: ax !== 0 ? 'EW' : 'NS', x: hx, z: hz, yaw: Math.atan2(ax, az) });
-        this.crossings.push({ x: nd.x + ax * 10, z: nd.z + az * 10, ax, az, along: ax !== 0 ? 'z' : 'x', stop: { x: nd.x + ax * 11.5 + rx * 3.6, z: nd.z + az * 11.5 + rz * 3.6, along: ax !== 0 ? 'z' : 'x' } });
+        this.crossings.push({ x: nd.x + ax * (perp + 3), z: nd.z + az * (perp + 3), ax, az, own, perp, along: ax !== 0 ? 'z' : 'x', stop: { x: nd.x + ax * (perp + 4.5) + rx * (own / 2 + 0.1), z: nd.z + az * (perp + 4.5) + rz * (own / 2 + 0.1), len: own - 0.4, along: ax !== 0 ? 'z' : 'x' } });
       }
     }
   }
@@ -1066,7 +1095,7 @@ function makeGrainTexture() {
 /** Fahrbahn-Textur mit Markierungen (u = quer, v = längs). Alles per Canvas, keine Dateien. */
 function makeRoadTexture(kind) {
   const spec = {
-    highway: { w: 22, len: 18 }, country: { w: 8.4, len: 18 }, city: { w: 14, len: 18 },
+    highway: { w: 22, len: 18 }, country: { w: 8.4, len: 18 }, city: { w: 14, len: 18 }, avenue: { w: 22, len: 18 },
     runway: { w: 60, len: 50 }, plain: { w: 16, len: 16 },
   }[kind];
   const W = 512, Hh = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = Hh;
@@ -1134,6 +1163,15 @@ function makeRoadTexture(kind) {
     tracks(c - 2); tracks(c + 2);
     band(0.35, 0.12, white); band(8.4 - 0.47, 0.12, white);
     band(c - 0.06, 0.12, white, 3, 9);
+  } else if (kind === 'avenue') {
+    const c = 11;   // zwei Spuren je Richtung, Parkstreifen außen
+    for (const sg of [-1, 1]) {
+      tracks(c + sg * 2.9); tracks(c + sg * 6.3);
+      band(c + sg * 1.25 - 0.07, 0.14, white);                 // Begrenzung zum Mittelstreifen
+      band(c + sg * 4.6 - 0.07, 0.14, white, 3, 9);            // Leitlinie
+      band(c + sg * 8.35 - 0.06, 0.12, 'rgba(236,236,230,0.6)');   // Parkstreifen
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 0, 0.35 * pxm, Hh); ctx.fillRect(W - 0.35 * pxm, 0, 0.35 * pxm, Hh);
   } else if (kind === 'city') {
     const c = 7;
     tracks(c - 2.4); tracks(c + 2.4);
@@ -1445,7 +1483,7 @@ Object.assign(World.prototype, {
       let prev = -1;
       for (let i = 0; i < e.pts.length; i++) {
         const p = e.pts[i];
-        if (p.s < trim || p.s > e.len - trim || (filter && !filter(p))) { prev = -1; continue; }
+        if (p.s < (e.trimA ?? trim) || p.s > e.len - (e.trimB ?? trim) || (filter && !filter(p))) { prev = -1; continue; }
         const rx = -p.tz, rz = p.tx;
         const base = pos.length / 3;
         pos.push(p.x - rx * halfW, p.y + yOff, p.z - rz * halfW, p.x + rx * halfW, p.y + yOff, p.z + rz * halfW);
@@ -1472,11 +1510,23 @@ Object.assign(World.prototype, {
       this.wetMats.push(m); return m;
     };
     const byCls = (c) => this.edges.filter((e) => e.cls === c);
-    this.roadTex = { highway: makeRoadTexture('highway'), country: makeRoadTexture('country'), city: makeRoadTexture('city'), runway: makeRoadTexture('runway'), plain: makeRoadTexture('plain') };
+    this.roadTex = { highway: makeRoadTexture('highway'), country: makeRoadTexture('country'), city: makeRoadTexture('city'), avenue: makeRoadTexture('avenue'), runway: makeRoadTexture('runway'), plain: makeRoadTexture('plain') };
     const add = (geo, tex) => { const m = new THREE.Mesh(geo, roadMat(tex)); m.receiveShadow = true; this.group.add(m); return m; };
     add(this.stripGeometry(byCls('highway'), 11, 18, 0.1), this.roadTex.highway);
     add(this.stripGeometry(byCls('country'), 4.2, 18, 0.1), this.roadTex.country);
     add(this.stripGeometry(byCls('city'), 7, 18, 0.06, 7), this.roadTex.city);
+    add(this.stripGeometry(byCls('avenue'), 11, 18, 0.06, 7), this.roadTex.avenue);
+    add(this.stripGeometry(byCls('park'), 3.6, 18, 0.135, 7), this.roadTex.country);
+    // Boulevard-Mittelstreifen: Bordstein + Rasen, an den Kreuzungen offen
+    {
+      const C = WORLD.city, parts = [];
+      for (const e of byCls('avenue')) {
+        const L = e.len - 30, mid = this.pointOnEdge(e, e.len / 2), yaw = Math.atan2(mid.tx, mid.tz);
+        parts.push({ geo: new THREE.BoxGeometry(2.2, 0.17, L).rotateY(yaw).translate(mid.x, C.h + 0.085, mid.z), color: [0.74, 0.73, 0.7] });
+        parts.push({ geo: new THREE.BoxGeometry(1.8, 0.04, L - 0.4).rotateY(yaw).translate(mid.x, C.h + 0.18, mid.z), color: [0.27, 0.44, 0.17] });
+      }
+      if (parts.length) { const mm = new THREE.Mesh(mergeParts(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })); mm.receiveShadow = true; this.group.add(mm); }
+    }
     // Startbahn
     const A = WORLD.air;
     const rw = new THREE.PlaneGeometry(60, A.hx * 2);
@@ -2025,8 +2075,9 @@ Object.assign(World.prototype, {
         if (!nd.signal) continue;
         for (const e of nd.edges) {
           const other = e.a === nd ? e.b : e.a, ax = Math.sign(other.x - nd.x), az = Math.sign(other.z - nd.z);
-          if (Math.hypot(other.x - nd.x, other.z - nd.z) < 60) continue;
-          isl.push({ x: nd.x + ax * 18, z: nd.z + az * 18, yaw: Math.atan2(ax, az) });
+          if (Math.hypot(other.x - nd.x, other.z - nd.z) < 60 || e.cls !== 'city') continue;
+          const perp = ax !== 0 ? (nd.halfV || 7) : (nd.halfH || 7);
+          isl.push({ x: nd.x + ax * (perp + 11), z: nd.z + az * (perp + 11), yaw: Math.atan2(ax, az) });
         }
       }
       const iGeo = mergeParts([
@@ -2099,12 +2150,14 @@ Object.assign(World.prototype, {
     // Zebrastreifen + Haltelinien
     const bars = [];
     for (const c of this.crossings) {
-      for (let k = -4; k <= 4; k++) {
+      const nk = Math.round((c.own - 1.4) / 1.4);
+      for (let k = -nk; k <= nk; k++) {
         const o = k * 1.4;
         if (c.along === 'z') bars.push([c.x, c.z + o, 3.2, 0.6]); else bars.push([c.x + o, c.z, 0.6, 3.2]);
       }
       const s = c.stop;
-      if (s.along === 'z') bars.push([s.x, s.z, 0.4, 6.6]); else bars.push([s.x, s.z, 6.6, 0.4]);
+      if (s.along === 'z') bars.push([s.x, s.z, 0.4, s.len]); else bars.push([s.x, s.z, s.len, 0.4]);
+      if (c.own > 7) continue;
       // Abbiegespur: durchgezogene Trennlinie zwischen Linksabbieger- und Geradeaus-/Rechtsspur
       const rx = c.az, rz = -c.ax, lx = c.x + c.ax * 15 + rx * 3.4, lz = c.z + c.az * 15 + rz * 3.4;   // 12–38 m vor der Kreuzungsmitte
       if (c.along === 'z') bars.push([lx, lz, 26, 0.15]); else bars.push([lx, lz, 0.15, 26]);
@@ -2119,6 +2172,7 @@ Object.assign(World.prototype, {
       const base = [{ g: shp(straight), dx: 5.3 }, { g: shp(rightHook), dx: 5.3 }, { g: shp(leftArrow), dx: 2.0 }];
       const parts = [], mm = new THREE.Matrix4(), qq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
       for (const c of this.crossings) {
+        if (c.own > 7) continue;
         const yaw = Math.atan2(c.ax, c.az), rx = c.az, rz = -c.ax;
         qq.setFromAxisAngle(up, yaw);
         for (const d of [6, 20]) for (const b of base) {

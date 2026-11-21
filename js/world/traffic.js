@@ -258,7 +258,7 @@ class TrafficSystem {
 
   /** Parkplatz am Straßenrand einer Stadtstraße suchen (bzw. den alten wieder einnehmen). */
   placeParked(car, fresh) {
-    const city = this.w.edges.filter((e) => e.cls === 'city');
+    const city = this.w.edges.filter((e) => e.cls === 'city' || e.cls === 'avenue');
     if (fresh || !car.spot) {
       for (let t = 0; t < 40; t++) {
         const e = city[Math.floor(this.rng() * city.length)], s = 24 + this.rng() * (e.len - 48), dir = this.rng() < 0.5 ? 1 : -1;
@@ -267,7 +267,7 @@ class TrafficSystem {
       }
     }
     const sp = car.spot;
-    Object.assign(car, { e: sp.e, s: sp.s, dir: sp.dir, lane: 0, speed: 0, state: 'parked', latOff: 5.45 - car.v.W / 2 + 0.92 - sp.e.C.lanes[0], body: null, stopT: 0 });
+    Object.assign(car, { e: sp.e, s: sp.s, dir: sp.dir, lane: 0, speed: 0, state: 'parked', latOff: sp.e.C.halfW - 0.63 - car.v.W / 2 - sp.e.C.lanes[0], body: null, stopT: 0 });
     this.place(car, 0, true);
   }
 
@@ -283,7 +283,7 @@ class TrafficSystem {
     const near = this.nearEdges(focus, rMax);
     for (let t = 0; t < 90; t++) {
       const e = near.length && t < 70 ? near[Math.floor(this.rng() * near.length)] : this.randomEdge();
-      if (car.v.type === 'truck' && (e.cls === 'city' || e.cls === 'ring')) continue;
+      if (car.v.type === 'truck' && (e.cls === 'city' || e.cls === 'ring' || e.cls === 'park')) continue;
       const s = 10 + this.rng() * Math.max(e.len - 20, 1);
       const p = this.w.pointOnEdge(e, s, this._p);
       const d = Math.hypot(p.x - focus.x, p.z - focus.z);
@@ -356,7 +356,7 @@ class TrafficSystem {
   /** Nächste Kante an einem Knoten wählen (lieber geradeaus; Lkw nicht in die Stadt). */
   chooseNext(car, e, node, here) {
     const inTx = here.tx * car.dir, inTz = here.tz * car.dir;
-    const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && (o.cls === 'city' || o.cls === 'ring')) && !(o.oneWay && o.a !== node));
+    const opts = node.edges.filter((o) => o !== e && !(car.v.type === 'truck' && (o.cls === 'city' || o.cls === 'ring' || o.cls === 'park')) && !(o.oneWay && o.a !== node));
     if (!opts.length) return e;
     let tot = 0; const ws = opts.map((o) => {
       const out = o.a === node ? o.pts[1] : o.pts[o.pts.length - 2];
@@ -389,7 +389,8 @@ class TrafficSystem {
         if (node.signal) {
           const axis = Math.abs(here.tx) > Math.abs(here.tz) ? 'EW' : 'NS';
           const st = w.signalState(node, axis);
-          if (st === 'R' || (st === 'Y' && toNode > 18)) stop = toNode - C.stopBack;
+          const perp = axis === 'EW' ? (node.halfV || 7) : (node.halfH || 7);   // Haltelinie hinter der Querstraße
+          if (st === 'R' || (st === 'Y' && toNode > 18)) stop = toNode - (perp + 4);
         } else if (node.type === 'ring') {
           // Kreisverkehr: im Kreis Vorfahrt; einfahrende Autos warten nur, wenn ein Auto im Kreis gleich vorbeikommt
           if (e.cls !== 'ring') {
@@ -406,7 +407,7 @@ class TrafficSystem {
             stop = toNode - C.stopBack;
             if (car.speed < 0.6 && stop < 2) { car.waitT += dt; if (car.waitT > 0.8 && this.highwayClear(node, player)) car.cleared = true; }
           }
-        } else if (!car.cleared) {
+        } else if (!car.cleared && !(node.type === 'tee' && e.cls !== 'park')) {   // an der Parkstraße hat die Hauptstraße Vorfahrt
           stop = toNode - C.stopBack;
           if (car.speed < 0.4 && stop < 2) { car.waitT += dt; if (car.waitT > 1.2) car.cleared = true; }
         }
