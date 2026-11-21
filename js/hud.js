@@ -43,7 +43,9 @@ const HUD = {
     s += `Längs ${vehicle.longAccel.toFixed(2)} g   Quer ${vehicle.latAccel.toFixed(2)} g\n`;
     s += `Motor ${Math.round(vehicle.drivetrain.rpm)} U/min   Lenk ${(vehicle.steerAngle * 57.3).toFixed(1)}°\n`;
     s += `0–100 km/h: ${extra.zeroTo100 ? extra.zeroTo100.toFixed(2) + ' s' : '–'}   Vmax: ${Math.round(extra.vmax * 3.6)} km/h\n`;
-    s += `Pos ${vehicle.pos.x.toFixed(0)}, ${vehicle.pos.z.toFixed(0)}  Luft ${vehicle.airTime.toFixed(1)} s`;
+    s += `Pos ${vehicle.pos.x.toFixed(0)}, ${vehicle.pos.z.toFixed(0)}  Luft ${vehicle.airTime.toFixed(1)} s\n`;
+    // Leistung: Draw-Calls und Dreiecke des letzten Bildes, Bildzeit (Mittel über 0,5 s)
+    if (extra.perf) s += `Draw-Calls ${extra.perf.calls}  Dreiecke ${(extra.perf.tris / 1000).toFixed(0)} k  ${extra.perf.ms.toFixed(1)} ms/Bild  (${Math.round(1000 / Math.max(extra.perf.ms, 1))} FPS)`;
     this.el.telemetry.textContent = s;
   },
 };

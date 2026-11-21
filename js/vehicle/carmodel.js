@@ -9,6 +9,44 @@ import { smoothNormals } from '../environment.js';
  * Karosserie = extrudierte Seitenprofile (Seitenteile + Mitte mit Cockpit-Ausschnitt),
  * Glaskuppel, Innenraum, Räder mit Felgen/Bremsen, Licht vorne/hinten.
  */
+/**
+ * Unbewegliche Einzelteile (mit add() erzeugt, direkt am Karosserie-Knoten) je Material + Schattenwurf zu einem
+ * einzigen Mesh zusammenfassen. Teile mit Vertexfarben oder abweichenden Attributen bleiben einzeln.
+ */
+function mergeStatic(body) {
+  const groups = new Map();
+  for (const m of [...body.children]) {
+    if (!m.isMesh || !m.userData.mergeable || !m.visible || m.geometry.attributes.color || m.material.side === THREE.BackSide) continue;
+    const key = m.material.uuid + (m.castShadow ? 's' : '') + (m.renderOrder || 0);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  }
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    let n = 0; const geos = [];
+    for (const m of list) {
+      m.updateMatrix();
+      const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(m.matrix);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      geos.push(g); n += g.attributes.position.count;
+    }
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+    let o = 0;
+    for (const g of geos) {
+      const c = g.attributes.position.count;
+      pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3);
+      if (g.attributes.uv) uv.set(g.attributes.uv.array, o * 2);
+      o += c; g.dispose();
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.computeBoundingSphere();
+    const mm = new THREE.Mesh(geo, list[0].material); mm.castShadow = list[0].castShadow; mm.receiveShadow = list[0].receiveShadow; mm.renderOrder = list[0].renderOrder;
+    for (const m of list) body.remove(m);
+    body.add(mm);
+  }
+}
+
 /** Weiche Flammen-Textur (radial, mit ausgefranstem Rand); einmal erzeugt, von allen Sprites geteilt. */
 let _flameTex = null;
 function flameTex() {
@@ -237,7 +275,7 @@ class CarModel {
     }
 
     // Unterboden, Splitter, Diffusor, Seitenschweller
-    const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; body.add(m); return m; };
+    const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; m.userData.mergeable = true; body.add(m); return m; };
     add(new THREE.BoxGeometry(1.7, 0.06, 3.9), black, 0, 0.2, 0);
     add(new THREE.BoxGeometry(1.5, 0.025, 0.3), carbon, 0, 0.19, -2.0);              // Frontsplitter
     add(new THREE.BoxGeometry(1.3, 0.04, 0.32), carbon, 0, 0.23, 1.9, 0.22);          // Diffusor
@@ -505,6 +543,7 @@ class CarModel {
     this.flyBlend = 0; this.boostBlend = 0;
 
     body.position.y = -cfg.cgHeight;
+    mergeStatic(body);   // Leistung: ~120 Einzelteile → wenige Objekte je Material (vorher ~250 Draw-Calls nur für das eigene Auto)
 
     // ---------- Räder ----------
     this.wheels = [];

@@ -78,9 +78,16 @@ const Settings = {
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(this.KEY) || '{}')); } catch (e) { /* privat-Modus */ }
     if (this.data.quality === 'auto') {
-      // Grobe Erstschätzung: Telefone starten auf Mittel, Tablets/Rechner auf Hoch
-      const small = Math.min(screen.width, screen.height) < 500;
-      this.data.quality = small ? 'medium' : 'high';
+      // Erstschätzung: alle Touch-Geräte (iPhone UND iPad) starten auf Mittel, nur Rechner auf Hoch.
+      // In den ersten Sekunden misst das Spiel die echte Bildrate und stuft bei Bedarf weiter herunter.
+      const touch = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+      this.data.quality = touch ? 'medium' : 'high';
+      this.data.qualityAuto = true;
+    } else if (this.data.qualityAuto === undefined) {
+      // Alte Spielstände: früher bekamen iPads automatisch „Hoch“ (Hauptgrund für Ruckeln) → einmalig auf Mittel
+      const touch = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+      if (touch && this.data.quality === 'high') this.data.quality = 'medium';
+      this.data.qualityAuto = touch;   // auf Rechnern bleibt die gespeicherte Wahl unangetastet
     }
   },
   save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch (e) { /* ignorieren */ } },

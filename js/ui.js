@@ -25,6 +25,7 @@ const UI = {
         const b = e.target.closest('button'); if (!b) return;
         const key = seg.dataset.key; let val = b.dataset.v;
         if (val === 'true') val = true; else if (val === 'false') val = false;
+        if (key === 'quality') Settings.data.qualityAuto = false;   // selbst gewählt → keine Automatik mehr
         if (key === 'steering' && val === 'tilt') {
           // Neigungssensor braucht auf iOS eine Erlaubnis – direkt aus dem Tipp heraus anfragen
           Input.enableTilt().then(() => {

@@ -158,6 +158,26 @@ class Game {
     if (this.renderer.shadowMap.enabled !== sh) { this.renderer.shadowMap.enabled = sh; this.scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }
   }
 
+  /**
+   * Automatische Grafikstufe: 5 s nach dem Losfahren die echte Bildrate messen; liegt sie deutlich unter 60,
+   * eine Stufe herunter (Hoch → Mittel → Niedrig). Nur solange der Spieler die Stufe nicht selbst gewählt hat.
+   */
+  autoQuality(dt) {
+    if (!Settings.data.qualityAuto || this.paused || this.menuOpen || this.bench) return;
+    const A = this.aq || (this.aq = { t: 0, n: 0, sum: 0, done: 0 });
+    if (A.done >= 2) return;
+    A.t += dt; if (A.t < 1.5) return;                     // erste 1,5 s: Shader kompilieren, nicht werten
+    A.n++; A.sum += dt;
+    if (A.t < 6.5) return;
+    const fps = A.n / A.sum, q = Settings.data.quality;
+    A.t = 0; A.n = 0; A.sum = 0; A.done++;
+    if (fps < 50 && q !== 'low') {
+      Settings.data.quality = q === 'high' ? 'medium' : 'low'; Settings.save();
+      toast(`Grafik automatisch auf ${Settings.data.quality === 'medium' ? 'Mittel' : 'Niedrig'} (${Math.round(fps)} FPS gemessen)`, 2600);
+      this.applySettings(); UI.sync?.();
+    } else A.done = 2;
+  }
+
   resize() {
     View.update();
     const w = View.w, h = View.h;
@@ -404,6 +424,10 @@ class Game {
     // Auflösung VOR dem Rendern anpassen (ein Resize leert sonst das Bild bis zum nächsten Frame → schwarzes Bild)
     DynRes.update(this, dt);
     this.env.render(this.camera);
+    // Leistungs-Telemetrie: Draw-Calls/Dreiecke (alle Durchgänge dieses Bildes) und geglättete Bildzeit
+    { const inf = this.renderer.info.render; this.stats.perf = this.stats.perf || { calls: 0, tris: 0, ms: 16.7 };
+      this.stats.perf.calls = inf.calls; this.stats.perf.tris = inf.triangles; this.stats.perf.ms += (rawDt * 1000 - this.stats.perf.ms) * 0.05; }
+    this.autoQuality(rawDt);
 
     // FPS
     this.frames++; this.fpsTime += dt;
