@@ -277,6 +277,7 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Ragdoll beim Anfahren:** jedes Bein, jeder Arm und der Kopf ist ein eigenes gefedertes Gelenk – im Flug schlackern die Glieder und hinken der Körperdrehung nach, beim Aufschlag bekommen sie einen Stoß, liegend kommen sie in einer ungeordneten Pose zur Ruhe.
 - **Mehrere Spielerautos:** in der Garage unter Optik → Fahrzeug: Roadster, Sportlimousine, Kombi, SUV (gleiche Technik, eigene Karosserie mit Glas, Lichtern und Lackfarbe aus der Garage; Vorschau auch ohne Geld).
 - **Innenräume der Verkehrsautos:** gepolsterte Sitze mit geneigter Lehne und Kopfstütze (helle oder dunkle Polster je Modell), Mittelkonsole mit Wählhebel, Rücksitzbank, Türverkleidungen, Mitteldisplay und Kombiinstrument.
+- **Ampeln:** Mast mit Ausleger und Strebe über die Fahrbahn, je Zufahrt zwei Signalgeber (am Mast und über der Spur), schwarze Kontrasttafel mit weißem Rand, Sonnenblenden über jeder Leuchte, gelber Anforderungstaster, Mastsockel.
 
 ## Code-Aufbau
 
