@@ -2166,7 +2166,8 @@ class World {
       }
     }
     // Boulevard: Baumreihe auf dem begrünten Mittelstreifen
-    for (const e of this.edges) if (e.cls === 'avenue') for (let sv = 17; sv < e.len - 16; sv += 11) { const q = this.pointOnEdge(e, sv); this.parkTrees.push([q.x, q.z]); }
+    this.palms = [];
+    for (const e of this.edges) if (e.cls === 'avenue') for (let sv = 17; sv < e.len - 16; sv += 11) { const q = this.pointOnEdge(e, sv); this.palms.push([q.x, q.z, rng()]); }
     // Hangars am Flugplatz
     const A = WORLD.air;
     for (let k = 0; k < 3; k++) this.addBuilding(A.cx + 200 + k * 70, A.cx + 255 + k * 70, A.cz - A.hz - 50, A.cz - A.hz - 10, A.h, 14, 2, rng);
@@ -3710,6 +3711,49 @@ Object.assign(World.prototype, {
       const enm = new THREE.InstancedMesh(entGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }), Math.max(1, ent.length));
       ent.forEach((e2, i) => { dq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(e2.nx, e2.nz)); m.compose(new THREE.Vector3(e2.x, e2.y, e2.z), dq, new THREE.Vector3(1, 1, 1)); enm.setMatrixAt(i, m); });
       enm.count = ent.length; enm.receiveShadow = true; enm.frustumCulled = false; this.group.add(enm);
+    }
+
+    // Amerikanische Stadt: Feuertreppen aus Stahl an Backstein-Altbauten (je Etage Podest, Geländer, Treppe,
+    // unten Hängeleiter) und Palmen auf dem Boulevard-Mittelstreifen
+    {
+      const steel = [0.13, 0.13, 0.14], FL = 3.2, Wd = 3.4;
+      const modGeo = mergeParts([
+        { geo: new THREE.BoxGeometry(Wd, 0.05, 1.05).translate(0, 0, 0.52), color: steel },                                         // Podest (Gitterrost)
+        { geo: new THREE.BoxGeometry(Wd, 0.035, 0.035).translate(0, 0.95, 1.04), color: steel },                                    // Handlauf vorn
+        ...[-1, 1].map((sx) => ({ geo: new THREE.BoxGeometry(0.035, 0.035, 1.04).translate(sx * Wd / 2, 0.95, 0.52), color: steel })),
+        ...[-1.65, -0.8, 0, 0.8, 1.65].map((x) => ({ geo: new THREE.BoxGeometry(0.025, 0.95, 0.025).translate(x, 0.47, 1.04), color: steel })),   // Pfosten
+        ...[-1.2, -0.4, 0.4, 1.2].map((x) => ({ geo: new THREE.BoxGeometry(0.012, 0.9, 0.012).translate(x, 0.45, 1.04), color: steel })),       // Stäbe
+        { geo: new THREE.BoxGeometry(0.7, 0.04, Math.hypot(2.6, FL)).rotateX(Math.atan2(FL, 2.6) - Math.PI / 2).rotateY(Math.PI / 2).translate(0.15, FL / 2, 0.55), color: steel },   // Treppe zur nächsten Etage
+        { geo: new THREE.BoxGeometry(0.7, 0.03, 0.03).translate(0.15, FL - 0.05, 0.9), color: steel },
+      ]);
+      const list = [];
+      const isAltB = (b) => b.kind === 1 && b.h < 30 && b.tint < 0.5 && b.y0 === C.h;
+      for (const b of this.buildings) {
+        if (!isAltB(b) || b.x1 - b.x0 < 8) continue;
+        const nz = b.tint < 0.25 ? -1 : 1, fz = nz < 0 ? b.z0 : b.z1, cx = (b.x0 + b.x1) / 2 + (b.tint * 40 % 1 - 0.5) * (b.x1 - b.x0 - 6);
+        for (let y = C.h + FL + 0.9; y < b.top - 2.5; y += FL) list.push([cx, y, fz, nz]);
+      }
+      const im = new THREE.InstancedMesh(modGeo, new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.6, roughness: 0.55 }), Math.max(1, list.length));
+      const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+      list.forEach(([x, y, z, nz], i) => { q.setFromAxisAngle(up, nz < 0 ? Math.PI : 0); m.compose(new THREE.Vector3(x, y, z + nz * 0.02), q, one); im.setMatrixAt(i, m); });
+      im.count = list.length; im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; this.group.add(im);
+      this.fireEscapes = list.length;
+      // Palmen: gebogener Stamm mit Ringen, Krone aus 9 herabhängenden Wedeln
+      const pal = [];
+      const trunkPts = [], segs = 8;
+      for (let k = 0; k <= segs; k++) { const t = k / segs; trunkPts.push(new THREE.Vector3(Math.sin(t * 1.4) * 0.6, t * 9.5, 0)); }
+      pal.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(trunkPts), 12, 0.2, 7, false), color: [0.45, 0.38, 0.3] });
+      for (let k = 1; k < 14; k++) { const t = k / 14, pp = new THREE.Vector3(Math.sin(t * 1.4) * 0.6, t * 9.5, 0); pal.push({ geo: new THREE.TorusGeometry(0.21 - t * 0.04, 0.025, 4, 10).rotateX(Math.PI / 2).translate(pp.x, pp.y, 0), color: [0.36, 0.3, 0.24] }); }
+      const top = trunkPts[segs];
+      for (let k = 0; k < 9; k++) {
+        const a = k / 9 * Math.PI * 2, fr = [];
+        for (let j = 0; j <= 6; j++) { const t = j / 6; fr.push(new THREE.Vector3(Math.cos(a) * t * 3.4, 0.6 * Math.sin(t * Math.PI * 0.8) - t * t * 1.9, Math.sin(a) * t * 3.4)); }
+        const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(fr), 10, 0.18, 3, false).scale(1, 0.35, 1);
+        g.translate(top.x, top.y, top.z); pal.push({ geo: g, color: k % 2 ? [0.2, 0.42, 0.14] : [0.26, 0.48, 0.17] });
+      }
+      const pm = new THREE.InstancedMesh(mergeParts(pal), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide }), Math.max(1, this.palms.length));
+      this.palms.forEach(([x, z, r], i) => { q.setFromAxisAngle(up, r * Math.PI * 2); m.compose(new THREE.Vector3(x, C.h + 0.18, z), q, new THREE.Vector3(0.9 + r * 0.3, 0.9 + r * 0.35, 0.9 + r * 0.3)); pm.setMatrixAt(i, m); });
+      pm.count = this.palms.length; pm.castShadow = true; pm.receiveShadow = true; pm.frustumCulled = false; this.group.add(pm);
     }
 
     // Ampeln: Mast mit Ausleger über die Fahrbahn, je Zufahrt zwei Signalgeber (am Mast und über der Spur),
