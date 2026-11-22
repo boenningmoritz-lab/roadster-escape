@@ -79,7 +79,8 @@ const Input = {
     this.bindStick();
 
     // Browser-Gesten unterbinden: Scrollen, Pinch-Zoom, Doppeltipp, Kontextmenü, Markieren
-    const stop = (e) => e.preventDefault();
+    // Wischen im Spiel sperren (kein Safari-Scrollen/Zoomen) – aber nicht in Menüs und Listen, die man scrollen muss
+    const stop = (e) => { if (e.target && e.target.closest && e.target.closest('.panel, #gList, .scrollable')) return; e.preventDefault(); };
     document.addEventListener('touchmove', stop, { passive: false });
     document.addEventListener('touchstart', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
     document.addEventListener('contextmenu', stop);
