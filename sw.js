@@ -1,6 +1,6 @@
 // Service Worker: macht das Spiel offline spielbar (nach dem ersten Laden).
 // Bei jeder Änderung an den Dateien VERSION erhöhen, damit Geräte die neue Fassung laden.
-const VERSION = 'roadster-escape-v6';
+const VERSION = 'roadster-escape-v7';
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
 const FILES = [
   "./",
@@ -9,6 +9,26 @@ const FILES = [
   "css/style.css",
   "icons/icon-192.png",
   "icons/icon-512.png",
+  "js/assets.js",
+  "assets/sky.hdr",
+  "assets/tex/asphalt_02_diff.jpg",
+  "assets/tex/asphalt_02_nor.jpg",
+  "assets/tex/asphalt_02_rough.jpg",
+  "assets/tex/beige_wall_001_diff.jpg",
+  "assets/tex/beige_wall_001_nor.jpg",
+  "assets/tex/beige_wall_001_rough.jpg",
+  "assets/tex/bitumen_diff.jpg",
+  "assets/tex/bitumen_nor.jpg",
+  "assets/tex/bitumen_rough.jpg",
+  "assets/tex/brick_wall_02_diff.jpg",
+  "assets/tex/brick_wall_02_nor.jpg",
+  "assets/tex/brick_wall_02_rough.jpg",
+  "assets/tex/concrete_pavement_diff.jpg",
+  "assets/tex/concrete_pavement_nor.jpg",
+  "assets/tex/concrete_pavement_rough.jpg",
+  "assets/tex/concrete_wall_008_diff.jpg",
+  "assets/tex/concrete_wall_008_nor.jpg",
+  "assets/tex/concrete_wall_008_rough.jpg",
   "js/audio.js",
   "js/camera.js",
   "js/config.js",

@@ -3,6 +3,7 @@ import { clamp, lerp, smoothstep } from '../config.js';
 import { mulberry32, hash2, vnoise, fbm, ridged, tick } from './noise.js';
 import { makeWedge, makeNoiseTexture } from '../environment.js';
 import { genHouses, buildHouses, onHousePlot } from './suburb.js';
+import { photoTex } from '../assets.js';
 
 // ============================== Welt-Konstanten ==============================
 const WORLD = {
@@ -1147,14 +1148,14 @@ function makeRoadTexture(kind) {
     g.addColorStop(0, 'rgba(20,16,10,0)'); g.addColorStop(0.5, 'rgba(20,16,10,0.12)'); g.addColorStop(1, 'rgba(20,16,10,0)');
     ctx.fillStyle = g; ctx.fillRect((centerM - 0.35) * pxm, 0, 0.7 * pxm, Hh);
   };
-  const white = 'rgba(232,232,224,0.86)';
+  const white = 'rgba(232,232,224,0.86)', yellow = 'rgba(232,184,40,0.9)';   // USA: gelb trennt Gegenverkehr, weiß gleiche Richtung
   if (kind === 'highway') {
     const c = 11;
     for (const s of [-1, 1]) {
       tracks(c + s * 2.7); tracks(c + s * 6.3);
       band(c + s * 8.1 - (s > 0 ? 0 : 0.25), 0.25, white);                 // Randlinie
       band(c + s * 4.5 - 0.075, 0.15, white, 6, 18);                         // Leitlinie
-      band(c + s * 0.9 - (s > 0 ? 0 : 0.15), 0.15, white);                   // innere Randlinie
+      band(c + s * 0.9 - (s > 0 ? 0 : 0.15), 0.15, yellow);                  // innere Randlinie (gelb)
       ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(s > 0 ? (c + 8.3) * pxm : 0, 0, 2.7 * pxm, Hh); // Standstreifen
     }
     ctx.fillStyle = '#6d6e6f'; ctx.fillRect((c - 0.6) * pxm, 0, 1.2 * pxm, Hh);  // Mittelstreifen (Beton)
@@ -1162,12 +1163,12 @@ function makeRoadTexture(kind) {
     const c = 4.2;
     tracks(c - 2); tracks(c + 2);
     band(0.35, 0.12, white); band(8.4 - 0.47, 0.12, white);
-    band(c - 0.06, 0.12, white, 3, 9);
+    band(c - 0.17, 0.11, yellow); band(c + 0.06, 0.11, yellow, 3, 9);   // gelbe Mittellinie: durchgezogen + unterbrochen
   } else if (kind === 'avenue') {
     const c = 11;   // zwei Spuren je Richtung, Parkstreifen außen
     for (const sg of [-1, 1]) {
       tracks(c + sg * 2.9); tracks(c + sg * 6.3);
-      band(c + sg * 1.25 - 0.07, 0.14, white);                 // Begrenzung zum Mittelstreifen
+      band(c + sg * 1.25 - 0.07, 0.14, yellow);                // Begrenzung zum Mittelstreifen (gelb)
       band(c + sg * 4.6 - 0.07, 0.14, white, 3, 9);            // Leitlinie
       band(c + sg * 8.35 - 0.06, 0.12, 'rgba(236,236,230,0.6)');   // Parkstreifen
     }
@@ -1175,8 +1176,8 @@ function makeRoadTexture(kind) {
   } else if (kind === 'city') {
     const c = 7;
     tracks(c - 2.4); tracks(c + 2.4);
-    band(c - 0.07, 0.14, white, 3, 9);
-    band(c - 4.6, 0.12, 'rgba(236,236,230,0.6)'); band(c + 4.48, 0.12, 'rgba(236,236,230,0.6)');
+    band(c - 0.2, 0.11, yellow); band(c + 0.09, 0.11, yellow);           // doppelte gelbe Mittellinie
+    band(c - 4.6, 0.12, white); band(c + 4.48, 0.12, white);           // Parkstreifen
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 0, 0.35 * pxm, Hh); ctx.fillRect(W - 0.35 * pxm, 0, 0.35 * pxm, Hh);
   } else if (kind === 'runway') {
     band(1.5, 1, white); band(57.5, 1, white);
@@ -1193,6 +1194,40 @@ function makeRoadTexture(kind) {
   t.anisotropy = 8;
   t.userData.len = spec.len; t.userData.w = spec.w;
   return t;
+}
+
+/**
+ * Foto-Material (CC0) auf eine Bodenfläche legen: Normal- und Rauheitskarte plus Foto-Farbe.
+ * uvMode 'uv': Kachelung über die Geometrie-UV × rep; 'world': Weltkoordinaten (x, z) / rep.x Meter.
+ * Die bisherige (gemalte) Farbe bleibt als Muster erhalten: Markierungen, Fahrspuren, Flicken.
+ */
+function applyPhoto(m, name, rep, uvMode = 'uv', opts = {}) {
+  m.normalMap = photoTex(name, 'nor'); m.normalScale = new THREE.Vector2(opts.nScale ?? 0.9, opts.nScale ?? 0.9);
+  m.roughnessMap = photoTex(name, 'rough'); m.roughness = opts.rough ?? 1; m.bumpMap = null;
+  const dif = photoTex(name, 'diff'), prev = m.onBeforeCompile, ref = opts.ref ?? 0.1, mark = opts.mark ?? true;
+  m.onBeforeCompile = (sh, r) => {
+    if (prev) prev.call(m, sh, r);
+    sh.uniforms.uPhoto = { value: dif }; sh.uniforms.uRep = { value: rep };
+    const uvc = uvMode === 'world' ? 'vec2 puv = (modelMatrix * vec4(position, 1.0)).xz / uRep.x;' : 'vec2 puv = uv * uRep;';
+    sh.vertexShader = 'uniform vec2 uRep; varying vec2 vPhUv;\n' + sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+      { ${uvc} vPhUv = puv;
+      #ifdef USE_NORMALMAP
+        vNormalMapUv = puv;
+      #endif
+      #ifdef USE_ROUGHNESSMAP
+        vRoughnessMapUv = puv;
+      #endif
+      }`);
+    sh.fragmentShader = 'uniform sampler2D uPhoto; varying vec2 vPhUv;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      { vec3 ph = texture2D(uPhoto, vPhUv).rgb;
+        float mk = ${mark ? 'smoothstep(0.22, 0.42, max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)))' : '0.0'};   // helle Markierung
+        vec3 pat = clamp(diffuseColor.rgb / ${ref.toFixed(3)}, 0.45, 1.6);                // gemaltes Muster (Spuren, Flicken)
+        diffuseColor.rgb = mix(ph * pat, diffuseColor.rgb * (0.7 + 2.2 * ph), mk); }`);
+  };
+  const prevKey = prev ? prev.toString() + (m.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey ? m.customProgramCacheKey() : '') : '';
+  m.customProgramCacheKey = () => 'photo|' + uvMode + '|' + mark + '|' + ref + '|' + prevKey;
+  m.needsUpdate = true;
+  return m;
 }
 
 /** Fassaden-Textur (Farbe + nächtliche Fenster). Kachel = 8 Fenster × 8 Etagen. */
@@ -1504,9 +1539,10 @@ Object.assign(World.prototype, {
     this.wetMats = this.wetMats || [];
     const grain = makeGrainTexture();
     const roadMat = (tex) => {
-      const bump = grain.clone(); bump.repeat.set(tex.userData.w / 3, tex.userData.len / 3); bump.needsUpdate = true;
-      const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0, bumpMap: bump, bumpScale: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+      const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
       this.addPuddles(m);
+      // Foto-Asphalt (CC0) mit Splitt, Rissen, Normal- und Rauheitskarte; eine Kachel = 4 m
+      applyPhoto(m, 'asphalt_02', new THREE.Vector2(tex.userData.w / 4, tex.userData.len / 4), 'uv', { ref: 0.1 });
       this.wetMats.push(m); return m;
     };
     const byCls = (c) => this.edges.filter((e) => e.cls === c);
@@ -1668,9 +1704,10 @@ Object.assign(World.prototype, {
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(C.x1 - C.x0 + 28, C.z1 - C.z0 + 28),
       new THREE.MeshStandardMaterial({ map: plain, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(C.cx, C.h + 0.03, C.cz); ground.receiveShadow = true;
+    applyPhoto(ground.material, 'asphalt_02', new THREE.Vector2(4, 4), 'world', { ref: 0.1, mark: false });   // Kreuzungen: Foto-Asphalt
     this.wetMats.push(ground.material);
     this.group.add(ground);
-    const slabMat = new THREE.MeshStandardMaterial({ map: makePavingTexture(), roughness: 0.88 });
+    const slabMat = new THREE.MeshStandardMaterial({ roughness: 0.88 });   // Gehweg: amerikanische Betonplatten (Foto, CC0)
     // Plattenmuster in Weltkoordinaten (gleich große Platten auf jedem Block)
     this.wetMats.push(slabMat);
     // Gehweg-Blöcke mit abgerundeten Ecken (Radius 3 m) statt rechtwinkliger Kanten – wie echte Kreuzungen,
@@ -1688,9 +1725,7 @@ Object.assign(World.prototype, {
     }
     const slabGeo = mergeParts(parts);
     slabGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(slabGeo.attributes.position.count * 2), 2));
-    slabMat.onBeforeCompile = (sh) => {
-      sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n vec4 pwp = modelMatrix * vec4(position, 1.0); vMapUv = pwp.xz / 3.0;');
-    };
+    applyPhoto(slabMat, 'concrete_pavement', new THREE.Vector2(3, 3), 'world', { ref: 1, mark: false, nScale: 1 });
     const slab = new THREE.Mesh(slabGeo, slabMat);
     const m = new THREE.Matrix4(), col = new THREE.Color();
     slab.receiveShadow = true; this.group.add(slab);
@@ -1704,7 +1739,11 @@ Object.assign(World.prototype, {
         roughness: kind === 0 ? 0.55 : 0.88, metalness: 0.0, envMapIntensity: kind === 0 ? 1.7 : 1.2,
       });
       const glow = this.windowGlow;
+      // Foto-Wände (CC0): A/B je nach Gebäude (vSeed < uSplit → A), Bitumen auf Flachdächern
+      const WALL = { 0: ['concrete_wall_008', 'concrete_wall_008', 1, 0.75], 1: ['brick_wall_02', 'concrete_wall_008', 0.55, 0.9], 3: ['brick_wall_02', 'beige_wall_001', 0.7, 0.95] }[kind] || ['concrete_wall_008', 'concrete_wall_008', 1, 0.8];
+      const wallU = { uWallA: { value: photoTex(WALL[0], 'diff') }, uWallB: { value: photoTex(WALL[1], 'diff') }, uRoofTex: { value: photoTex('bitumen', 'diff') }, uSplit: { value: WALL[2] }, uWallAmt: { value: WALL[3] } };
       mat.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, wallU);
         sh.uniforms.uGlow = glow;
         sh.vertexShader = 'varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed; varying vec3 vFW; varying vec3 vFN;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
           mat4 fm = modelMatrix * instanceMatrix;
@@ -1718,7 +1757,7 @@ Object.assign(World.prototype, {
         sh.fragmentShader = 'uniform float uGlow; varying vec2 vFac; varying float vRoof; varying float vAO; varying float vHA; varying float vSeed; varying vec3 vFW; varying vec3 vFN;\n' +
           'float fHs(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n' +
           'float fVn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(fHs(i), fHs(i + vec2(1, 0)), f.x), mix(fHs(i + vec2(0, 1)), fHs(i + vec2(1, 1)), f.x), f.y); }\n' +
-          'float facGrain = 0.5; float facDirt = 0.0;\n' + sh.fragmentShader
+          'float facGrain = 0.5; float facDirt = 0.0;\nuniform sampler2D uWallA; uniform sampler2D uWallB; uniform sampler2D uRoofTex; uniform float uSplit; uniform float uWallAmt;\n' + sh.fragmentShader
           .replace('#include <map_fragment>', 'vec4 facCol = texture2D(map, vFac);' +
             // Parallaxe: Fensterscheibe liegt ~25 cm hinter der Fassade → seitlich sichtbare Laibung (Schattenkante)
             ' { vec3 V = normalize(cameraPosition - vFW); float vn = max(abs(dot(V, vFN)), 0.25);' +
@@ -1727,7 +1766,7 @@ Object.assign(World.prototype, {
             '   float gHere = 1.0 - smoothstep(0.06, 0.2, dot(facCol.rgb, vec3(0.299, 0.587, 0.114)));' +
             '   float gIn = 1.0 - smoothstep(0.06, 0.2, dot(inner.rgb, vec3(0.299, 0.587, 0.114)));' +
             '   if (vRoof < 0.5 && gHere > 0.5 && gIn < 0.5) facCol.rgb = inner.rgb * 0.45; }' +
-            ' if (vRoof > 0.5) facCol = vec4(vec3(0.3, 0.3, 0.31), 1.0); diffuseColor *= facCol;' +
+            ' if (vRoof > 0.5) facCol = vec4(texture2D(uRoofTex, vFW.xz / 4.0).rgb * 0.95, 1.0); diffuseColor *= facCol;' +
             // Erdgeschoss: Ladenzeile mit großen Schaufenstern und farbigem Schild
             ' float shop = (1.0 - step(0.5, vRoof)) * (1.0 - step(4.2, vHA)); float bay = fract(vFac.x * 7.0);' +
             ' float glassZ = step(0.35, vHA) * step(vHA, 3.05) * step(0.07, bay) * step(bay, 0.93); float signZ = step(3.3, vHA) * step(vHA, 3.95) * step(0.03, bay) * step(bay, 0.97);' +
@@ -1764,7 +1803,11 @@ Object.assign(World.prototype, {
             '   float base = 1.0 - smoothstep(0.0, 2.6, vHA);' +
             '   float dirt = clamp(streak * 0.55 + base * 0.35 + (blot - 0.45) * 0.55, 0.0, 0.62) * (1.0 - facWin * 0.6);' +
             '   diffuseColor.rgb *= (0.84 + grain * 0.32) * (1.0 - dirt) * mix(vec3(0.96, 0.98, 1.0), vec3(1.05, 0.97, 0.86), blot);' +
-            '   facGrain = grain; facDirt = dirt; }' +
+            '   facGrain = grain; facDirt = dirt;' +
+            // Foto-Wand zwischen den Fenstern (Backstein, Beton, Putz) – Fenster und Ladenzeile bleiben
+            '   vec2 wp = fp / 2.6; vec3 wall = vSeed < uSplit ? texture2D(uWallA, wp).rgb : texture2D(uWallB, wp).rgb;' +
+            '   float wm = (1.0 - facWin) * (1.0 - shop) * uWallAmt;' +
+            '   diffuseColor.rgb = mix(diffuseColor.rgb, wall * vAO * (1.0 - dirt * 0.5), wm); }' +
             // Fensterflächen: glatt (spiegeln Himmel und Nachbarhäuser, v. a. im flachen Winkel)
             ' float winMask = (1.0 - smoothstep(0.06, 0.2, dot(facCol.rgb, vec3(0.299, 0.587, 0.114)))) * (1.0 - step(0.5, vRoof));' +
             ' if (shop > 0.5) winMask = glassZ;')

@@ -31,6 +31,17 @@ def main():
         src = IMP_EXT.sub('', IMP_LOCAL.sub('', src))
         src = EXPORT.sub('', src)
         body.append(f'// ---- {os.path.relpath(m, ROOT)} ----\n' + src.strip() + '\n')
+    # Assets (Foto-Texturen, HDRI) als data:-URLs in js/assets.js einbetten
+    import base64, json
+    adir = os.path.join(ROOT, 'assets'); emb = {}
+    mime = {'.jpg': 'image/jpeg', '.png': 'image/png', '.hdr': 'application/octet-stream'}
+    for dp, _, fs in os.walk(adir):
+        for f in sorted(fs):
+            fext = os.path.splitext(f)[1]
+            if fext not in mime: continue
+            rel = os.path.relpath(os.path.join(dp, f), adir).replace(os.sep, '/')
+            emb[rel] = f'data:{mime[fext]};base64,' + base64.b64encode(open(os.path.join(dp, f), 'rb').read()).decode()
+    body = [b.replace('/*ASSETS*/null', json.dumps(emb)) for b in body]
     html = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
     css = open(os.path.join(ROOT, 'css', 'style.css'), encoding='utf-8').read()
     html = html.replace('<link rel="stylesheet" href="css/style.css">', '<style>\n' + css + '</style>')

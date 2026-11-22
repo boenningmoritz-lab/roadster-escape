@@ -3,6 +3,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { assetUrl } from './assets.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { clamp, smoothstep, Settings } from './config.js';
@@ -30,11 +32,12 @@ class Environment {
     this.uniforms = {
       uTop: { value: new THREE.Color(0x2f6fd0) }, uHorizon: { value: new THREE.Color(0xbcd6ea) },
       uSunDir: { value: this.sunDir.clone() }, uNight: { value: 0 }, uTime: { value: 0 }, uClouds: { value: this.q.clouds ? (this.q.physicalPaint ? 2 : 1) : 0 }, uCover: { value: 1 }, uGrey: { value: 0 },
+      uHdri: { value: null }, uHdriMix: { value: 0 }, uHdriGain: { value: 0.55 },   // Fotohimmel (HDRI) tagsüber
     };
     const mat = new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false, uniforms: this.uniforms,
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w; }`,
-      fragmentShader: `uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform float uNight; uniform float uTime; uniform float uClouds; uniform float uCover; uniform float uGrey;
+      fragmentShader: `uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform float uNight; uniform float uTime; uniform float uClouds; uniform float uCover; uniform float uGrey; uniform sampler2D uHdri; uniform float uHdriMix; uniform float uHdriGain;
         varying vec3 vDir;
         float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -100,6 +103,14 @@ class Environment {
             cc *= 1.0 - 0.42 * clamp(cv, 0.0, 1.0);
             col = mix(col, cc, c * smoothstep(0.0, 0.16, d.y) * 0.92);
           }
+          // Fotohimmel: echtes HDRI (Wolken, Sonne, Himmelsverlauf) – bei Bewölkung/Regen zurück zum berechneten Himmel
+          float hm = uHdriMix * (1.0 - clamp(uGrey * 1.5, 0.0, 1.0));
+          if (hm > 0.0) {
+            vec2 hu = vec2(atan(d.z, d.x) * 0.15915494 + 0.5, asin(clamp(d.y, -1.0, 1.0)) * 0.31830989 + 0.5);
+            vec3 hc = texture2D(uHdri, hu).rgb * uHdriGain;
+            if (d.y < 0.0) hc = mix(hc, uHorizon * 0.6, clamp(-d.y * 4.0, 0.0, 1.0));
+            col = mix(col, hc, hm);
+          }
           gl_FragColor = vec4(col, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -114,6 +125,7 @@ class Environment {
     this.envScene.add(this.envGround);
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     this.composer = null;
+    this.loadHdri();
   }
 
   /** Bloom-Nachbearbeitung (nur Grafikstufe „Hoch“). */
@@ -197,7 +209,25 @@ class Environment {
     if (this.grade) this.grade.uniforms.uTexel.value.set(1 / (w * pr), 1 / (h * pr));   // Nachschärfen pixelgenau
   }
 
+  /** Foto-HDRI laden; Sonnenrichtung aus dem hellsten Pixel bestimmen (Licht und Schatten passen zum Foto). */
+  loadHdri() {
+    new RGBELoader().load(assetUrl('sky.hdr'), (tex) => {
+      const img = tex.image, W = img.width, H = img.height, d = img.data;
+      const f = d instanceof Uint16Array ? THREE.DataUtils.fromHalfFloat : (x) => x;
+      let best = -1, bi = 0;
+      for (let i = 0; i < W * H; i++) { const l = f(d[i * 4]) + f(d[i * 4 + 1]) + f(d[i * 4 + 2]); if (l > best) { best = l; bi = i; } }
+      const r = Math.floor(bi / W), c = bi % W, u = (c + 0.5) / W, v = 1 - (r + 0.5) / H;
+      const phi = (u - 0.5) * Math.PI * 2, lat = (v - 0.5) * Math.PI;
+      this.hdriSun = new THREE.Vector3(Math.cos(phi) * Math.cos(lat), Math.sin(lat), Math.sin(phi) * Math.cos(lat)).normalize();
+      if (this.hdriSun.y < 0.25) { this.hdriSun.y = 0.45; this.hdriSun.normalize(); }
+      tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+      this.uniforms.uHdri.value = tex;
+      const g = window.__game; if (g?.timeOfDay && g.setTimeOfDay) g.setTimeOfDay(g.timeOfDay); else if (this.mode) this.setTime(this.mode);   // Licht, Wetter, Reflexionen neu
+    }, undefined, () => { /* ohne HDRI: berechneter Himmel bleibt */ });
+  }
+
   setTime(mode) {
+    this.mode = mode;
     const night = mode === 'night', dusk = mode === 'dusk';
     this.night = night;
     const u = this.uniforms;
@@ -222,6 +252,7 @@ class Environment {
     } else {
       u.uTop.value.set(0x2f6fd0); u.uHorizon.value.set(0xbcd6ea);
       this.sunDir.set(-0.5, 0.5, 0.42).normalize();
+      if (this.hdriSun) this.sunDir.copy(this.hdriSun);                 // Sonne steht dort, wo sie im Foto-Himmel ist
       this.sun.color.set(0xffe9cf); this.sun.intensity = 3.2;
       this.hemi.color.set(0xbfdcff); this.hemi.groundColor.set(0x5a6040); this.hemi.intensity = 0.85;
       this.scene.fog.color.set(0xbcd6ea); this.scene.fog.near = 340; this.scene.fog.far = this.q.fogFar * 1.4;    // leichter Dunst, Ferne bleibt sichtbar
@@ -229,6 +260,7 @@ class Environment {
       this.envGround.material.color.set(0x4a5236);
     }
     u.uSunDir.value.copy(this.sunDir);
+    u.uHdriMix.value = !night && !dusk && u.uHdri.value ? 1 : 0;
     // Reflexionen aus dem aktuellen Himmel neu berechnen
     const old = this.scene.environment;
     this.scene.environment = this.pmrem.fromScene(this.envScene, 0.03).texture;

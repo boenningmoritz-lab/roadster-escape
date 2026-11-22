@@ -281,6 +281,10 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Stadtbus** im Verkehr (4 %, gelb/rot/blau): durchgehendes Fensterband aus echtem Glas, Sitzreihen mit Fahrgästen, Haltestangen, Fahrerplatz mit Lenkrad und Fahrer, Türen rechts, leuchtende Zielanzeige. Fährt in Stadt und Land, nicht in Kreisel und Parkstraße, wird nicht geparkt.
 - **Ego-Sicht in Limousine, Kombi, SUV:** eigenes Dach und lackierte A-Säulen, Fahrgastraum-Oberseite der Karosserie ausgeschnitten → das ausführliche Cockpit (Armaturen, Displays, Lenkrad, Hände, Sitze) bleibt sichtbar; der Roadster-Scheibenrahmen nur noch beim Roadster.
 
+## Fotomaterialien (CC0)
+- **Straßen:** Foto-Asphalt mit Normal-/Rauheitskarte (4-m-Kachel), gemalte Spuren/Flicken bleiben als Muster; amerikanische Markierungen (doppelte gelbe Mittellinie, gelber Innenrand, weiße Leitlinien). **Gehwege:** Betonplatten. **Fassaden:** Foto-Wände zwischen den Fenstern (Beton bei Bürotürmen, Backstein/Beton gemischt, Altbauten Backstein oder Putz), Flachdächer Bitumen. **Himmel:** echtes HDRI tagsüber, Sonne steht wie im Foto; bei Bewölkung/Regen, abends und nachts weiter der berechnete Himmel.
+Texturen und Himmels-HDRI von [Poly Haven](https://polyhaven.com) (Lizenz CC0, frei nutzbar): asphalt_02, concrete_pavement, brick_wall_02, concrete_wall_008, beige_wall_001, bitumen, HDRI kloofendal_48d_partly_cloudy_puresky. Abgelegt in `assets/` (1024 px, JPG), im Einzeldatei-Build als data:-URLs eingebettet.
+
 ## Code-Aufbau
 
 ```
