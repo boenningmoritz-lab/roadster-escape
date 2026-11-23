@@ -88,8 +88,13 @@ class StreetLife {
       bench: { parts: [{ geo: new THREE.BoxGeometry(1.7, 0.06, 0.45).translate(0, 0.45, 0), color: wood }, { geo: new THREE.BoxGeometry(1.7, 0.35, 0.05).translate(0, 0.72, 0.2), color: wood },
         { geo: new THREE.BoxGeometry(0.06, 0.45, 0.45).translate(-0.75, 0.225, 0), color: dark }, { geo: new THREE.BoxGeometry(0.06, 0.45, 0.45).translate(0.75, 0.225, 0), color: dark }], r: 0.9, h: 0.9, mass: 45 },
       hydrant: { parts: [{ geo: new THREE.CylinderGeometry(0.13, 0.15, 0.7, 12).translate(0, 0.35, 0), color: red }, { geo: new THREE.SphereGeometry(0.13, 12, 8).translate(0, 0.7, 0), color: red }, { geo: new THREE.CylinderGeometry(0.05, 0.05, 0.36, 8).rotateZ(Math.PI / 2).translate(0, 0.45, 0), color: red }], r: 0.25, h: 0.85, mass: 60 },
+      // Zeitungsboxen (USA): bunte Metallkästen mit Sichtfenster und Münzschlitz, auf kurzem Sockel
+      newsbox: { parts: [{ geo: new THREE.BoxGeometry(0.5, 0.25, 0.45).translate(0, 0.12, 0), color: dark },
+        { geo: new THREE.BoxGeometry(0.52, 0.75, 0.47).translate(0, 0.62, 0), color: [0.12, 0.3, 0.62] },
+        { geo: new THREE.BoxGeometry(0.4, 0.3, 0.01).translate(0, 0.72, -0.24), color: [0.75, 0.78, 0.8] },
+        { geo: new THREE.BoxGeometry(0.1, 0.06, 0.02).translate(0.15, 0.95, -0.24), color: [0.6, 0.6, 0.6] }], r: 0.35, h: 1.0, mass: 35 },
     };
-    const order = ['bin', 'meter', 'bollard', 'bench', 'meter', 'hydrant', 'bin', 'bollard'];
+    const order = ['bin', 'meter', 'newsbox', 'bench', 'meter', 'hydrant', 'bin', 'newsbox'];
     this.props = [];
     const pmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 });
     // Positionen: zwischen den Laternen, 0,7 m hinter dem Bordstein (Möbel) bzw. an der Hauswand (Bänke)

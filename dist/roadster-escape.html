@@ -3713,6 +3713,94 @@ Object.assign(World.prototype, {
       enm.count = ent.length; enm.receiveShadow = true; enm.frustumCulled = false; this.group.add(enm);
     }
 
+    // Amerikanische Straßenausstattung:
+    //  - Holz-Strommasten mit Querträger, Isolatoren und Trafo, durchhängende Leitungen von Mast zu Mast
+    //  - Klimageräte und Lüftungshauben auf Flachdächern
+    //  - Ölflecken, Reifenabrieb und Asphaltflicken als flache Abziehbilder auf der Fahrbahn
+    {
+      const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+      const rnd = mulberry32(WORLD.seed + 77);
+      const wood = [0.32, 0.24, 0.17], dk = [0.12, 0.12, 0.13];
+      const poleGeo = mergeParts([
+        { geo: new THREE.CylinderGeometry(0.13, 0.17, 10.5, 8).translate(0, 5.25, 0), color: wood },
+        { geo: new THREE.BoxGeometry(2.6, 0.14, 0.12).translate(0, 9.6, 0), color: wood },
+        { geo: new THREE.BoxGeometry(1.6, 0.12, 0.1).translate(0, 8.7, 0), color: wood },
+        ...[-1.2, -0.45, 0.45, 1.2].map((x) => ({ geo: new THREE.CylinderGeometry(0.05, 0.06, 0.18, 6).translate(x, 9.76, 0), color: [0.75, 0.78, 0.7] })),
+        { geo: new THREE.CylinderGeometry(0.28, 0.28, 0.75, 10).translate(0.3, 7.6, 0.25), color: [0.5, 0.52, 0.5] },   // Trafo
+      ]);
+      const poles = [], wires = [];
+      for (const e of this.edges) {
+        if (e.cls !== 'city') continue;
+        const sd = (e.id % 2) ? 1 : -1, hw = e.C.halfW + 0.6;
+        let prev = null;
+        for (let sv = 14; sv <= e.len - 14; sv += 36) {
+          const p = this.pointOnEdge(e, sv), x = p.x - p.tz * sd * hw, z = p.z + p.tx * sd * hw;
+          poles.push([x, z, Math.atan2(p.tx, p.tz), rnd() < 0.3]);
+          if (prev) for (const off of [-1.2, -0.45, 0.45, 1.2]) {
+            const ax = prev[0] + Math.cos(prev[2]) * off, az = prev[1] - Math.sin(prev[2]) * off, bx = x + Math.cos(prev[2]) * off, bz = z - Math.sin(prev[2]) * off;
+            const pts = []; for (let k = 0; k <= 8; k++) { const t = k / 8; pts.push(new THREE.Vector3(ax + (bx - ax) * t, C.h + 9.85 - Math.sin(t * Math.PI) * 0.7, az + (bz - az) * t)); }
+            wires.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.018, 3, false), color: [0.05, 0.05, 0.05] });
+          }
+          prev = [x, z, Math.atan2(p.tx, p.tz)];
+        }
+      }
+      const pim = new THREE.InstancedMesh(poleGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }), Math.max(1, poles.length));
+      poles.forEach(([x, z, yaw], i) => { q.setFromAxisAngle(up, yaw + Math.PI / 2); m.compose(new THREE.Vector3(x, C.h + 0.1, z), q, one); pim.setMatrixAt(i, m); });
+      pim.count = poles.length; pim.castShadow = true; pim.receiveShadow = true; pim.frustumCulled = false; this.group.add(pim);
+      if (wires.length) { const wm = new THREE.Mesh(mergeParts(wires), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })); this.group.add(wm); }
+      // Dachaufbauten: Klimageräte (Kasten mit Lüfterkreis) und Lüftungshauben auf Flachdächern
+      const acGeo = mergeParts([
+        { geo: new THREE.BoxGeometry(2.2, 1.1, 1.4).translate(0, 0.55, 0), color: [0.72, 0.73, 0.72] },
+        { geo: new THREE.CylinderGeometry(0.42, 0.42, 0.06, 14).translate(-0.5, 1.13, 0), color: [0.15, 0.15, 0.16] },
+        { geo: new THREE.CylinderGeometry(0.42, 0.42, 0.06, 14).translate(0.5, 1.13, 0), color: [0.15, 0.15, 0.16] },
+        { geo: new THREE.BoxGeometry(2.25, 0.08, 1.45).translate(0, 0.04, 0), color: [0.4, 0.4, 0.4] },
+        { geo: new THREE.CylinderGeometry(0.25, 0.25, 0.9, 10).translate(1.8, 0.45, 0.6), color: [0.62, 0.63, 0.64] },
+        { geo: new THREE.ConeGeometry(0.4, 0.3, 10).translate(1.8, 1.05, 0.6), color: [0.55, 0.56, 0.57] },
+      ]);
+      const acs = [];
+      for (const b of this.buildings) {
+        if (b.y0 < C.h - 1 || b.x1 - b.x0 < 10 || b.z1 - b.z0 < 10 || (this.roofs || []).some((r) => r.x0 === b.x0 && r.z0 === b.z0 && r.y === b.top)) continue;
+        const n = 1 + Math.floor(rnd() * 3);
+        for (let k = 0; k < n; k++) acs.push([lerp(b.x0 + 3, b.x1 - 3, rnd()), b.top, lerp(b.z0 + 3, b.z1 - 3, rnd()), rnd() * Math.PI]);
+      }
+      const aim = new THREE.InstancedMesh(acGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.3 }), Math.max(1, acs.length));
+      acs.forEach(([x, y, z, r], i) => { q.setFromAxisAngle(up, r); m.compose(new THREE.Vector3(x, y, z), q, one); aim.setMatrixAt(i, m); });
+      aim.count = acs.length; aim.castShadow = true; aim.receiveShadow = true; aim.frustumCulled = false; this.group.add(aim);
+      // Fahrbahn-Abziehbilder: Ölflecken in Spurmitte, dunkle Asphaltflicken (Canvas-Textur mit weichem Rand)
+      const decTex = (() => {
+        const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const c = cv.getContext('2d');
+        c.clearRect(0, 0, S, S);
+        for (let k = 0; k < 14; k++) {   // Ölfleck (linke Hälfte)
+          const x = 64 + (rnd() - 0.5) * 70, y = 128 + (rnd() - 0.5) * 150, r = 12 + rnd() * 34;
+          const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(8,7,6,0.55)'); g.addColorStop(1, 'rgba(8,7,6,0)');
+          c.fillStyle = g; c.fillRect(0, 0, 128, S);
+        }
+        c.fillStyle = 'rgba(18,18,20,0.75)'; c.beginPath();   // Flicken (rechte Hälfte), unregelmäßiges Vieleck
+        for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2, r = 50 + rnd() * 10; c.lineTo(192 + Math.cos(a) * r * 0.9, 128 + Math.sin(a) * r * 1.5); }
+        c.closePath(); c.fill();
+        c.strokeStyle = 'rgba(5,5,5,0.7)'; c.lineWidth = 3; c.stroke();
+        const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+      })();
+      const decals = [];
+      for (const e of this.edges) {
+        if (e.cls !== 'city' && e.cls !== 'avenue') continue;
+        for (let sv = 8 + rnd() * 10; sv < e.len - 8; sv += 9 + rnd() * 14) {
+          const p = this.pointOnEdge(e, sv), lane = e.C.lanes[0] * (rnd() < 0.5 ? 1 : -1), patch = rnd() < 0.25;
+          decals.push([p.x - p.tz * lane, p.z + p.tx * lane, Math.atan2(p.tx, p.tz), patch, 0.8 + rnd() * 0.8]);
+        }
+      }
+      for (const patch of [false, true]) {
+        const list = decals.filter((d) => d[3] === patch);
+        const g = new THREE.PlaneGeometry(patch ? 2.4 : 1.4, patch ? 3.2 : 2.6).rotateX(-Math.PI / 2);
+        const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setX(k, uv.getX(k) * 0.5 + (patch ? 0.5 : 0));
+        const dm = new THREE.MeshStandardMaterial({ map: decTex, transparent: true, depthWrite: false, roughness: patch ? 0.9 : 0.35, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -8 });
+        const im = new THREE.InstancedMesh(g, dm, Math.max(1, list.length));
+        list.forEach(([x, z, yaw, , sc], i) => { q.setFromAxisAngle(up, yaw); m.compose(new THREE.Vector3(x, C.h + 0.075, z), q, new THREE.Vector3(sc, 1, sc)); im.setMatrixAt(i, m); });
+        im.count = list.length; im.receiveShadow = true; im.frustumCulled = false; im.renderOrder = 1; this.group.add(im);
+      }
+      this.usProps = { poles: poles.length, wires: wires.length, ac: acs.length, decals: decals.length };
+    }
+
     // Amerikanische Stadt: Feuertreppen aus Stahl an Backstein-Altbauten (je Etage Podest, Geländer, Treppe,
     // unten Hängeleiter) und Palmen auf dem Boulevard-Mittelstreifen
     {
@@ -9520,8 +9608,13 @@ class StreetLife {
       bench: { parts: [{ geo: new THREE.BoxGeometry(1.7, 0.06, 0.45).translate(0, 0.45, 0), color: wood }, { geo: new THREE.BoxGeometry(1.7, 0.35, 0.05).translate(0, 0.72, 0.2), color: wood },
         { geo: new THREE.BoxGeometry(0.06, 0.45, 0.45).translate(-0.75, 0.225, 0), color: dark }, { geo: new THREE.BoxGeometry(0.06, 0.45, 0.45).translate(0.75, 0.225, 0), color: dark }], r: 0.9, h: 0.9, mass: 45 },
       hydrant: { parts: [{ geo: new THREE.CylinderGeometry(0.13, 0.15, 0.7, 12).translate(0, 0.35, 0), color: red }, { geo: new THREE.SphereGeometry(0.13, 12, 8).translate(0, 0.7, 0), color: red }, { geo: new THREE.CylinderGeometry(0.05, 0.05, 0.36, 8).rotateZ(Math.PI / 2).translate(0, 0.45, 0), color: red }], r: 0.25, h: 0.85, mass: 60 },
+      // Zeitungsboxen (USA): bunte Metallkästen mit Sichtfenster und Münzschlitz, auf kurzem Sockel
+      newsbox: { parts: [{ geo: new THREE.BoxGeometry(0.5, 0.25, 0.45).translate(0, 0.12, 0), color: dark },
+        { geo: new THREE.BoxGeometry(0.52, 0.75, 0.47).translate(0, 0.62, 0), color: [0.12, 0.3, 0.62] },
+        { geo: new THREE.BoxGeometry(0.4, 0.3, 0.01).translate(0, 0.72, -0.24), color: [0.75, 0.78, 0.8] },
+        { geo: new THREE.BoxGeometry(0.1, 0.06, 0.02).translate(0.15, 0.95, -0.24), color: [0.6, 0.6, 0.6] }], r: 0.35, h: 1.0, mass: 35 },
     };
-    const order = ['bin', 'meter', 'bollard', 'bench', 'meter', 'hydrant', 'bin', 'bollard'];
+    const order = ['bin', 'meter', 'newsbox', 'bench', 'meter', 'hydrant', 'bin', 'newsbox'];
     this.props = [];
     const pmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 });
     // Positionen: zwischen den Laternen, 0,7 m hinter dem Bordstein (Möbel) bzw. an der Hauswand (Bänke)
