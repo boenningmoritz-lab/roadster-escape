@@ -184,9 +184,16 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false, opts =
       : [...stations(-L / 2, -L / 2 + 0.6, 6), ...stations(-L / 2 + 0.65, L / 2 - 0.65, 26, false), ...stations(L / 2 - 0.6, L / 2, 6)];
     const body = loft(zsBody, (z) => {
       const w = halfW(z), yt = topY(z), yb = botY(z, true), yb0 = botY(z, false);
-      const nose = Math.max(sm(-L / 2 + 0.18, -L / 2, z), sm(L / 2 - 0.18, L / 2, z));   // Enden rund einziehen
-      const wn = w * (1 - 0.1 * nose);
-      return [[0, yb0], [wn * 0.86, yb], [wn * 0.99, yb + 0.08], [wn, (yb + yt) / 2], [wn * 0.985, yt - 0.08], [wn * 0.93, yt - 0.015], [wn * 0.72, yt + 0.02], [wn * 0.35, yt + 0.035 - 0.02 * nose], [0, yt + 0.04 - 0.02 * nose]];
+      // Enden in Draufsicht und Höhe rund einziehen (Front fällt zur Nase ab, Heck mit Abrisskante)
+      const nose = Math.max(sm(-L / 2 + 0.35, -L / 2, z), sm(L / 2 - 0.25, L / 2, z)), front = sm(-L / 2 + 0.35, -L / 2, z);
+      // ausgestellte Kotflügel über den Rädern (Schulter breiter als Tür), leicht eingezogene Türflächen
+      const arch = Math.exp(-(((z - zf) / 0.55) ** 2)) + Math.exp(-(((z - zr) / 0.6) ** 2));
+      const wn = w * (1 - 0.14 * nose * nose) * (1 + 0.035 * Math.min(arch, 1));
+      const ytn = yt - 0.07 * front * front, ybn = yb + 0.04 * nose;
+      const sh = ybn + (ytn - ybn) * 0.68;                                     // Schulterlinie (Sicke)
+      return [[0, yb0], [wn * 0.84, ybn], [wn * 0.95, ybn + 0.04], [wn * 0.975, ybn + 0.12],          // Schweller (eingezogen)
+        [wn * 0.99, (ybn + sh) / 2], [wn, sh - 0.02], [wn * 1.004, sh], [wn * 0.985, sh + 0.025],          // Türfläche, Schulter mit Lichtkante
+        [wn * 0.955, ytn - 0.05], [wn * 0.9, ytn - 0.01], [wn * 0.7, ytn + 0.02], [wn * 0.35, ytn + 0.035 - 0.02 * nose], [0, ytn + 0.04 - 0.02 * nose]];
     });
     parts.push({ geo: body, color: BODY, paint: true });
     // Glashaus: getönte Scheiben, nach oben eingezogen (Tumblehome)
@@ -240,7 +247,13 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false, opts =
     for (const z of [zf, zr]) parts.push({ geo: new THREE.BoxGeometry(W - 0.12, R * 0.9, R * 2).translate(0, s.wr + R * 0.6, z), color: DARK });
     parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.16, 0.1).translate(0, 0.36, -L / 2 + 0.01), color: DARK });
     parts.push({ geo: new THREE.BoxGeometry(W - 0.1, 0.16, 0.1).translate(0, 0.38, L / 2 - 0.02), color: DARK });
-    parts.push({ geo: new THREE.BoxGeometry(W * 0.46, 0.15, 0.06).translate(0, 0.6, -L / 2 - 0.01), color: [0.03, 0.03, 0.035] });
+    // Kühlergrill: Rahmen, dunkler Grund, Querlamellen; unterer Lufteinlass im Stoßfänger
+    parts.push({ geo: new THREE.BoxGeometry(W * 0.5, 0.18, 0.05).translate(0, 0.58, -L / 2 + 0.035), color: [0.03, 0.03, 0.035] });
+    if (!lo) {
+      for (let k = 0; k < 4; k++) parts.push({ geo: new THREE.BoxGeometry(W * 0.48, 0.012, 0.03).translate(0, 0.515 + k * 0.042, -L / 2 + 0.01), color: [0.35, 0.36, 0.38] });
+      parts.push({ geo: new THREE.TorusGeometry(1, 0.012, 4, 24).scale(W * 0.255, 0.095, 1).translate(0, 0.58, -L / 2 + 0.012), color: [0.55, 0.56, 0.58] });
+      parts.push({ geo: new THREE.BoxGeometry(W * 0.62, 0.09, 0.05).translate(0, 0.32, -L / 2 + 0.02), color: [0.04, 0.04, 0.045] });
+    }
     if (!lo) parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.42, -L / 2 - 0.06), color: [0.9, 0.9, 0.86] });
     if (!lo) parts.push({ geo: new THREE.BoxGeometry(0.52, 0.12, 0.03).translate(0, 0.56, L / 2 + 0.04), color: [0.9, 0.9, 0.86] });
     if (!lo) for (const x of [-1, 1]) {
@@ -256,8 +269,13 @@ function makeTrafficVariant(type, spec = TRAFFIC_TYPES[type], lo = false, opts =
       for (let k = 0; k < 5; k++) parts.push({ geo: new THREE.BoxGeometry(0.02, r * 0.95, 0.06).rotateX(k * Math.PI * 2 / 5).translate(wx + x * 0.135, r, z), color: RIM });
     }
     for (const x of [-1, 1]) {
-      lights.push({ geo: new THREE.BoxGeometry(0.42, 0.09, 0.08).translate(x * (W / 2 - 0.32), 0.68, -L / 2 + 0.03), color: [1, 0.96, 0.88] });
-      lights.push({ geo: new THREE.BoxGeometry(0.46, 0.1, 0.06).translate(x * (W / 2 - 0.3), 0.76, L / 2 + 0.0), color: [0.9, 0.04, 0.04], mask: [1, 0, 0] });
+      // Scheinwerfer: schmale, um die Ecke gezogene Einheit mit Tagfahrlicht-Bogen (dunkles Gehäuse + leuchtende Teile)
+      lights.push({ geo: new THREE.CapsuleGeometry(0.045, 0.34, 3, 8).rotateZ(Math.PI / 2).rotateY(x * 0.42).translate(x * (W / 2 - 0.27), 0.68, -L / 2 + 0.09), color: [1, 0.96, 0.88] });
+      lights.push({ geo: new THREE.TorusGeometry(0.07, 0.012, 4, 12, Math.PI).rotateZ(x > 0 ? 0 : Math.PI).rotateY(x * 0.42).translate(x * (W / 2 - 0.16), 0.66, -L / 2 + 0.14), color: [0.95, 0.97, 1] });
+      if (!lo) parts.push({ geo: new THREE.CapsuleGeometry(0.06, 0.38, 3, 8).rotateZ(Math.PI / 2).scale(1, 1, 0.6).rotateY(x * 0.42).translate(x * (W / 2 - 0.27), 0.68, -L / 2 + 0.11), color: [0.04, 0.045, 0.05] });
+      // Rückleuchten: um die Ecke gezogenes Band + Verbindungsleiste über die Heckklappe
+      lights.push({ geo: new THREE.CapsuleGeometry(0.05, 0.34, 3, 8).rotateZ(Math.PI / 2).rotateY(-x * 0.45).translate(x * (W / 2 - 0.24), 0.78, L / 2 - 0.08), color: [0.9, 0.04, 0.04], mask: [1, 0, 0] });
+      if (x > 0) lights.push({ geo: new THREE.BoxGeometry(W * 0.5, 0.02, 0.02).translate(0, 0.8, L / 2 + 0.005), color: [0.6, 0.03, 0.03], mask: [1, 0, 0] });
       // Blinker vorn/hinten (bernstein), nur an wenn aktiv
       lights.push({ geo: new THREE.BoxGeometry(0.1, 0.07, 0.07).translate(x * (W / 2 - 0.06), 0.66, -L / 2 + 0.06), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
       lights.push({ geo: new THREE.BoxGeometry(0.1, 0.07, 0.06).translate(x * (W / 2 - 0.05), 0.66, L / 2 + 0.0), color: [1, 0.5, 0.04], mask: [0, x < 0 ? 1 : 0, x > 0 ? 1 : 0] });
@@ -293,7 +311,14 @@ class TrafficSystem {
       // Dellen: idmg = (Aufprallpunkt x, z lokal, Stärke 0–1, –) → lackierte Teile nahe dem Aufprallpunkt nach innen gedrückt
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float paint;\nattribute vec4 idmg;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n { float dd = distance(position.xz, idmg.xy); float wd = (1.0 - smoothstep(0.2, 2.0, dd)) * idmg.z * paint;\n   float nz = fract(sin(dot(floor(position * 7.0), vec3(12.99, 78.23, 37.71))) * 43758.55);\n   transformed -= objectNormal * wd * (0.14 + 0.16 * nz); }')
-        .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix(vec3(1.0), instanceColor.xyz, paint);'));
+        .replace('#include <color_vertex>', THREE.ShaderChunk.color_vertex.replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix(vec3(1.0), instanceColor.xyz, paint);') + '\n vPaintF = paint; vFlakeP = position;')
+        .replace('#include <common>', '#include <common>\nvarying float vPaintF; varying vec3 vFlakeP;');
+      // Metallic-Lack: glatte Oberfläche mit feinen, im Licht glitzernden Flakes; Reifen, Kunststoff, Glasrahmen bleiben matt
+      sh.fragmentShader = 'varying float vPaintF; varying vec3 vFlakeP;\n' + sh.fragmentShader
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+          float flk = fract(sin(dot(floor(vFlakeP * 900.0), vec3(12.99, 78.23, 37.71))) * 43758.55);
+          roughnessFactor = mix(0.75, 0.24 + 0.04 * flk, vPaintF);`)
+        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor = mix(0.0, 0.5 + 0.06 * flk, vPaintF);');
     };
     this.lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
     // Instanzfarbe: r = Rücklicht-Helligkeit (Bremse), g/b = Blinker links/rechts (0 aus … 1 an)
