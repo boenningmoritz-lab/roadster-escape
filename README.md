@@ -282,11 +282,12 @@ Nach Änderungen an den Dateien in `sw.js` die `VERSION` erhöhen, damit install
 - **Ego-Sicht in Limousine, Kombi, SUV:** eigenes Dach und lackierte A-Säulen, Fahrgastraum-Oberseite der Karosserie ausgeschnitten → das ausführliche Cockpit (Armaturen, Displays, Lenkrad, Hände, Sitze) bleibt sichtbar; der Roadster-Scheibenrahmen nur noch beim Roadster.
 
 ## Fotomaterialien (CC0)
+- **Hintergrund:** Skyline einer Nachbarstadt im Nordosten (70 Türme in 2,1–2,5 km, Dunstfarbe, Fensterraster, nachts beleuchtete Fenster und rote Flugwarnlichter; 1 Draw-Call). Bergkulisse mit Foto-Felsstruktur (CC0-Luftbild aerial_rocks_02) statt glatter Farbflächen.
 - **Verkehrsautos:** neuer Querschnitt mit eingezogenem Schweller, Türfläche und Schulter-Sicke, ausgestellte Kotflügel über den Rädern, zur Nase abfallende Haube; Kühlergrill mit Lamellen und Chromrahmen, unterer Lufteinlass; Scheinwerfer als um die Ecke gezogene Einheit mit Tagfahrlicht-Bogen, Rückleuchten-Band mit Verbindungsleiste; glatter Metallic-Lack (feine Flakes), der den Fotohimmel spiegelt.
 - **Straßenausstattung USA:** Holz-Strommasten mit Querträgern, Isolatoren und Trafos, durchhängende Leitungen von Mast zu Mast; Klimageräte und Lüftungshauben auf Flachdächern; Ölflecken und Asphaltflicken auf den Fahrspuren; Zeitungsboxen am Gehweg (wegschleuderbar).
 - **Amerikanische Stadt:** Feuertreppen aus Stahl an Backstein-Altbauten (348 Etagen-Module, instanziert, 1 Draw-Call), Palmen mit gebogenem Stamm und Wedelkrone auf dem Boulevard-Mittelstreifen.
 - **Straßen:** Foto-Asphalt mit Normal-/Rauheitskarte (4-m-Kachel), gemalte Spuren/Flicken bleiben als Muster; amerikanische Markierungen (doppelte gelbe Mittellinie, gelber Innenrand, weiße Leitlinien). **Gehwege:** Betonplatten. **Fassaden:** Foto-Wände zwischen den Fenstern (Beton bei Bürotürmen, Backstein/Beton gemischt, Altbauten Backstein oder Putz), Flachdächer Bitumen. **Himmel:** echtes HDRI tagsüber, Sonne steht wie im Foto; bei Bewölkung/Regen, abends und nachts weiter der berechnete Himmel.
-Texturen und Himmels-HDRI von [Poly Haven](https://polyhaven.com) (Lizenz CC0, frei nutzbar): asphalt_02, concrete_pavement, brick_wall_02, concrete_wall_008, beige_wall_001, bitumen, HDRI kloofendal_48d_partly_cloudy_puresky. Abgelegt in `assets/` (1024 px, JPG), im Einzeldatei-Build als data:-URLs eingebettet.
+Texturen und Himmels-HDRI von [Poly Haven](https://polyhaven.com) (Lizenz CC0, frei nutzbar): asphalt_02, concrete_pavement, brick_wall_02, concrete_wall_008, beige_wall_001, bitumen, aerial_rocks_02, HDRI kloofendal_48d_partly_cloudy_puresky. Abgelegt in `assets/` (1024 px, JPG), im Einzeldatei-Build als data:-URLs eingebettet.
 
 ## Code-Aufbau
 

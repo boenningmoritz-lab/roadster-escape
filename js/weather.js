@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { photoTex } from './assets.js';
 import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
 import { clamp, lerp, damp, smoothstep, Settings } from './config.js';
 import { hash2, mulberry32, fbm } from './world/noise.js';
@@ -186,7 +187,19 @@ function makeMountainRing() {
     g.setIndex(idx); g.computeVertexNormals();
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false, side: THREE.DoubleSide, flatShading: true });
     mat.emissive.setScalar(0.35); mat.emissiveIntensity = 1;   // Schattenseiten nicht schwarz (Streulicht der Atmosphäre)
-    mat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= vColor.rgb;'); };
+    // Fotostruktur (CC0-Luftbild Fels/Geröll) von oben projiziert: Rinnen, Geröll, Felsbänder statt glatter Farbflächen
+    const rockTex = photoTex('aerial_rocks_02', 'diff');
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uRock = { value: rockTex };
+      sh.vertexShader = 'varying vec3 vMW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vMW = (modelMatrix * vec4(position, 1.0)).xyz;');
+      sh.fragmentShader = 'uniform sampler2D uRock; varying vec3 vMW;\n' + sh.fragmentShader
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          { vec3 rk = texture2D(uRock, vMW.xz / 380.0).rgb * 0.6 + texture2D(uRock, vMW.xz / 95.0 + vMW.y / 140.0).rgb * 0.4;
+            float lum = dot(rk, vec3(0.333));
+            diffuseColor.rgb *= mix(vec3(1.0), rk / max(lum, 0.05) * (0.55 + lum * 1.1), ${haze < 0.55 ? '0.85' : '0.6'}); }`)
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= vColor.rgb;');
+    };
+    mat.customProgramCacheKey = () => 'berge' + haze;
     const m = new THREE.Mesh(g, mat);
     m.frustumCulled = false; m.renderOrder = -0.5;
     // Vorhang nach unten, damit keine Lücke zum Gelände sichtbar ist
@@ -194,8 +207,46 @@ function makeMountainRing() {
   };
   layer(2300, 450, 260, 6, 160, -40, 31, true, 0.5);      // Vorberge mit Wald (Luftperspektive: bläulicher Dunst)
   layer(2900, 600, 300, 8, 520, 40, 77, false, 0.62);     // Hochgebirge mit Schnee
+  grp.add(makeSkyline(grp));
   grp.userData.setTint = () => {};
   return grp;
+}
+
+// ============================== Skyline der Nachbarstadt ==============================
+/**
+ * Ferne Hochhaus-Silhouette (2,1–2,5 km, nordöstlich): Türme in Dunstfarbe mit Fensterraster in Weltkoordinaten,
+ * nachts mit beleuchteten Fenstern und roten Flugwarnlichtern. Ein Draw-Call.
+ */
+function makeSkyline(grp) {
+  const rng = mulberry32(909), parts = [];
+  for (let k = 0; k < 70; k++) {
+    const a = -1.15 + rng() * 1.1, R = 2100 + rng() * 380, w = 22 + rng() * 40, d = 22 + rng() * 40;
+    const core = Math.abs(a + 0.6) < 0.25, h = (core ? 120 : 50) + rng() * (core ? 260 : 110);
+    const x = Math.cos(a) * R, z = Math.sin(a) * R;
+    parts.push({ geo: new THREE.BoxGeometry(w, h, d).translate(x, h / 2 - 20, z), color: [0.36 + rng() * 0.08, 0.41 + rng() * 0.07, 0.5 + rng() * 0.06] });
+    if (rng() < 0.4) parts.push({ geo: new THREE.BoxGeometry(w * 0.6, h * 0.18, d * 0.6).translate(x, h - 20 + h * 0.09, z), color: [0.34, 0.39, 0.47] });   // Aufsatz
+    if (rng() < 0.3) parts.push({ geo: new THREE.CylinderGeometry(0.8, 1.2, 40, 6).translate(x, h - 20 + 20, z), color: [0.5, 0.52, 0.55] });              // Antenne
+  }
+  const nightU = { value: 0 };
+  grp.userData.skyNight = nightU;
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uNightSky = nightU;
+    sh.vertexShader = 'varying vec3 vSW; varying vec3 vSN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vSW = (modelMatrix * vec4(position, 1.0)).xyz; vSN = normal;');
+    sh.fragmentShader = 'uniform float uNightSky; varying vec3 vSW; varying vec3 vSN;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      totalEmissiveRadiance *= vColor.rgb * 0.6;   // Streulicht in Eigenfarbe (sonst grau-weiß aufgehellt)
+      { vec2 f = abs(vSN.x) > 0.5 ? vec2(vSW.z, vSW.y) : vec2(vSW.x, vSW.y);
+        vec2 cell = floor(f / vec2(3.2, 3.6)), fr = fract(f / vec2(3.2, 3.6));
+        float win = step(0.18, fr.x) * step(fr.x, 0.82) * step(0.25, fr.y) * step(fr.y, 0.8) * (1.0 - step(0.5, abs(vSN.y)));
+        float on = step(0.62, fract(sin(dot(cell, vec2(12.99, 78.23))) * 43758.5));
+        diffuseColor.rgb *= 1.0 - win * 0.3 * (1.0 - uNightSky);
+        totalEmissiveRadiance += win * on * uNightSky * vec3(1.0, 0.82, 0.55) * 0.9;
+        float top = step(0.5, vSN.y) * step(0.985, fract(sin(dot(floor(vSW.xz / 20.0), vec2(4.1, 7.3))) * 917.3));
+        totalEmissiveRadiance += top * uNightSky * vec3(1.6, 0.1, 0.05); }`);
+  };
+  const m = new THREE.Mesh(mergeParts(parts), mat);
+  m.frustumCulled = false; m.renderOrder = -0.6;
+  return m;
 }
 
 // ============================== Felsen & Büsche ==============================

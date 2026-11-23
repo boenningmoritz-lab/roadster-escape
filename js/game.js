@@ -149,6 +149,7 @@ class Game {
     this.furniture.setNight(lights);
     // Bergkulisse: Abendrot bzw. Nacht-Abdunklung (Lambert-Material reagiert zusätzlich auf Sonne/Himmelslicht)
     this.mountains.traverse((o) => { if (o.material) { if (mode === 'dusk') o.material.color.setRGB(1.0, 0.78, 0.68); else o.material.color.setScalar(night ? 0.35 : 1); if (o.material.emissive) o.material.emissive.setScalar(night ? 0.03 : mode === 'dusk' ? 0.25 : 0.35); } });
+    if (this.mountains.userData.skyNight) this.mountains.userData.skyNight.value = night ? 1 : mode === 'dusk' ? 0.35 : 0;   // Skyline-Fenster
     this.weather.apply(Settings.data.weather || 'clear');   // nach der Tageszeit, da es Licht/Nebel/Himmel anpasst
   }
 
